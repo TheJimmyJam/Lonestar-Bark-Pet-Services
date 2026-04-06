@@ -8092,6 +8092,38 @@ function WalkerApplicationPage({ onBack }) {
 }
 
 
+// ─── Customer Error Boundary ──────────────────────────────────────────────────
+class CustomerErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(e) { return { error: e }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center",
+          justifyContent: "center", padding: "32px", textAlign: "center",
+          fontFamily: "'DM Sans', sans-serif" }}>
+          <div>
+            <div style={{ fontSize: "48px", marginBottom: "16px" }}>🐾</div>
+            <div style={{ fontSize: "20px", fontWeight: 600, color: "#111827", marginBottom: "8px" }}>
+              Something went wrong.
+            </div>
+            <div style={{ fontSize: "15px", color: "#6b7280", marginBottom: "24px" }}>
+              Please refresh the page and try again.
+            </div>
+            <button onClick={() => window.location.reload()}
+              style={{ padding: "12px 28px", borderRadius: "10px", border: "none",
+                background: "#C4541A", color: "#fff", fontSize: "15px",
+                fontWeight: 500, cursor: "pointer" }}>
+              Refresh
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function LonestarBark() {
   // Ensure proper mobile viewport
   useEffect(() => {
@@ -8884,9 +8916,10 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
               <PinPad label="Enter your PIN" onComplete={handlePin} error={pinError} color={amber} />
             </div>
             <button onClick={handleForgetMe} style={{
-              marginTop: "20px", background: "none", border: "none", color: "#b4530999",
-              fontFamily: "'DM Sans', sans-serif", fontSize: "16px", cursor: "pointer",
-              width: "100%", textAlign: "center" }}>
+              marginTop: "20px", background: "none", border: "1px solid rgba(255,255,255,0.2)",
+              borderRadius: "8px", padding: "9px 16px", color: "#fff",
+              fontFamily: "'DM Sans', sans-serif", fontSize: "14px", cursor: "pointer",
+              width: "100%", textAlign: "center", opacity: 0.75 }}>
               {savedEmail ? "← Not you? Switch account" : "← Use a different email"}
             </button>
           </div>
@@ -18938,47 +18971,34 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
 
           return (
             <div className="fade-up">
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                fontWeight: 600, color: "#111827", marginBottom: "6px" }}>Clients</div>
+              {/* Header row with Add Client button */}
+              <div style={{ display: "flex", alignItems: "flex-start",
+                justifyContent: "space-between", marginBottom: "6px" }}>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
+                  fontWeight: 600, color: "#111827" }}>Clients</div>
+                <button
+                  onClick={() => setShowAdminAddClient(v => !v)}
+                  style={{ padding: "9px 18px", borderRadius: "10px", border: "none",
+                    background: showAdminAddClient ? "#e4e7ec" : "#C4541A",
+                    color: showAdminAddClient ? "#374151" : "#fff",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                    fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+                    flexShrink: 0, marginTop: "4px" }}>
+                  {showAdminAddClient ? "✕ Cancel" : "+ Add Client"}
+                </button>
+              </div>
               <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
                 marginBottom: "16px" }}>
                 {Object.keys(clients).length} registered client{Object.keys(clients).length !== 1 ? "s" : ""} — click any client to view their full profile.
               </p>
 
-              {/* ── Add Client banner ── */}
-              {!showAdminAddClient ? (
-                <button onClick={() => setShowAdminAddClient(true)} style={{
-                  width: "100%", marginBottom: "16px", padding: "14px 18px",
-                  borderRadius: "14px", border: "1.5px dashed #8B5E3C",
-                  background: "#FDF5EC", cursor: "pointer", textAlign: "left",
-                  display: "flex", alignItems: "center", gap: "12px",
-                  transition: "all 0.15s",
-                }}>
-                  <div style={{ width: "36px", height: "36px", borderRadius: "50%",
-                    background: "#C4541A", display: "flex", alignItems: "center",
-                    justifyContent: "center", fontSize: "18px", flexShrink: 0 }}>
-                    ➕
-                  </div>
-                  <div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                      fontSize: "15px", color: "#C4541A" }}>Add New Client</div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                      color: "#D4A843", marginTop: "1px" }}>
-                      Create a client account on their behalf
-                    </div>
-                  </div>
-                  <div style={{ marginLeft: "auto", fontSize: "16px", color: "#D4A843" }}>›</div>
-                </button>
-              ) : (
-                <div style={{ background: "#fff", border: "1.5px solid #8B5E3C",
+              {/* ── Add Client form ── */}
+              {showAdminAddClient && (
+                <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
                   borderRadius: "14px", marginBottom: "16px", overflow: "hidden" }}>
-                  <div style={{ background: "#C4541A", padding: "12px 18px",
-                    display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ background: "#C4541A", padding: "12px 18px" }}>
                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                      fontSize: "15px", color: "#fff" }}>➕ Add New Client</div>
-                    <button onClick={() => setShowAdminAddClient(false)} style={{
-                      background: "none", border: "none", color: "#ffffffaa",
-                      fontSize: "18px", cursor: "pointer", lineHeight: 1, padding: "2px" }}>✕</button>
+                      fontSize: "15px", color: "#fff" }}>Add New Client</div>
                   </div>
                   <div style={{ padding: "16px" }}>
                     <AddLegacyClientForm
