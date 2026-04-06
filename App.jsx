@@ -1149,7 +1149,7 @@ function LogoBadge({ size = 48 }) {
 // ─── Header ───────────────────────────────────────────────────────────────────
 function Header({ client, onLogout, page, setPage, notifCounts = {} }) {
   return (
-    <div style={{ flexShrink: 0 }}>
+    <div>
       <header style={{ background: "#0B1423", padding: "16px 24px 14px", textAlign: "center" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "14px", marginBottom: "4px" }}>
           <LogoBadge size={48} />
@@ -1183,7 +1183,8 @@ function Header({ client, onLogout, page, setPage, notifCounts = {} }) {
           <>
             {/* Sliding top tab nav */}
             <nav style={{ background: "#0B1423", borderBottom: "1px solid #8A7545",
-              display: "flex", alignItems: "stretch" }}
+              display: "flex", alignItems: "stretch",
+              position: "sticky", top: 0, zIndex: 10 }}
               className="nav-tabs">
 
               {/* ── Pinned: Book a Walk ── */}
@@ -2940,11 +2941,13 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
   const slotSectionRef   = useRef(null);
   const detailsSectionRef = useRef(null);
   const pickSectionRef   = useRef(null);
+  const preferredWalkerRef = useRef(null);
 
   // Auto-scroll when stage enters "pick"
   useEffect(() => {
     if (stage === "pick") {
       setTimeout(() => pickSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      setTimeout(() => preferredWalkerRef.current?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" }), 200);
     }
   }, [stage]);
 
@@ -4548,9 +4551,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#f5f6f8" }}>
       <style>{GLOBAL_STYLES}</style>
-      <Header client={client} onLogout={onLogout} page={page} setPage={setPage} notifCounts={clientNotifCountsFull} />
       <div style={{ flex: 1, overflowY: "auto" }}>
-
+      <Header client={client} onLogout={onLogout} page={page} setPage={setPage} notifCounts={clientNotifCountsFull} />
       {/* PRICING PAGE */}
       {page === "pricing" && (
         <div className="app-container fade-up">
@@ -6032,6 +6034,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       const dotTitle = hasAvail ? "Available this day" : hasAnyAvail ? "Available other days" : "No availability set";
                       return (
                         <button key={w.id} onClick={() => setForm(f => ({ ...f, walker: w.name }))}
+                          ref={isPreferred ? preferredWalkerRef : null}
                           style={{
                             position: "relative",
                             flexShrink: 0, padding: "12px 16px", borderRadius: "14px",
@@ -10084,37 +10087,11 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#f0f2f5" }}>
       <style>{GLOBAL_STYLES}</style>
 
-      {/* Header + Nav sticky wrapper */}
-      <div style={{ flexShrink: 0 }}>
-      {/* Header */}
-      <header style={{ background: "#1A3A42", padding: "16px 24px" }}>
-        <div style={{ display: "flex",
-          alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <LogoBadge size={30} />
-              <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
-                fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "1px" }}>Lonestar Bark Co.</div>
-            </div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#4E7A8C",
-              fontSize: "16px", marginTop: "2px" }}>
-              {walker.avatar} {walker.name} · {TABS.find(t => t.id === tab)?.label || ""}
-            </div>
-          </div>
-          <button onClick={() => setWalkerMenuOpen(true)} style={{ background: "transparent",
-            border: "1px solid rgba(255,255,255,0.35)", color: "rgba(255,255,255,0.65)", padding: "8px 12px",
-            borderRadius: "8px", cursor: "pointer", fontSize: "18px", lineHeight: 1,
-            display: "flex", flexDirection: "column", gap: "4px", alignItems: "center" }}>
-            <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
-            <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
-            <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
-          </button>
-        </div>
-      </header>
-
+      {/* Header + Nav */}
       {/* Sliding Tab Nav */}
       <nav style={{ background: "#1A3A42", borderBottom: "1px solid #254E5E",
-        display: "flex", alignItems: "stretch" }}
+        display: "flex", alignItems: "stretch", flexShrink: 0,
+        position: "sticky", top: 0, zIndex: 10 }}
         className="nav-tabs">
         {/* ── Pinned: My Schedule ── */}
         {(() => {
@@ -10171,7 +10148,6 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
           }}>↩ Log out</button>
         </div>
       </nav>
-      </div>{/* end sticky wrapper */}
 
       {/* Hamburger Menu Drawer */}
       {walkerMenuOpen && (
@@ -10233,6 +10209,30 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
       )}
 
       <div data-scroll-pane style={{ flex: 1, overflowY: "auto" }}>
+      {/* Header */}
+      <header style={{ background: "#1A3A42", padding: "16px 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <LogoBadge size={30} />
+              <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
+                fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "1px" }}>Lonestar Bark Co.</div>
+            </div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#4E7A8C",
+              fontSize: "16px", marginTop: "2px" }}>
+              {walker.avatar} {walker.name} · {TABS.find(t => t.id === tab)?.label || ""}
+            </div>
+          </div>
+          <button onClick={() => setWalkerMenuOpen(true)} style={{ background: "transparent",
+            border: "1px solid rgba(255,255,255,0.35)", color: "rgba(255,255,255,0.65)", padding: "8px 12px",
+            borderRadius: "8px", cursor: "pointer", fontSize: "18px", lineHeight: 1,
+            display: "flex", flexDirection: "column", gap: "4px", alignItems: "center" }}>
+            <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
+            <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
+            <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
+          </button>
+        </div>
+      </header>
       <div style={{ maxWidth: "720px", margin: "0 auto", padding: "24px 16px 80px" }}>
 
         {/* ── Dashboard ── */}
@@ -16607,82 +16607,10 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#faf8f5" }}>
       <style>{GLOBAL_STYLES}</style>
 
-      {/* Header + Nav sticky wrapper */}
-      <div style={{ flexShrink: 0 }}>
-      <header style={{ background: "#4D2E10", padding: "16px 24px" }}>
-        <div style={{ display: "flex",
-          alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
-              fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "1px", display: "flex", alignItems: "center", gap: "10px" }}>
-              Lonestar Bark Co.
-              {(() => {
-                const total = Object.values(notifCounts).reduce((s, n) => s + n, 0);
-                return total > 0 ? (
-                  <span style={{
-                    background: "#ef4444", color: "#fff", borderRadius: "12px",
-                    fontSize: "15px", fontWeight: 700, padding: "2px 8px", lineHeight: "18px",
-                    minWidth: "20px", textAlign: "center", display: "inline-block",
-                    boxShadow: "0 0 0 2px #4D2E10",
-                  }}>{total}</span>
-                ) : null;
-              })()}
-            </div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#d97706",
-              fontSize: "16px", marginTop: "2px" }}>
-              🛡️ Admin · {TABS.find(t => t.id === tab)?.label || ""}
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            {/* Refresh button */}
-            <button
-              onClick={async () => {
-                setRefreshing(true);
-                try {
-                  const [c, wp, tr, pr] = await Promise.all([
-                    loadClients(), loadWalkerProfiles(), loadTrades(), loadCompletedPayrolls(),
-                  ]);
-                  injectCustomWalkers(wp);
-                  const extended = extendRecurringBookings(c);
-                  if (extended !== c) saveClients(extended);
-                  setClients(extended);
-                  setWalkerProfiles(wp);
-                  setTrades(tr);
-                  setCompletedPayrolls(pr);
-                } finally {
-                  setRefreshing(false);
-                }
-              }}
-              disabled={refreshing}
-              title="Refresh data from server"
-              data-tooltip="Refresh data"
-              style={{
-                background: "transparent", border: "1px solid #8B5220",
-                color: refreshing ? "#8B5220" : "#d97706",
-                padding: "8px 12px", borderRadius: "8px", cursor: refreshing ? "default" : "pointer",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                lineHeight: 1, transition: "color 0.15s",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                animation: refreshing ? "spin 0.8s linear infinite" : "none",
-              }}>
-              ↻
-            </button>
-            {/* Hamburger */}
-            <button onClick={() => setAdminMenuOpen(true)} style={{ background: "transparent",
-              border: "1px solid #8B5220", color: "#d97706", padding: "8px 12px",
-              borderRadius: "8px", cursor: "pointer",
-              display: "flex", flexDirection: "column", gap: "4px", alignItems: "center" }}>
-              <span style={{ display: "block", width: "18px", height: "2px", background: "#d97706", borderRadius: "2px" }} />
-              <span style={{ display: "block", width: "18px", height: "2px", background: "#d97706", borderRadius: "2px" }} />
-              <span style={{ display: "block", width: "18px", height: "2px", background: "#d97706", borderRadius: "2px" }} />
-            </button>
-          </div>
-        </div>
-      </header>
-
       {/* Sliding Tab Nav */}
       <nav style={{ background: "#4D2E10", borderBottom: "1px solid #6B4420",
-        display: "flex", alignItems: "stretch" }}
+        display: "flex", alignItems: "stretch", flexShrink: 0,
+        position: "sticky", top: 0, zIndex: 10 }}
         className="nav-tabs">
         {/* ── Pinned: Overview ── */}
         {(() => {
@@ -16740,7 +16668,6 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
           }}>↩ Log out</button>
         </div>
       </nav>
-      </div>{/* end sticky wrapper */}
 
       {/* Admin Hamburger Drawer */}
       {adminMenuOpen && (
@@ -16800,6 +16727,72 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
       )}
 
       <div data-scroll-pane style={{ flex: 1, overflowY: "auto" }}>
+      {/* Header */}
+      <header style={{ background: "#4D2E10", padding: "16px 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
+              fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "1px", display: "flex", alignItems: "center", gap: "10px" }}>
+              Lonestar Bark Co.
+              {(() => {
+                const total = Object.values(notifCounts).reduce((s, n) => s + n, 0);
+                return total > 0 ? (
+                  <span style={{
+                    background: "#ef4444", color: "#fff", borderRadius: "12px",
+                    fontSize: "15px", fontWeight: 700, padding: "2px 8px", lineHeight: "18px",
+                    minWidth: "20px", textAlign: "center", display: "inline-block",
+                    boxShadow: "0 0 0 2px #4D2E10",
+                  }}>{total}</span>
+                ) : null;
+              })()}
+            </div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#d97706",
+              fontSize: "16px", marginTop: "2px" }}>
+              🛡️ Admin · {TABS.find(t => t.id === tab)?.label || ""}
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button
+              onClick={async () => {
+                setRefreshing(true);
+                try {
+                  const [c, wp, tr, pr] = await Promise.all([
+                    loadClients(), loadWalkerProfiles(), loadTrades(), loadCompletedPayrolls(),
+                  ]);
+                  injectCustomWalkers(wp);
+                  const extended = extendRecurringBookings(c);
+                  if (extended !== c) saveClients(extended);
+                  setClients(extended);
+                  setWalkerProfiles(wp);
+                  setTrades(tr);
+                  setCompletedPayrolls(pr);
+                } finally {
+                  setRefreshing(false);
+                }
+              }}
+              disabled={refreshing}
+              title="Refresh data from server"
+              data-tooltip="Refresh data"
+              style={{
+                background: "transparent", border: "1px solid #8B5220",
+                color: refreshing ? "#8B5220" : "#d97706",
+                padding: "8px 12px", borderRadius: "8px", cursor: refreshing ? "default" : "pointer",
+                fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                lineHeight: 1, transition: "color 0.15s",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                animation: refreshing ? "spin 0.8s linear infinite" : "none",
+              }}>↻</button>
+            <button onClick={() => setAdminMenuOpen(true)} style={{ background: "transparent",
+              border: "1px solid #8B5220", color: "#d97706", padding: "8px 12px",
+              borderRadius: "8px", cursor: "pointer",
+              display: "flex", flexDirection: "column", gap: "4px", alignItems: "center" }}>
+              <span style={{ display: "block", width: "18px", height: "2px", background: "#d97706", borderRadius: "2px" }} />
+              <span style={{ display: "block", width: "18px", height: "2px", background: "#d97706", borderRadius: "2px" }} />
+              <span style={{ display: "block", width: "18px", height: "2px", background: "#d97706", borderRadius: "2px" }} />
+            </button>
+          </div>
+        </div>
+      </header>
       <div style={{ maxWidth: "800px", margin: "0 auto", padding: "24px 16px 80px" }}>
 
         {/* ── Overview ── */}
