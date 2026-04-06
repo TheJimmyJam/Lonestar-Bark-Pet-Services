@@ -6931,15 +6931,6 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
   const [landingMenuOpen, setLandingMenuOpen] = useState(false);
   const [landingView, setLandingView] = useState("home"); // "home" | "apply"
 
-  // Hash-based deep link: lonestarbark.netlify.app#apply → open Join the Team directly
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash === "#apply") {
-      setLandingView("apply");
-      window.history.replaceState(null, "", window.location.pathname);
-    }
-  }, []);
-
   useEffect(() => {
     const handleScroll = () => setNavScrolled(window.scrollY > 40);
     window.addEventListener("scroll", handleScroll);
@@ -7542,53 +7533,99 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
 
 // ─── Walker Application Page ──────────────────────────────────────────────────
 function WalkerApplicationPage({ onBack }) {
-  const blankJoin = {
-    firstName: "", lastName: "", email: "", phone: "", city: "", zip: "",
-    hasDogExp: null, expYears: "", expDesc: "",
-    firstAid: false, petCpr: false,
-    ref1Name: "", ref1Phone: "", ref1Rel: "",
-    ref2Name: "", ref2Phone: "", ref2Rel: "",
-    days: [], times: [], hoursPerWeek: "",
-    serviceInterests: [], message: "",
-    w9File: null,
+  const blankForm = {
+    firstName: "", lastName: "", email: "", phone: "",
+    zip: "", city: "", state: "", address: "",
   };
-  const [joinStep, setJoinStep] = useState(1);
-  const [joinForm, setJoinForm] = useState(blankJoin);
-  const [joinErrors, setJoinErrors] = useState({});
-  const jf = (k, v) => setJoinForm(f => ({ ...f, [k]: v }));
+  const [form, setForm]         = useState(blankForm);
+  const [errors, setErrors]     = useState({});
+  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [zipLookup, setZipLookup] = useState("idle"); // "idle"|"loading"|"found"|"notfound"
+
+  const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const inp = (err) => ({
-    width: "100%", padding: "11px 14px", borderRadius: "10px",
+    width: "100%", padding: "11px 14px", borderRadius: "10px", boxSizing: "border-box",
     border: `1.5px solid ${err ? "#ef4444" : "#e4e7ec"}`,
     fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
     color: "#111827", outline: "none", background: "#fff",
   });
   const lbl = {
-    display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+    display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
     fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
     color: "#9ca3af", marginBottom: "5px",
   };
-  const errMsg = (k) => joinErrors[k] && (
-    <div style={{ color: "#ef4444", fontSize: "15px",
-      fontFamily: "'DM Sans', sans-serif", marginTop: "3px" }}>{joinErrors[k]}</div>
+  const errMsg = (k) => errors[k] && (
+    <div style={{ color: "#ef4444", fontSize: "13px",
+      fontFamily: "'DM Sans', sans-serif", marginTop: "3px" }}>{errors[k]}</div>
   );
-  const chipBtn = (active, onClick, children) => (
-    <button onClick={onClick} style={{
-      padding: "7px 14px", borderRadius: "20px", cursor: "pointer",
-      border: `1.5px solid ${active ? "#C4541A" : "#d1d5db"}`,
-      background: active ? "#C4541A" : "#fff",
-      color: active ? "#fff" : "#6b7280",
-      fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-      fontWeight: active ? 600 : 400, transition: "all 0.12s",
-    }}>{children}</button>
-  );
-  const toggleArr = (key, val) => setJoinForm(f => ({
-    ...f, [key]: f[key].includes(val) ? f[key].filter(v => v !== val) : [...f[key], val],
-  }));
+
+  // ZIP → city + state lookup via Zippopotam
+  const lookupZip = async (zip) => {
+    if (zip.length < 5) return;
+    setZipLookup("loading");
+    try {
+      const res = await fetch(`https://api.zippopotam.us/us/${zip}`);
+      if (!res.ok) { setZipLookup("notfound"); f("city", ""); f("state", ""); return; }
+      const data = await res.json();
+      const place = data.places?.[0];
+      if (place) {
+        f("city", place["place name"]);
+        f("state", place["state abbreviation"]);
+        setZipLookup("found");
+        setErrors(p => ({ ...p, zip: undefined, city: undefined, state: undefined }));
+      } else {
+        setZipLookup("notfound");
+      }
+    } catch {
+      setZipLookup("notfound");
+    }
+  };
+
+  const handleSubmit = async () => {
+    const errs = {};
+    if (!form.firstName.trim())            errs.firstName = "Required";
+    if (!form.lastName.trim())             errs.lastName  = "Required";
+    if (!form.email.includes("@"))         errs.email     = "Valid email required";
+    if (form.phone.replace(/\D/g,"").length < 10) errs.phone = "Valid phone required";
+    if (form.zip.length < 5)              errs.zip       = "5-digit ZIP required";
+    if (!form.city.trim())                errs.city      = "City required — enter a valid ZIP first";
+    if (!form.address.trim())             errs.address   = "Required";
+    if (Object.keys(errs).length) { setErrors(errs); return; }
+    setErrors({}); setSubmitting(true);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/applications`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+          "Prefer": "return=minimal",
+        },
+        body: JSON.stringify({
+          first_name: form.firstName.trim(),
+          last_name:  form.lastName.trim(),
+          email:      form.email.trim().toLowerCase(),
+          phone:      form.phone.trim(),
+          zip:        form.zip,
+          city:       form.city,
+          state:      form.state,
+          address:    form.address.trim(),
+          status:     "pending",
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setSubmitted(true);
+    } catch {
+      setErrors({ submit: "Something went wrong. Please try again." });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f5f6f8",
-      fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#f5f6f8", fontFamily: "'DM Sans', sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');`}</style>
 
       {/* Header */}
@@ -7599,28 +7636,34 @@ function WalkerApplicationPage({ onBack }) {
           fontSize: "15px", display: "flex", alignItems: "center", gap: "6px" }}>
           ← Back
         </button>
-        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+          textTransform: "uppercase", letterSpacing: "1.5px",
           fontWeight: 600, color: "#fff", flex: 1, textAlign: "center" }}>
           Join the Team
         </div>
         <div style={{ width: "48px" }} />
       </div>
 
-      <div style={{ maxWidth: "640px", margin: "0 auto", padding: "32px 20px" }}>
+      <div style={{ maxWidth: "560px", margin: "0 auto", padding: "32px 20px" }}>
 
-        {joinStep === "done" ? (
-          <div className="fade-up" style={{ background: "#fff", border: "1.5px solid #D4A87A",
-            borderRadius: "20px", padding: "48px 32px", textAlign: "center",
-            boxShadow: "0 4px 24px rgba(0,0,0,0.06)" }}>
+        {/* Gold accent bar at top of card */}
+        <div style={{ height: "4px", background: "linear-gradient(90deg,#C4541A,#D4A843)",
+          borderRadius: "4px 4px 0 0" }} />
+
+        {submitted ? (
+          <div style={{ background: "#fff", border: "1.5px solid #D4A87A",
+            borderTop: "none", borderRadius: "0 0 20px 20px", padding: "48px 32px",
+            textAlign: "center", boxShadow: "0 4px 24px rgba(0,0,0,0.06)" }}>
             <div style={{ fontSize: "48px", marginBottom: "16px" }}>🐾</div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+              textTransform: "uppercase", letterSpacing: "1.5px",
               fontWeight: 600, color: "#C4541A", marginBottom: "12px" }}>
               Application Received!
             </div>
             <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
               color: "#374151", lineHeight: "1.7", maxWidth: "380px", margin: "0 auto 28px" }}>
-              Thanks, {joinForm.firstName}! We'll review your application and reach out
-              to {joinForm.email} within 3–5 business days.
+              Thanks, {form.firstName}! We'll review your application and reach out
+              to {form.email} within 3–5 business days.
             </p>
             <div style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
               <button onClick={onBack} style={{ padding: "11px 24px", borderRadius: "10px",
@@ -7628,7 +7671,7 @@ function WalkerApplicationPage({ onBack }) {
                 fontFamily: "'DM Sans', sans-serif", fontSize: "16px", cursor: "pointer" }}>
                 ← Back to Site
               </button>
-              <button onClick={() => { setJoinForm(blankJoin); setJoinStep(1); setJoinErrors({}); }}
+              <button onClick={() => { setForm(blankForm); setSubmitted(false); setErrors({}); setZipLookup("idle"); }}
                 style={{ padding: "11px 24px", borderRadius: "10px", border: "none",
                   background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
                   fontSize: "16px", fontWeight: 500, cursor: "pointer" }}>
@@ -7637,416 +7680,143 @@ function WalkerApplicationPage({ onBack }) {
             </div>
           </div>
         ) : (
-          <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
-            borderRadius: "20px", overflow: "hidden",
+          <div style={{ background: "#fff", borderTop: "none", border: "1.5px solid #e4e7ec",
+            borderRadius: "0 0 20px 20px", padding: "32px 28px",
             boxShadow: "0 4px 24px rgba(0,0,0,0.06)" }}>
 
-            {/* Progress bar */}
-            <div style={{ display: "flex", borderBottom: "1.5px solid #f3f4f6" }}>
-              {[1,2,3].map(s => (
-                <div key={s} style={{ flex: 1, padding: "14px 0", textAlign: "center",
-                  borderBottom: joinStep === s ? "2.5px solid #8B5E3C" : "2.5px solid transparent",
-                  background: joinStep === s ? "#FDF5EC" : "transparent" }}>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                    fontWeight: joinStep === s ? 700 : 400, textTransform: "uppercase",
-                    letterSpacing: "1px",
-                    color: joinStep === s ? "#C4541A" : joinStep > s ? "#9ca3af" : "#d1d5db" }}>
-                    {s === 1 ? "Personal" : s === 2 ? "Experience" : "Availability"}
-                  </div>
-                </div>
-              ))}
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "22px",
+              fontWeight: 600, color: "#111827", marginBottom: "6px" }}>
+              Let's get acquainted.
+            </div>
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+              color: "#9ca3af", marginBottom: "28px", lineHeight: "1.6" }}>
+              Fill out the form below and we'll be in touch within 3–5 business days.
+            </p>
+
+            {/* Name row */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+              <div>
+                <label style={lbl}>First Name *</label>
+                <input value={form.firstName} onChange={e => { f("firstName", e.target.value); setErrors(p=>({...p,firstName:undefined})); }}
+                  placeholder="Jane" style={inp(errors.firstName)} />
+                {errMsg("firstName")}
+              </div>
+              <div>
+                <label style={lbl}>Last Name *</label>
+                <input value={form.lastName} onChange={e => { f("lastName", e.target.value); setErrors(p=>({...p,lastName:undefined})); }}
+                  placeholder="Smith" style={inp(errors.lastName)} />
+                {errMsg("lastName")}
+              </div>
             </div>
 
-            <div style={{ padding: "28px 24px" }}>
+            {/* Email */}
+            <div style={{ marginBottom: "16px" }}>
+              <label style={lbl}>Email Address *</label>
+              <input type="email" value={form.email} onChange={e => { f("email", e.target.value); setErrors(p=>({...p,email:undefined})); }}
+                placeholder="jane@email.com" style={inp(errors.email)} />
+              {errMsg("email")}
+            </div>
 
-              {/* ── Step 1: Personal ── */}
-              {joinStep === 1 && (
-                <div>
-                  <div style={{ ...lbl, marginBottom: "20px" }}>About You</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
-                    <div>
-                      <label style={lbl}>First Name *</label>
-                      <input value={joinForm.firstName} onChange={e => jf("firstName", e.target.value)}
-                        placeholder="Jane" style={inp(joinErrors.firstName)} />
-                      {errMsg("firstName")}
-                    </div>
-                    <div>
-                      <label style={lbl}>Last Name *</label>
-                      <input value={joinForm.lastName} onChange={e => jf("lastName", e.target.value)}
-                        placeholder="Smith" style={inp(joinErrors.lastName)} />
-                      {errMsg("lastName")}
-                    </div>
+            {/* Phone */}
+            <div style={{ marginBottom: "16px" }}>
+              <label style={lbl}>Phone Number *</label>
+              <input type="tel" value={form.phone}
+                onChange={e => { f("phone", formatPhone(e.target.value)); setErrors(p=>({...p,phone:undefined})); }}
+                placeholder="214.555.0000" maxLength={12} style={inp(errors.phone)} />
+              {errMsg("phone")}
+            </div>
+
+            {/* ZIP → auto-fills City + State */}
+            <div style={{ marginBottom: "16px" }}>
+              <label style={lbl}>ZIP Code *</label>
+              <div style={{ position: "relative" }}>
+                <input
+                  value={form.zip}
+                  onChange={e => {
+                    const z = e.target.value.replace(/\D/g,"").slice(0,5);
+                    f("zip", z);
+                    setErrors(p=>({...p,zip:undefined}));
+                    if (z.length === 5) lookupZip(z);
+                    else { f("city",""); f("state",""); setZipLookup("idle"); }
+                  }}
+                  placeholder="75238"
+                  maxLength={5}
+                  inputMode="numeric"
+                  style={inp(errors.zip)}
+                />
+                {zipLookup === "loading" && (
+                  <div style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>
+                    Looking up…
                   </div>
-                  <div style={{ marginBottom: "12px" }}>
-                    <label style={lbl}>Email Address *</label>
-                    <input type="email" value={joinForm.email} onChange={e => jf("email", e.target.value)}
-                      placeholder="jane@email.com" style={inp(joinErrors.email)} />
-                    {errMsg("email")}
-                  </div>
-                  <div style={{ marginBottom: "12px" }}>
-                    <label style={lbl}>Phone Number *</label>
-                    <input type="tel" value={joinForm.phone}
-                      onChange={e => jf("phone", formatPhone(e.target.value))}
-                      placeholder="214.555.0000" maxLength={12} style={inp(joinErrors.phone)} />
-                    {errMsg("phone")}
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "12px", marginBottom: "24px" }}>
-                    <div>
-                      <label style={lbl}>City *</label>
-                      <input value={joinForm.city} onChange={e => jf("city", e.target.value)}
-                        placeholder="Dallas" style={inp(joinErrors.city)} />
-                      {errMsg("city")}
-                    </div>
-                    <div>
-                      <label style={lbl}>ZIP Code *</label>
-                      <input value={joinForm.zip}
-                        onChange={e => jf("zip", e.target.value.replace(/\D/g,"").slice(0,5))}
-                        placeholder="75201" maxLength={5} inputMode="numeric" style={inp(joinErrors.zip)} />
-                      {errMsg("zip")}
-                    </div>
-                  </div>
-                  <button onClick={() => {
-                    const errs = {};
-                    if (!joinForm.firstName.trim()) errs.firstName = "Required";
-                    if (!joinForm.lastName.trim())  errs.lastName  = "Required";
-                    if (!joinForm.email.includes("@")) errs.email  = "Valid email required";
-                    if (joinForm.phone.replace(/\D/g,"").length < 10) errs.phone = "Valid phone required";
-                    if (!joinForm.city.trim())      errs.city      = "Required";
-                    if (joinForm.zip.length < 5)    errs.zip       = "5-digit ZIP required";
-                    if (Object.keys(errs).length) { setJoinErrors(errs); return; }
-                    setJoinErrors({}); setJoinStep(2);
-                  }} style={{ width: "100%", padding: "14px", borderRadius: "12px", border: "none",
-                    background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
-                    fontSize: "15px", fontWeight: 500, cursor: "pointer" }}>
-                    Next: Experience →
-                  </button>
-                </div>
-              )}
-
-              {/* ── Step 2: Experience & References ── */}
-              {joinStep === 2 && (
-                <div>
-                  <div style={{ ...lbl, marginBottom: "20px" }}>Experience & References</div>
-
-                  <div style={{ marginBottom: "16px" }}>
-                    <label style={lbl}>Professional dog-walking experience? *</label>
-                    <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
-                      {[{v:true,l:"Yes"},{v:false,l:"No (eager to learn)"}].map(({v,l}) => (
-                        <button key={l} onClick={() => jf("hasDogExp", v)} style={{
-                          padding: "9px 18px", borderRadius: "9px", border: "none",
-                          cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                          fontWeight: joinForm.hasDogExp === v ? 600 : 400,
-                          background: joinForm.hasDogExp === v ? "#C4541A" : "#f3f4f6",
-                          color: joinForm.hasDogExp === v ? "#fff" : "#6b7280",
-                          transition: "all 0.12s",
-                        }}>{l}</button>
-                      ))}
-                    </div>
-                    {errMsg("hasDogExp")}
-                  </div>
-
-                  {joinForm.hasDogExp && (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr",
-                      gap: "12px", marginBottom: "12px" }}>
-                      <div>
-                        <label style={lbl}>Years Exp.</label>
-                        <input type="number" min="0" value={joinForm.expYears}
-                          onChange={e => jf("expYears", e.target.value)}
-                          placeholder="0" style={inp(false)} />
-                      </div>
-                      <div>
-                        <label style={lbl}>Description</label>
-                        <input value={joinForm.expDesc} onChange={e => jf("expDesc", e.target.value)}
-                          placeholder="Rover, Wag, private clients…" style={inp(false)} />
-                      </div>
-                    </div>
-                  )}
-
-                  <div style={{ marginBottom: "16px" }}>
-                    <label style={lbl}>Certifications</label>
-                    {[{key:"firstAid",label:"Pet First Aid"},{key:"petCpr",label:"Pet CPR"}].map(({key,label}) => (
-                      <label key={key} onClick={() => jf(key, !joinForm[key])} style={{
-                        display: "flex", alignItems: "center", gap: "10px",
-                        cursor: "pointer", padding: "9px 12px", borderRadius: "9px", marginBottom: "6px",
-                        border: `1.5px solid ${joinForm[key] ? "#D4A843" : "#e4e7ec"}`,
-                        background: joinForm[key] ? "#FDF5EC" : "#fff",
-                        fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                        color: joinForm[key] ? "#C4541A" : "#374151", transition: "all 0.12s",
-                      }}>
-                        <input type="checkbox" checked={joinForm[key]} onChange={() => {}}
-                          style={{ width: "15px", height: "15px", accentColor: "#C4541A" }} />
-                        {label}
-                      </label>
-                    ))}
-                  </div>
-
-                  <div style={{ marginBottom: "20px" }}>
-                    <label style={{ ...lbl, marginBottom: "12px" }}>References (2 required) *</label>
-                    {[{prefix:"ref1",label:"Reference 1"},{prefix:"ref2",label:"Reference 2"}].map(({prefix,label}) => (
-                      <div key={prefix} style={{ background: "#f9fafb", borderRadius: "12px",
-                        padding: "14px 16px", marginBottom: "10px", border: "1.5px solid #e4e7ec" }}>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                          fontWeight: 700, color: "#9ca3af", marginBottom: "10px",
-                          textTransform: "uppercase", letterSpacing: "1px" }}>{label}</div>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" }}>
-                          <div>
-                            <label style={{ ...lbl, fontSize: "16px" }}>Name *</label>
-                            <input value={joinForm[`${prefix}Name`]}
-                              onChange={e => jf(`${prefix}Name`, e.target.value)}
-                              placeholder="Full name"
-                              style={{ ...inp(joinErrors[`${prefix}Name`]), padding: "9px 11px" }} />
-                            {errMsg(`${prefix}Name`)}
-                          </div>
-                          <div>
-                            <label style={{ ...lbl, fontSize: "16px" }}>Phone *</label>
-                            <input value={joinForm[`${prefix}Phone`]}
-                              onChange={e => jf(`${prefix}Phone`, formatPhone(e.target.value))}
-                              placeholder="214.555.0000" maxLength={12}
-                              style={{ ...inp(joinErrors[`${prefix}Phone`]), padding: "9px 11px" }} />
-                            {errMsg(`${prefix}Phone`)}
-                          </div>
-                        </div>
-                        <div>
-                          <label style={{ ...lbl, fontSize: "16px" }}>Relationship</label>
-                          <input value={joinForm[`${prefix}Rel`]}
-                            onChange={e => jf(`${prefix}Rel`, e.target.value)}
-                            placeholder="Former employer, colleague, client…"
-                            style={{ ...inp(false), padding: "9px 11px" }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button onClick={() => { setJoinErrors({}); setJoinStep(1); }}
-                      style={{ padding: "13px 20px", borderRadius: "12px",
-                        border: "1.5px solid #e4e7ec", background: "#fff", color: "#6b7280",
-                        fontFamily: "'DM Sans', sans-serif", fontSize: "16px", cursor: "pointer" }}>
-                      ← Back
-                    </button>
-                    <button onClick={() => {
-                      const errs = {};
-                      if (joinForm.hasDogExp === null) errs.hasDogExp = "Please select one";
-                      if (!joinForm.ref1Name.trim()) errs.ref1Name = "Required";
-                      if (joinForm.ref1Phone.replace(/\D/g,"").length < 10) errs.ref1Phone = "Valid phone required";
-                      if (!joinForm.ref2Name.trim()) errs.ref2Name = "Required";
-                      if (joinForm.ref2Phone.replace(/\D/g,"").length < 10) errs.ref2Phone = "Valid phone required";
-                      if (Object.keys(errs).length) { setJoinErrors(errs); return; }
-                      setJoinErrors({}); setJoinStep(3);
-                    }} style={{ flex: 1, padding: "13px", borderRadius: "12px", border: "none",
-                      background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
-                      fontSize: "15px", fontWeight: 500, cursor: "pointer" }}>
-                      Next: Availability →
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* ── Step 3: Availability, Services & W9 ── */}
-              {joinStep === 3 && (
-                <div>
-                  <div style={{ ...lbl, marginBottom: "20px" }}>Availability & Documents</div>
-
-                  {/* Days */}
-                  <div style={{ marginBottom: "20px" }}>
-                    <label style={lbl}>Days generally available *</label>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "7px", marginTop: "6px" }}>
-                      {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d =>
-                        chipBtn(joinForm.days.includes(d), () => toggleArr("days", d), d.slice(0,3))
-                      )}
-                      {chipBtn(joinForm.days.length === 7,
-                        () => setJoinForm(f => ({ ...f, days: f.days.length === 7 ? [] : ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"] })),
-                        "All"
-                      )}
-                    </div>
-                    {errMsg("days")}
-                  </div>
-
-                  {/* Time windows */}
-                  <div style={{ marginBottom: "20px" }}>
-                    <label style={lbl}>Time windows that work for you *</label>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "7px", marginTop: "6px" }}>
-                      {["Morning (7–11 AM)","Afternoon (11 AM–4 PM)","Evening (4–8 PM)"].map(t =>
-                        chipBtn(joinForm.times.includes(t), () => toggleArr("times", t), t)
-                      )}
-                    </div>
-                    {errMsg("times")}
-                  </div>
-
-                  {/* Hours */}
-                  <div style={{ marginBottom: "20px" }}>
-                    <label style={lbl}>Approx. hours per week</label>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "7px", marginTop: "6px" }}>
-                      {["Under 10 hrs","10–20 hrs","20–30 hrs","30+ hrs"].map(h =>
-                        chipBtn(joinForm.hoursPerWeek === h, () => jf("hoursPerWeek", joinForm.hoursPerWeek === h ? "" : h), h)
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Services */}
-                  <div style={{ marginBottom: "20px" }}>
-                    <label style={lbl}>Services you're interested in offering</label>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "7px", marginTop: "6px" }}>
-                      {WALKER_SERVICES.map(svc => {
-                        const active = joinForm.serviceInterests.includes(svc.id);
-                        return (
-                          <button key={svc.id} onClick={() => toggleArr("serviceInterests", svc.id)}
-                            style={{ display: "flex", alignItems: "center", gap: "10px",
-                              padding: "10px 14px", borderRadius: "10px", textAlign: "left",
-                              border: `1.5px solid ${active ? svc.border : "#e4e7ec"}`,
-                              background: active ? svc.bg : "#fff",
-                              cursor: "pointer", transition: "all 0.12s", width: "100%" }}>
-                            <span style={{ fontSize: "17px" }}>{svc.icon}</span>
-                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                              fontWeight: active ? 600 : 400,
-                              color: active ? svc.color : "#6b7280", flex: 1 }}>{svc.label}</span>
-                            {active && <span style={{ color: svc.color, fontWeight: 700, fontSize: "16px" }}>✓</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Message */}
-                  <div style={{ marginBottom: "20px" }}>
-                    <label style={lbl}>Anything else you'd like us to know?</label>
-                    <textarea value={joinForm.message} onChange={e => jf("message", e.target.value)}
-                      placeholder="Tell us about yourself, your pets, why you want to join…"
-                      rows={3} style={{ width: "100%", padding: "11px 14px", borderRadius: "10px",
-                        border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif",
-                        fontSize: "15px", color: "#111827", outline: "none",
-                        resize: "vertical", lineHeight: "1.6" }} />
-                  </div>
-
-                  {/* W9 Upload */}
-                  <div style={{ marginBottom: "24px" }}>
-                    <label style={lbl}>Signed W-9 Form *</label>
-                    <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                      color: "#6b7280", marginBottom: "10px", lineHeight: "1.6" }}>
-                      Please download, fill out, sign, and upload a completed{" "}
-                      <a href="https://www.irs.gov/pub/irs-pdf/fw9.pdf" target="_blank" rel="noreferrer"
-                        style={{ color: "#C4541A", fontWeight: 600 }}>IRS W-9 form</a>.
-                      We require this before your first payout.
-                    </p>
-                    <div onClick={() => document.getElementById("w9-upload").click()}
-                      style={{ border: `2px dashed ${joinErrors.w9File ? "#ef4444" : joinForm.w9File ? "#C4541A" : "#d1d5db"}`,
-                        borderRadius: "12px", padding: "24px", textAlign: "center",
-                        cursor: "pointer", background: joinForm.w9File ? "#FDF5EC" : "#f9fafb",
-                        transition: "all 0.15s" }}>
-                      {joinForm.w9File ? (
-                        <>
-                          <div style={{ fontSize: "24px", marginBottom: "6px" }}>✅</div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                            fontWeight: 600, color: "#C4541A" }}>{joinForm.w9File.name}</div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                            color: "#9ca3af", marginTop: "4px" }}>
-                            {(joinForm.w9File.size / 1024).toFixed(0)} KB · Click to replace
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div style={{ fontSize: "28px", marginBottom: "8px" }}>📄</div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                            fontWeight: 600, color: "#374151", marginBottom: "4px" }}>
-                            Click to upload your W-9
-                          </div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
-                            PDF, JPG, or PNG — max 10 MB
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    <input id="w9-upload" type="file" accept=".pdf,.jpg,.jpeg,.png"
-                      style={{ display: "none" }}
-                      onChange={e => {
-                        const file = e.target.files[0];
-                        if (file) jf("w9File", file);
-                      }} />
-                    {errMsg("w9File")}
-                  </div>
-
-                  {joinErrors.submit && (
-                    <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5",
-                      borderRadius: "10px", padding: "10px 14px", marginBottom: "12px",
-                      fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#dc2626" }}>
-                      {joinErrors.submit}
-                    </div>
-                  )}
-
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button onClick={() => { setJoinErrors({}); setJoinStep(2); }}
-                      style={{ padding: "13px 20px", borderRadius: "12px",
-                        border: "1.5px solid #e4e7ec", background: "#fff", color: "#6b7280",
-                        fontFamily: "'DM Sans', sans-serif", fontSize: "16px", cursor: "pointer" }}>
-                      ← Back
-                    </button>
-                    <button onClick={async () => {
-                      const errs = {};
-                      if (joinForm.days.length === 0)  errs.days    = "Select at least one day";
-                      if (joinForm.times.length === 0)  errs.times   = "Select at least one time window";
-                      if (!joinForm.w9File)             errs.w9File  = "Please upload your signed W-9";
-                      if (Object.keys(errs).length) { setJoinErrors(errs); return; }
-                      setJoinErrors({});
-                      try {
-                        // Upload W9 to Supabase Storage
-                        let w9Url = null;
-                        const fileName = `${Date.now()}-${joinForm.w9File.name.replace(/\s/g, "_")}`;
-                        const uploadRes = await fetch(
-                          `${SUPABASE_URL}/storage/v1/object/w9-forms/${fileName}`,
-                          {
-                            method: "POST",
-                            headers: {
-                              "apikey": SUPABASE_ANON_KEY,
-                              "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-                              "Content-Type": joinForm.w9File.type,
-                              "x-upsert": "true",
-                            },
-                            body: joinForm.w9File,
-                          }
-                        );
-                        if (uploadRes.ok) {
-                          w9Url = `${SUPABASE_URL}/storage/v1/object/public/w9-forms/${fileName}`;
-                        }
-                        // Insert application row
-                        const res = await fetch(`${SUPABASE_URL}/rest/v1/applications`, {
-                          method: "POST",
-                          headers: {
-                            "Content-Type": "application/json",
-                            "apikey": SUPABASE_ANON_KEY,
-                            "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-                            "Prefer": "return=minimal",
-                          },
-                          body: JSON.stringify({
-                            first_name: joinForm.firstName, last_name: joinForm.lastName,
-                            email: joinForm.email, phone: joinForm.phone,
-                            city: joinForm.city, zip: joinForm.zip,
-                            has_dog_exp: joinForm.hasDogExp, exp_years: joinForm.expYears,
-                            exp_desc: joinForm.expDesc, first_aid: joinForm.firstAid,
-                            pet_cpr: joinForm.petCpr,
-                            ref1_name: joinForm.ref1Name, ref1_phone: joinForm.ref1Phone, ref1_rel: joinForm.ref1Rel,
-                            ref2_name: joinForm.ref2Name, ref2_phone: joinForm.ref2Phone, ref2_rel: joinForm.ref2Rel,
-                            days: joinForm.days, times: joinForm.times,
-                            hours_per_week: joinForm.hoursPerWeek,
-                            service_interests: joinForm.serviceInterests,
-                            message: joinForm.message,
-                            w9_url: w9Url,
-                            status: "pending",
-                          }),
-                        });
-                        if (!res.ok) throw new Error(await res.text());
-                        setJoinStep("done");
-                      } catch (err) {
-                        setJoinErrors({ submit: "Something went wrong submitting your application. Please try again." });
-                      }
-                    }} style={{ flex: 1, padding: "13px", borderRadius: "12px", border: "none",
-                      background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
-                      fontSize: "15px", fontWeight: 500, cursor: "pointer" }}>
-                      Submit Application →
-                    </button>
-                  </div>
+                )}
+              </div>
+              {errMsg("zip")}
+              {zipLookup === "notfound" && (
+                <div style={{ color: "#b45309", fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "13px", marginTop: "3px" }}>
+                  ZIP not found — please check and try again.
                 </div>
               )}
             </div>
+
+            {/* City + State — auto-filled, read-only once populated */}
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "12px", marginBottom: "16px" }}>
+              <div>
+                <label style={lbl}>City {zipLookup === "found" ? "✓" : "*"}</label>
+                <input value={form.city}
+                  onChange={e => { f("city", e.target.value); setErrors(p=>({...p,city:undefined})); }}
+                  placeholder="Auto-filled from ZIP"
+                  style={{ ...inp(errors.city), background: zipLookup === "found" ? "#f9fafb" : "#fff",
+                    color: zipLookup === "found" ? "#6b7280" : "#111827" }} />
+                {errMsg("city")}
+              </div>
+              <div>
+                <label style={lbl}>State {zipLookup === "found" ? "✓" : ""}</label>
+                <input value={form.state}
+                  onChange={e => f("state", e.target.value.toUpperCase().slice(0,2))}
+                  placeholder="TX"
+                  maxLength={2}
+                  style={{ ...inp(false), background: zipLookup === "found" ? "#f9fafb" : "#fff",
+                    color: zipLookup === "found" ? "#6b7280" : "#111827" }} />
+              </div>
+            </div>
+
+            {/* Street Address */}
+            <div style={{ marginBottom: "28px" }}>
+              <label style={lbl}>Home Address *</label>
+              <input value={form.address}
+                onChange={e => { f("address", e.target.value); setErrors(p=>({...p,address:undefined})); }}
+                placeholder="1234 Audelia Rd"
+                style={inp(errors.address)} />
+              {errMsg("address")}
+            </div>
+
+            {/* Submit error */}
+            {errors.submit && (
+              <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5",
+                borderRadius: "10px", padding: "12px 16px", marginBottom: "16px",
+                fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#dc2626" }}>
+                {errors.submit}
+              </div>
+            )}
+
+            {/* Submit button */}
+            <button onClick={handleSubmit} disabled={submitting}
+              style={{ width: "100%", padding: "14px", borderRadius: "12px", border: "none",
+                background: submitting ? "#e4e7ec" : "#C4541A",
+                color: submitting ? "#9ca3af" : "#fff",
+                fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                fontWeight: 500, cursor: submitting ? "default" : "pointer",
+                transition: "background 0.15s" }}>
+              {submitting ? "Submitting…" : "Submit Application →"}
+            </button>
+
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+              color: "#9ca3af", textAlign: "center", marginTop: "14px", lineHeight: "1.6" }}>
+              We'll reach out within 3–5 business days.
+              Your info is never shared outside Lonestar Bark Co.
+            </p>
           </div>
         )}
       </div>
@@ -8054,50 +7824,6 @@ function WalkerApplicationPage({ onBack }) {
   );
 }
 
-// ─── Root ─────────────────────────────────────────────────────────────────────
-// ─── Customer Error Boundary ──────────────────────────────────────────────────
-class CustomerErrorBoundary extends Component {
-  constructor(props) { super(props); this.state = { error: null }; }
-  static getDerivedStateFromError(e) { return { error: e }; }
-  render() {
-    if (this.state.error) {
-      return (
-        <div style={{ minHeight: "100vh", background: "#f5f6f8", display: "flex",
-          alignItems: "center", justifyContent: "center", padding: "24px" }}>
-          <div style={{ background: "#fff", borderRadius: "16px", padding: "32px",
-            maxWidth: "640px", width: "100%", fontFamily: "'DM Sans', sans-serif",
-            boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }}>
-            <div style={{ fontSize: "20px", fontWeight: 700, color: "#dc2626", marginBottom: "8px" }}>
-              Something went wrong
-            </div>
-            <div style={{ fontSize: "15px", color: "#374151", marginBottom: "16px", lineHeight: "1.6" }}>
-              <strong>Error:</strong> {this.state.error.message}
-            </div>
-            <pre style={{ background: "#f9fafb", borderRadius: "8px", padding: "12px",
-              fontSize: "15px", color: "#6b7280", overflowX: "auto",
-              whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: "240px",
-              overflow: "auto", marginBottom: "20px" }}>
-              {this.state.error.stack}
-            </pre>
-            <button onClick={() => this.setState({ error: null })}
-              style={{ padding: "10px 20px", borderRadius: "8px", background: "#C4541A",
-                color: "#fff", border: "none", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "15px", cursor: "pointer", marginRight: "10px" }}>
-              Try Again
-            </button>
-            <button onClick={() => window.location.reload()}
-              style={{ padding: "10px 20px", borderRadius: "8px", background: "transparent",
-                color: "#6b7280", border: "1.5px solid #e4e7ec",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "15px", cursor: "pointer" }}>
-              Reload App
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 export default function LonestarBark() {
   // Ensure proper mobile viewport
