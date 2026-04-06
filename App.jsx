@@ -6931,7 +6931,25 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
   const [expandedWalker, setExpandedWalker] = useState(null);
   const [navScrolled, setNavScrolled] = useState(false);
   const [landingMenuOpen, setLandingMenuOpen] = useState(false);
-  const [landingView, setLandingView] = useState("home"); // "home" | "apply"
+  const [landingView, setLandingView] = useState(
+    () => window.location.hash === "#apply" ? "apply" : "home"
+  ); // "home" | "apply"
+
+  // Sync view with URL hash (handles direct links and back/forward)
+  useEffect(() => {
+    const handleHash = () => setLandingView(window.location.hash === "#apply" ? "apply" : "home");
+    window.addEventListener("hashchange", handleHash);
+    return () => window.removeEventListener("hashchange", handleHash);
+  }, []);
+
+  // Keep hash in sync when view changes programmatically
+  useEffect(() => {
+    if (landingView === "apply" && window.location.hash !== "#apply") {
+      window.history.replaceState(null, "", "#apply");
+    } else if (landingView === "home" && window.location.hash === "#apply") {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, [landingView]);
 
   useEffect(() => {
     const handleScroll = () => setNavScrolled(window.scrollY > 40);
