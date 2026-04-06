@@ -1147,101 +1147,102 @@ function LogoBadge({ size = 48 }) {
 }
 
 // ─── Header ───────────────────────────────────────────────────────────────────
-function Header({ client, onLogout, page, setPage, notifCounts = {} }) {
+function Header({ client, onLogout }) {
   return (
-    <div>
-      <header style={{ background: "#0B1423", padding: "16px 24px 14px", textAlign: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "14px", marginBottom: "4px" }}>
-          <LogoBadge size={48} />
-          <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
-            fontSize: "clamp(22px,5vw,34px)", fontWeight: 600, letterSpacing: "2px" }}>
-            Lonestar Bark Co.
+    <header style={{ background: "#0B1423", padding: "16px 24px 14px", textAlign: "center" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "14px", marginBottom: "4px" }}>
+        <LogoBadge size={48} />
+        <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
+          fontSize: "clamp(22px,5vw,34px)", fontWeight: 600, letterSpacing: "2px" }}>
+          Lonestar Bark Co.
+        </div>
+      </div>
+      <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff99",
+        fontSize: "16px", letterSpacing: "3px", textTransform: "uppercase", fontWeight: 300 }}>
+        Professional Pet Care · Book Online
+      </div>
+      {client && (
+        <div style={{ marginTop: "12px", display: "flex", alignItems: "center",
+          justifyContent: "center", gap: "10px" }}>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffbb", fontSize: "15px" }}>
+            Welcome back, <strong style={{ color: "#fff" }}>{client.name || client.email}</strong>
           </div>
+          <button onClick={onLogout} style={{ background: "transparent", border: "1px solid #ffffff44",
+            color: "#ffffffbb", padding: "3px 10px", borderRadius: "6px", cursor: "pointer",
+            fontFamily: "'DM Sans', sans-serif", fontSize: "15px" }}>
+            Log out
+          </button>
         </div>
-        <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff99",
-          fontSize: "16px", letterSpacing: "3px", textTransform: "uppercase", fontWeight: 300 }}>
-          Professional Pet Care · Book Online
-        </div>
-        {client && (
-          <div style={{ marginTop: "12px", display: "flex", alignItems: "center",
-            justifyContent: "center", gap: "10px" }}>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffbb", fontSize: "15px" }}>
-              Welcome back, <strong style={{ color: "#fff" }}>{client.name || client.email}</strong>
-            </div>
-            <button onClick={onLogout} style={{ background: "transparent", border: "1px solid #ffffff44",
-              color: "#ffffffbb", padding: "3px 10px", borderRadius: "6px", cursor: "pointer",
-              fontFamily: "'DM Sans', sans-serif", fontSize: "15px" }}>
-              Log out
+      )}
+    </header>
+  );
+}
+
+function ClientNav({ client, onLogout, page, setPage, notifCounts = {} }) {
+  if (!client) return null;
+  const clientTabs = [
+    { id: "overview", label: "Overview", icon: "🏠" },
+    { id: "book", label: "Book a Walk", icon: "🐾" },
+    { id: "mywalks", label: "My Walks", icon: "📅" },
+    { id: "invoices", label: "Invoices", icon: "🧾" },
+    { id: "pricing", label: "Pricing", icon: "💰" },
+    { id: "about", label: "Our Team", icon: "👥" },
+    ...(client.keyholder ? [{ id: "messages", label: "Messages", icon: "💬" }] : []),
+    { id: "myinfo", label: "My Info", icon: "👤" },
+  ];
+  const [pinned, ...rest] = clientTabs;
+  return (
+    <nav style={{ background: "#0B1423", borderBottom: "1px solid #8A7545",
+      display: "flex", alignItems: "stretch", flexShrink: 0 }}
+      className="nav-tabs">
+      <button onClick={() => setPage(pinned.id)} style={{
+        padding: "10px 16px", border: "none", whiteSpace: "nowrap",
+        background: "transparent", flexShrink: 0,
+        borderBottom: page === pinned.id ? "3px solid #8B5E3C" : "3px solid transparent",
+        borderRight: "1px solid #8A7545",
+        color: page === pinned.id ? "#fff" : "#ffffff88",
+        fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+        fontWeight: page === pinned.id ? 600 : 400,
+        cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
+        display: "flex", alignItems: "center", gap: "5px",
+      }}>
+        <span style={{ fontSize: "15px" }}>{pinned.icon}</span> {pinned.label}
+      </button>
+      <div style={{ flex: 1, overflowX: "auto", display: "flex",
+        scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
+        {rest.map(t => {
+          const badge = notifCounts[t.id] || 0;
+          return (
+            <button key={t.id} onClick={() => setPage(t.id)} style={{
+              padding: "10px 16px", border: "none", whiteSpace: "nowrap", background: "transparent",
+              borderBottom: page === t.id ? "3px solid #8B5E3C" : "3px solid transparent",
+              color: page === t.id ? "#fff" : "#ffffff88",
+              fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+              fontWeight: page === t.id ? 600 : 400,
+              cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
+              display: "flex", alignItems: "center", gap: "5px", flexShrink: 0,
+            }}>
+              <span style={{ fontSize: "15px" }}>{t.icon}</span> {t.label}
+              {badge > 0 && (
+                <span style={{ background: "#ef4444", color: "#fff", borderRadius: "10px",
+                  fontSize: "16px", fontWeight: 700, padding: "1px 6px", lineHeight: "16px",
+                  minWidth: "16px", textAlign: "center", display: "inline-block" }}>
+                  {badge}
+                </span>
+              )}
             </button>
-          </div>
-        )}
-      </header>
-      {client && (() => {
-        const clientTabs = [{ id: "overview", label: "Overview", icon: "🏠" }, { id: "book", label: "Book a Walk", icon: "🐾" }, { id: "mywalks", label: "My Walks", icon: "📅" }, { id: "invoices", label: "Invoices", icon: "🧾" }, { id: "pricing", label: "Pricing", icon: "💰" }, { id: "about", label: "Our Team", icon: "👥" }, ...(client.keyholder ? [{ id: "messages", label: "Messages", icon: "💬" }] : []), { id: "myinfo", label: "My Info", icon: "👤" }];
-        const [pinned, ...rest] = clientTabs;
-        return (
-          <>
-            {/* Sliding top tab nav */}
-            <nav style={{ background: "#0B1423", borderBottom: "1px solid #8A7545",
-              display: "flex", alignItems: "stretch",
-              position: "sticky", top: 0, zIndex: 10 }}
-              className="nav-tabs">
-
-              {/* ── Pinned: Book a Walk ── */}
-              <button onClick={() => setPage(pinned.id)} style={{
-                padding: "10px 16px", border: "none", whiteSpace: "nowrap",
-                background: "transparent", flexShrink: 0,
-                borderBottom: page === pinned.id ? "3px solid #8B5E3C" : "3px solid transparent",
-                borderRight: "1px solid #8A7545",
-                color: page === pinned.id ? "#fff" : "#ffffff88",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                fontWeight: page === pinned.id ? 600 : 400,
-                cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
-                display: "flex", alignItems: "center", gap: "5px",
-              }}>
-                <span style={{ fontSize: "15px" }}>{pinned.icon}</span> {pinned.label}
-              </button>
-
-              {/* ── Scrollable: everything else + logout ── */}
-              <div style={{ flex: 1, overflowX: "auto", display: "flex",
-                scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
-                {rest.map(t => {
-                  const badge = notifCounts[t.id] || 0;
-                  return (
-                    <button key={t.id} onClick={() => setPage(t.id)} style={{
-                      padding: "10px 16px", border: "none", whiteSpace: "nowrap", background: "transparent",
-                      borderBottom: page === t.id ? "3px solid #8B5E3C" : "3px solid transparent",
-                      color: page === t.id ? "#fff" : "#ffffff88",
-                      fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                      fontWeight: page === t.id ? 600 : 400,
-                      cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
-                      display: "flex", alignItems: "center", gap: "5px", flexShrink: 0,
-                    }}>
-                      <span style={{ fontSize: "15px" }}>{t.icon}</span> {t.label}
-                      {badge > 0 && (
-                        <span style={{ background: "#ef4444", color: "#fff", borderRadius: "10px",
-                          fontSize: "16px", fontWeight: 700, padding: "1px 6px", lineHeight: "16px",
-                          minWidth: "16px", textAlign: "center", display: "inline-block" }}>
-                          {badge}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-                <div style={{ flex: 1 }} />
-                <button onClick={onLogout} style={{
-                  padding: "10px 14px", border: "none", background: "transparent",
-                  color: "#ffffff99", fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                  cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
-                  borderBottom: "3px solid transparent",
-                  display: "flex", alignItems: "center", gap: "5px",
-                }}>↩ Log out</button>
-              </div>
-            </nav>
-          </>
-        );
-      })()}
-    </div>
+          );
+        })}
+        <div style={{ flex: 1 }} />
+        <button onClick={onLogout} style={{
+          padding: "10px 14px", border: "none", background: "transparent",
+          color: "#ffffff99", fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+          cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
+          borderBottom: "3px solid transparent",
+          display: "flex", alignItems: "center", gap: "5px",
+        }}>↩ Log out</button>
+      </div>
+    </nav>
   );
 }
 
@@ -4557,8 +4558,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#f5f6f8" }}>
       <style>{GLOBAL_STYLES}</style>
+      <ClientNav client={client} onLogout={onLogout} page={page} setPage={setPage} notifCounts={clientNotifCountsFull} />
       <div style={{ flex: 1, overflowY: "auto" }}>
-      <Header client={client} onLogout={onLogout} page={page} setPage={setPage} notifCounts={clientNotifCountsFull} />
+      <Header client={client} onLogout={onLogout} />
       {/* PRICING PAGE */}
       {/* ── OVERVIEW PAGE ── */}
       {page === "overview" && (() => {
@@ -10250,8 +10252,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
       {/* Header + Nav */}
       {/* Sliding Tab Nav */}
       <nav style={{ background: "#1A3A42", borderBottom: "1px solid #254E5E",
-        display: "flex", alignItems: "stretch", flexShrink: 0,
-        position: "sticky", top: 0, zIndex: 10 }}
+        display: "flex", alignItems: "stretch", flexShrink: 0 }}
         className="nav-tabs">
         {/* ── Pinned: My Schedule ── */}
         {(() => {
@@ -16769,8 +16770,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
 
       {/* Sliding Tab Nav */}
       <nav style={{ background: "#4D2E10", borderBottom: "1px solid #6B4420",
-        display: "flex", alignItems: "stretch", flexShrink: 0,
-        position: "sticky", top: 0, zIndex: 10 }}
+        display: "flex", alignItems: "stretch", flexShrink: 0 }}
         className="nav-tabs">
         {/* ── Pinned: Overview ── */}
         {(() => {
