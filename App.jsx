@@ -14392,6 +14392,7 @@ function AdminInvoicesTab({ clients, setClients }) {
               { label: "Pending", value: fmt(pendingTotal, true), sub: `${pendingCount} invoice${pendingCount !== 1 ? "s" : ""}`, color: amber, bg: "#fffbeb", border: "#fde68a" },
               { label: "Overdue", value: `${overdueCount}`, sub: "unpaid past due", color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
               { label: "Collected", value: fmt(paidTotal, true), sub: "total paid", color: green, bg: "#FDF5EC", border: "#D4A843" },
+              { label: "Uninvoiced", value: `${bulkWalkCount}`, sub: `${bulkClientCount} client${bulkClientCount !== 1 ? "s" : ""}`, color: "#3D6B7A", bg: "#EBF4F6", border: "#8ECAD4" },
             ].map(kpi => (
               <div key={kpi.label} style={{ background: kpi.bg, border: `1.5px solid ${kpi.border}`,
                 borderRadius: "14px", padding: "16px 18px" }}>
@@ -16238,6 +16239,8 @@ function AdminMyInfo({ admin, setAdmin, adminList, setAdminList, onLogout }) {
 
 function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, setWalkerProfiles, trades, setTrades, adminList, setAdminList, onLogout }) {
   const [tab, setTab] = useState("overview");
+  const [bookingsView, setBookingsView] = useState("upcoming"); // "upcoming" | "completed"
+  const [invoicesKey, setInvoicesKey] = useState(0); // increments to remount AdminInvoicesTab on nav
 
   // Reset all expanded/selected/drill-down state when switching tabs
   const changeTab = (newTab) => {
@@ -16265,6 +16268,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     setClientEditDraft(null);
     setConfirmPayrollWalker(null);
     setBookingsView("upcoming");
+    if (newTab === "invoices") setInvoicesKey(k => k + 1);
   };
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [expandedKpi, setExpandedKpi] = useState(null);
@@ -16523,7 +16527,8 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
 
   const TABS = [
     { id: "overview",      label: "Overview",       icon: "📊" },
-    { id: "bookings",      label: "All Bookings",   icon: "📋" },
+    { id: "dailies",       label: "Dailies",         icon: "📋" },
+    { id: "bookings",      label: "All Bookings",   icon: "📅" },
     { id: "clients",       label: "Clients",        icon: "👥" },
     { id: "walkers",       label: "Walkers",        icon: "🦺" },
     { id: "applications",  label: "Applications",   icon: "📝" },
@@ -16744,129 +16749,6 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
               fontWeight: 600, color: "#111827", marginBottom: "20px" }}>Business Overview</div>
 
-            {/* ── Today's Confirmed Walks ── */}
-            {(() => {
-              const todayStr = new Date().toDateString();
-              // Build per-walker stats for today
-              const allTodayBookings = [];
-              Object.values(clients).forEach(c => {
-                (c.bookings || []).forEach(b => {
-                  if (b.cancelled || b.adminCompleted) return;
-                  const appt = new Date(b.scheduledDateTime || b.bookedAt);
-                  if (appt.toDateString() === todayStr) {
-                    allTodayBookings.push({ ...b, clientName: c.name });
-                  }
-                });
-              });
-
-              const walkerStats = getAllWalkers(walkerProfiles).map(w => {
-                const scheduled = allTodayBookings.filter(b => b.form?.walker === w.name);
-                const confirmed = scheduled.filter(b => b.walkerConfirmed);
-                return { w, scheduled: scheduled.length, confirmed: confirmed.length };
-              }).filter(s => s.scheduled > 0);
-
-              if (walkerStats.length === 0) return null;
-
-              const totalScheduled = walkerStats.reduce((s, x) => s + x.scheduled, 0);
-              const totalConfirmed = walkerStats.reduce((s, x) => s + x.confirmed, 0);
-
-              return (
-                <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
-                  borderRadius: "16px", padding: "20px", marginBottom: "20px" }}>
-                  {/* Header */}
-                  <div style={{ display: "flex", alignItems: "center",
-                    justifyContent: "space-between", marginBottom: "16px" }}>
-                    <div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                        fontSize: "15px", color: "#374151" }}>
-                        📋 Today's Walk Confirmations
-                      </div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                        color: "#9ca3af", marginTop: "2px" }}>
-                        {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                        fontWeight: 600, color: totalConfirmed === totalScheduled && totalScheduled > 0 ? "#059669" : amber }}>
-                        {totalConfirmed}<span style={{ fontFamily: "'DM Sans', sans-serif",
-                          fontSize: "15px", fontWeight: 400, color: "#9ca3af" }}>/{totalScheduled}</span>
-                      </div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                        color: "#9ca3af" }}>confirmed today</div>
-                    </div>
-                  </div>
-
-                  {/* Overall progress bar */}
-                  <div style={{ height: "6px", borderRadius: "99px",
-                    background: "#f3f4f6", marginBottom: "18px", overflow: "hidden" }}>
-                    <div style={{
-                      height: "100%", borderRadius: "99px",
-                      background: totalConfirmed === totalScheduled ? "#059669" : amber,
-                      width: totalScheduled > 0 ? `${(totalConfirmed / totalScheduled) * 100}%` : "0%",
-                      transition: "width 0.4s ease",
-                    }} />
-                  </div>
-
-                  {/* Per-walker rows */}
-                  {walkerStats.map(({ w, scheduled, confirmed }, i) => {
-                    const pct = scheduled > 0 ? Math.round((confirmed / scheduled) * 100) : 0;
-                    const allDone = confirmed === scheduled;
-                    return (
-                      <div key={w.id} style={{
-                        padding: "12px 0",
-                        borderBottom: i < walkerStats.length - 1 ? "1px solid #f3f4f6" : "none",
-                      }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "12px",
-                          marginBottom: "8px" }}>
-                          <div style={{ width: "34px", height: "34px", borderRadius: "50%",
-                            background: w.color + "20", display: "flex", alignItems: "center",
-                            justifyContent: "center", fontSize: "15px", flexShrink: 0 }}>
-                            {w.avatar}
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                              fontWeight: 600, color: "#111827" }}>{w.name}</div>
-                          </div>
-                          <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: "8px" }}>
-                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                              fontWeight: 600, color: allDone ? "#059669" : "#374151" }}>
-                              {confirmed}
-                              <span style={{ fontWeight: 400, color: "#9ca3af" }}>/{scheduled}</span>
-                            </div>
-                            {allDone ? (
-                              <div style={{ background: "#FDF5EC", border: "1px solid #EDD5A8",
-                                borderRadius: "5px", padding: "2px 8px",
-                                fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                                fontWeight: 700, color: "#059669" }}>✓ ALL IN</div>
-                            ) : confirmed === 0 ? (
-                              <div style={{ background: "#fef2f2", border: "1px solid #fecaca",
-                                borderRadius: "5px", padding: "2px 8px",
-                                fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                                fontWeight: 700, color: "#dc2626" }}>PENDING</div>
-                            ) : (
-                              <div style={{ background: "#fffbeb", border: "1px solid #fde68a",
-                                borderRadius: "5px", padding: "2px 8px",
-                                fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                                fontWeight: 700, color: "#92400e" }}>PARTIAL</div>
-                            )}
-                          </div>
-                        </div>
-                        {/* Per-walker progress bar */}
-                        <div style={{ height: "4px", borderRadius: "99px",
-                          background: "#f3f4f6", overflow: "hidden" }}>
-                          <div style={{
-                            height: "100%", borderRadius: "99px",
-                            background: allDone ? "#059669" : confirmed > 0 ? "#f59e0b" : "#e5e7eb",
-                            width: `${pct}%`, transition: "width 0.4s ease",
-                          }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
 
             {/* ── KPI Cards ── */}
             {(() => {
@@ -16874,6 +16756,21 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
               const todayBookings = allBookings.filter(b =>
                 new Date(b.scheduledDateTime || b.bookedAt).toDateString() === todayStr
               ).sort((a, b) => new Date(a.scheduledDateTime || a.bookedAt) - new Date(b.scheduledDateTime || b.bookedAt));
+
+              // Daily confirmation counts (all clients, today's upcoming walks)
+              const allTodayScheduled = (() => {
+                const arr = [];
+                Object.values(clients).forEach(c => {
+                  (c.bookings || []).forEach(b => {
+                    if (b.cancelled || b.adminCompleted) return;
+                    if (new Date(b.scheduledDateTime || b.bookedAt).toDateString() === todayStr)
+                      arr.push(b);
+                  });
+                });
+                return arr;
+              })();
+              const todayConfirmedCount = allTodayScheduled.filter(b => b.walkerConfirmed).length;
+              const todayTotalCount     = allTodayScheduled.length;
 
               const weekCompletedList = completedBookings
                 .filter(b => new Date(b.completedAt || b.scheduledDateTime || b.bookedAt) >= wMon)
@@ -16917,12 +16814,12 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 { id: "activeBook",     label: "Active Bookings",   value: allBookings.length,           icon: "📋", color: "#3D6B7A" },
                 { id: "weekRev",        label: "This Week Revenue", value: fmt(weekRevenue, true),            icon: "📅", color: amber,     note: "completed" },
                 { id: "allRev",         label: "All Time Revenue",  value: fmt(totalRevenue, true),           icon: "💰", color: "#7A4D6E", note: "completed" },
-                { id: "weekProfit",     label: "This Week Profit",  value: fmt(weekProfit, true),             icon: "📈", color: "#059669", note: "40% margin", detail: `${fmt(weekWalkerPayout, true)} payout` },
-                { id: "lifetimeProfit", label: "Lifetime Profit",   value: fmt(totalProfit, true),            icon: "🏦", color: "#0f766e", note: "40% margin", detail: `${fmt(totalWalkerPayout, true)} payout` },
+                { id: "profit",         label: "Profit",            value: fmt(totalProfit, true),            icon: "📈", color: "#059669", note: "lifetime",   detail: `This week: ${fmt(weekProfit, true)}` },
+                { id: "dailyConfirm",   label: "Today's Walks",     value: `${todayConfirmedCount}/${todayTotalCount}`, icon: "✅", color: todayTotalCount > 0 && todayConfirmedCount === todayTotalCount ? "#059669" : "#C4541A", note: "confirmed",  detail: todayTotalCount === 0 ? "no walks today" : todayConfirmedCount === todayTotalCount ? "all confirmed!" : `${todayTotalCount - todayConfirmedCount} remaining` },
                 { id: "upcoming",       label: "Upcoming Walks",    value: upcoming.length,              icon: "🐕", color: "#C4541A" },
                 { id: "completed",      label: "Completed Walks",   value: completedBookings.length,     icon: "✅", color: "#059669" },
                 { id: "pipelineRev",    label: "Pipeline Revenue",  value: fmt(pipelineRevenue, true),        icon: "🔮", color: "#7A4D6E", note: "upcoming", detail: `${upcoming.filter(b => !b.isOvernight).length} walks` },
-                { id: "pipelineProfit", label: "Pipeline Profit",   value: fmt(pipelineProfit, true),         icon: "💎", color: "#a21caf", note: "upcoming", detail: `${fmt(pipelineWalkerPayout, true)} payout` },
+                { id: "uninvoiced",     label: "Uninvoiced Walks",  value: (() => { const cnt = Object.values(clients).filter(c => !c.deleted).reduce((s, c) => { const ik = new Set((c.invoices||[]).filter(i=>i.status!=="draft").flatMap(i=>(i.items||[]).map(it=>it.bookingKey))); return s + (c.bookings||[]).filter(b=>b.adminCompleted&&!b.cancelled&&!ik.has(b.key)).length; }, 0); return cnt; })(), icon: "📬", color: "#3D6B7A", note: "pending" },
               ];
 
               const drawerContent = (id) => {
@@ -17051,36 +16948,40 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                   );
                 }
 
-                if (id === "weekProfit" || id === "lifetimeProfit") {
-                  const isWeek = id === "weekProfit";
-                  const bookingSet = isWeek ? weekCompletedList : completedBookings;
-                  const rev = isWeek ? weekRevenue : totalRevenue;
-                  const payout = isWeek ? weekWalkerPayout : totalWalkerPayout;
-                  const profit = isWeek ? weekProfit : totalProfit;
-                  const rows = walkerProfitRows(bookingSet);
+                if (id === "profit") {
                   return (
                     <div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
-                        gap: "8px", marginBottom: "14px" }}>
+                      {/* Week vs Lifetime summary rows */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "14px" }}>
                         {[
-                          { label: "Revenue", val: fmt(rev, true), color: "#7A4D6E" },
-                          { label: "Walker Payout", val: `-$${payout}`, color: "#b45309" },
-                          { label: "Profit", val: fmt(profit, true), color: "#059669" },
+                          { label: "This Week", rev: weekRevenue, payout: weekWalkerPayout, profit: weekProfit, color: "#b45309" },
+                          { label: "Lifetime",  rev: totalRevenue, payout: totalWalkerPayout, profit: totalProfit, color: "#059669" },
                         ].map((x, i) => (
                           <div key={i} style={{ background: `${x.color}0d`, border: `1px solid ${x.color}22`,
-                            borderRadius: "10px", padding: "10px 8px", textAlign: "center" }}>
-                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                              fontWeight: 600, color: x.color }}>{x.val}</div>
-                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                              color: "#9ca3af", marginTop: "2px" }}>{x.label}</div>
+                            borderRadius: "10px", padding: "12px 10px" }}>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                              fontWeight: 700, color: x.color, textTransform: "uppercase",
+                              letterSpacing: "1px", marginBottom: "8px" }}>{x.label}</div>
+                            {[
+                              { k: "Revenue", v: fmt(x.rev, true) },
+                              { k: "Payout",  v: `-$${x.payout}` },
+                              { k: "Profit",  v: fmt(x.profit, true) },
+                            ].map(row => (
+                              <div key={row.k} style={{ display: "flex", justifyContent: "space-between",
+                                fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                                padding: "3px 0", color: "#374151" }}>
+                                <span style={{ color: "#9ca3af" }}>{row.k}</span>
+                                <span style={{ fontWeight: 600 }}>{row.v}</span>
+                              </div>
+                            ))}
                           </div>
                         ))}
                       </div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af",
-                        fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>By Walker</div>
-                      {rows.length === 0
-                        ? <div style={emptyStyle}>No completed walks {isWeek ? "this week" : "yet"}.</div>
-                        : rows.map((r, i) => (
+                        fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>By Walker (Lifetime)</div>
+                      {walkerProfitRows(completedBookings).length === 0
+                        ? <div style={emptyStyle}>No completed walks yet.</div>
+                        : walkerProfitRows(completedBookings).map((r, i) => (
                         <div key={i} style={{ ...rowStyle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                           <div>
                             <div style={{ fontWeight: 600, color: "#111827", fontSize: "15px" }}>
@@ -17097,6 +16998,56 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                           </div>
                         </div>
                       ))}
+                    </div>
+                  );
+                }
+
+                if (id === "dailyConfirm") {
+                  const byWalker = {};
+                  allTodayScheduled.forEach(b => {
+                    const name = b.form?.walker || "Unassigned";
+                    if (!byWalker[name]) byWalker[name] = { confirmed: 0, total: 0, walker: getAllWalkers(walkerProfiles).find(w => w.name === name) };
+                    byWalker[name].total++;
+                    if (b.walkerConfirmed) byWalker[name].confirmed++;
+                  });
+                  const walkerRows = Object.entries(byWalker).sort((a, b) => b[1].total - a[1].total);
+                  return (
+                    <div>
+                      {todayTotalCount === 0 ? (
+                        <div style={emptyStyle}>No walks scheduled for today.</div>
+                      ) : (
+                        <>
+                          <div style={{ height: "6px", borderRadius: "99px", background: "#f3f4f6",
+                            marginBottom: "14px", overflow: "hidden" }}>
+                            <div style={{ height: "100%", borderRadius: "99px",
+                              background: todayConfirmedCount === todayTotalCount ? "#059669" : "#C4541A",
+                              width: `${Math.round((todayConfirmedCount / todayTotalCount) * 100)}%`,
+                              transition: "width 0.4s ease" }} />
+                          </div>
+                          {walkerRows.map(([name, d], i) => {
+                            const pct = Math.round((d.confirmed / d.total) * 100);
+                            return (
+                              <div key={name} style={{ ...rowStyle, display: "flex",
+                                alignItems: "center", gap: "10px" }}>
+                                <div style={{ fontSize: "18px", flexShrink: 0 }}>
+                                  {d.walker?.avatar || "🐾"}
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontWeight: 600, color: "#111827", fontSize: "15px" }}>{name}</div>
+                                  <div style={{ fontSize: "13px", color: "#9ca3af" }}>
+                                    {d.confirmed}/{d.total} confirmed
+                                  </div>
+                                </div>
+                                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                                  fontWeight: 600,
+                                  color: d.confirmed === d.total ? "#059669" : d.confirmed > 0 ? "#b45309" : "#9ca3af" }}>
+                                  {d.confirmed === d.total ? "✅" : `${pct}%`}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </>
+                      )}
                     </div>
                   );
                 }
@@ -17494,7 +17445,40 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                   );
                 }
 
-                if (id === "pipelineRev" || id === "pipelineProfit") {
+                if (id === "uninvoiced") {
+                  const uninvoicedByClient = Object.values(clients).filter(c => !c.deleted).map(c => {
+                    const ik = new Set((c.invoices||[]).filter(i=>i.status!=="draft").flatMap(i=>(i.items||[]).map(it=>it.bookingKey)));
+                    const walks = (c.bookings||[]).filter(b=>b.adminCompleted&&!b.cancelled&&!ik.has(b.key));
+                    return { c, walks };
+                  }).filter(x => x.walks.length > 0)
+                    .sort((a, b) => b.walks.length - a.walks.length);
+                  const totalUninv = uninvoicedByClient.reduce((s, x) => s + x.walks.length, 0);
+                  return (
+                    <div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                        color: "#9ca3af", marginBottom: "12px" }}>
+                        {totalUninv} completed walk{totalUninv !== 1 ? "s" : ""} across {uninvoicedByClient.length} client{uninvoicedByClient.length !== 1 ? "s" : ""} not yet invoiced.
+                      </div>
+                      {uninvoicedByClient.length === 0
+                        ? <div style={emptyStyle}>All completed walks have been invoiced.</div>
+                        : uninvoicedByClient.map(({ c, walks }) => (
+                          <div key={c.id} style={{ ...rowStyle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div>
+                              <div style={{ fontWeight: 600, color: "#111827", fontSize: "15px" }}>{c.name}</div>
+                              <div style={{ fontSize: "14px", color: "#9ca3af" }}>{walks.length} walk{walks.length !== 1 ? "s" : ""}</div>
+                            </div>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                              fontWeight: 600, color: "#3D6B7A" }}>
+                              ${walks.reduce((s, b) => s + effectivePrice(b), 0)}
+                            </div>
+                          </div>
+                        ))
+                      }
+                    </div>
+                  );
+                }
+
+                if (id === "pipelineRev") {
                   const upcomingWalks = upcoming.filter(b => !b.isOvernight)
                     .slice().sort((a, b) => new Date(a.scheduledDateTime || a.bookedAt) - new Date(b.scheduledDateTime || b.bookedAt));
                   const byWalker = {};
@@ -18586,6 +18570,105 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                   </>
                 );
               })()}
+            </div>
+          );
+        })()}
+
+        {/* ── Dailies ── */}
+        {tab === "dailies" && (() => {
+          const amber = "#b45309";
+          const todayStr = new Date().toDateString();
+          const allTodayBookings = [];
+          Object.values(clients).forEach(c => {
+            (c.bookings || []).forEach(b => {
+              if (b.cancelled || b.adminCompleted) return;
+              const appt = new Date(b.scheduledDateTime || b.bookedAt);
+              if (appt.toDateString() === todayStr) {
+                allTodayBookings.push({ ...b, clientName: c.name });
+              }
+            });
+          });
+
+          const walkerStats = getAllWalkers(walkerProfiles).map(w => {
+            const scheduled = allTodayBookings.filter(b => b.form?.walker === w.name);
+            const confirmed = scheduled.filter(b => b.walkerConfirmed);
+            return { w, scheduled: scheduled.length, confirmed: confirmed.length };
+          }).filter(s => s.scheduled > 0);
+
+          const totalScheduled = walkerStats.reduce((s, x) => s + x.scheduled, 0);
+          const totalConfirmed = walkerStats.reduce((s, x) => s + x.confirmed, 0);
+
+          return (
+            <div className="fade-up">
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
+                fontWeight: 600, color: "#111827", marginBottom: "4px" }}>Dailies</div>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280", marginBottom: "24px" }}>
+                {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+              </p>
+
+              {walkerStats.length === 0 ? (
+                <div style={{ background: "#fff", borderRadius: "16px", border: "1.5px solid #e4e7ec",
+                  padding: "40px", textAlign: "center" }}>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#9ca3af", fontSize: "15px" }}>
+                    No walks scheduled for today.
+                  </div>
+                </div>
+              ) : (
+                <div style={{ background: "#fff", borderRadius: "16px", border: "1.5px solid #e4e7ec",
+                  padding: "20px 24px" }}>
+                  {/* Header + overall progress */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: "15px", color: "#374151" }}>
+                      📋 Today's Walk Confirmations
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
+                        fontWeight: 600, color: totalConfirmed === totalScheduled && totalScheduled > 0 ? "#059669" : amber }}>
+                        {totalConfirmed}<span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 400, color: "#9ca3af" }}>/{"}}totalScheduled{{"} </span>
+                      </div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#9ca3af" }}>confirmed today</div>
+                    </div>
+                  </div>
+                  <div style={{ height: "6px", borderRadius: "99px", background: "#f3f4f6", marginBottom: "20px", overflow: "hidden" }}>
+                    <div style={{ height: "100%", borderRadius: "99px",
+                      background: totalConfirmed === totalScheduled ? "#059669" : amber,
+                      width: totalScheduled > 0 ? `${(totalConfirmed / totalScheduled) * 100}%` : "0%",
+                      transition: "width 0.4s ease" }} />
+                  </div>
+                  {walkerStats.map(({ w, scheduled, confirmed }, i) => {
+                    const pct = scheduled > 0 ? Math.round((confirmed / scheduled) * 100) : 0;
+                    const allDone = confirmed === scheduled;
+                    return (
+                      <div key={w.id} style={{ padding: "12px 0",
+                        borderBottom: i < walkerStats.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
+                          <div style={{ width: "34px", height: "34px", borderRadius: "50%",
+                            background: w.color + "20", display: "flex", alignItems: "center",
+                            justifyContent: "center", fontSize: "15px", flexShrink: 0 }}>
+                            {w.avatar}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                              fontWeight: 600, color: "#111827" }}>{w.name}</div>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af" }}>
+                              {confirmed} of {scheduled} confirmed
+                            </div>
+                          </div>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600,
+                            color: allDone ? "#059669" : confirmed > 0 ? amber : "#9ca3af" }}>
+                            {allDone ? "✅ All done" : `${pct}%`}
+                          </div>
+                        </div>
+                        <div style={{ height: "4px", borderRadius: "99px", background: "#f3f4f6", overflow: "hidden" }}>
+                          <div style={{ height: "100%", borderRadius: "99px",
+                            background: allDone ? "#059669" : confirmed > 0 ? "#f59e0b" : "#e5e7eb",
+                            width: `${pct}%`, transition: "width 0.4s ease" }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })()}
@@ -22123,7 +22206,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
 
         {/* ── Invoices ── */}
         {tab === "invoices" && (
-          <AdminInvoicesTab clients={clients} setClients={setClients} />
+          <AdminInvoicesTab key={invoicesKey} clients={clients} setClients={setClients} />
         )}
 
         {/* ── Map ── */}
