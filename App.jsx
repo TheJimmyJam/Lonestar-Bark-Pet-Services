@@ -1178,7 +1178,7 @@ function Header({ client, onLogout }) {
   );
 }
 
-function ClientNav({ client, onLogout, page, setPage, notifCounts = {} }) {
+function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky = false }) {
   if (!client) return null;
   const clientTabs = [
     { id: "overview", label: "Overview", icon: "🏠" },
@@ -1193,7 +1193,8 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {} }) {
   const [pinned, ...rest] = clientTabs;
   return (
     <nav style={{ background: "#0B1423", borderBottom: "1px solid #8A7545",
-      display: "flex", alignItems: "stretch", flexShrink: 0 }}
+      display: "flex", alignItems: "stretch",
+      ...(sticky ? { position: "sticky", top: 0, zIndex: 10 } : { flexShrink: 0 }) }}
       className="nav-tabs">
       <button onClick={() => setPage(pinned.id)} style={{
         padding: "10px 16px", border: "none", whiteSpace: "nowrap",
@@ -4207,7 +4208,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const [overnightLocation, setOvernightLocation] = useState("ours");
   const [overnightDate, setOvernightDate] = useState("");
   const [overnightNotes, setOvernightNotes] = useState("");
-  const [overnightWalker, setOvernightWalker] = useState("");
+  const [overnightWalker, setOvernightWalker] = useState(client.preferredWalker || "");
+  const overnightWalkerRef = useRef(null);
   const [overnightStep, setOvernightStep] = useState("pick"); // "pick" | "confirm"
   const [overnightSubmitting, setOvernightSubmitting] = useState(false);
   // Calculate minimum week offset based on meet & greet date
@@ -4273,12 +4275,15 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     loadAllWalkersAvailability(start, end).then(data => setWalkerAvailability(data));
   }, []);
 
-  // Scroll preferred walker into view when landing on the book page
+  // Scroll preferred walker into view when landing on the book page or switching service
   useEffect(() => {
-    if (page === "book") {
+    if (page === "book" && service !== "overnight") {
       setTimeout(() => preferredWalkerRef.current?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" }), 300);
     }
-  }, [page]);
+    if (page === "book" && service === "overnight") {
+      setTimeout(() => overnightWalkerRef.current?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" }), 300);
+    }
+  }, [page, service]);
 
   // Get available slots for selected walker on selected day
   const selectedDateKey = toDateKey(weekDates[selectedDay]);
@@ -4558,9 +4563,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#f5f6f8" }}>
       <style>{GLOBAL_STYLES}</style>
-      <ClientNav client={client} onLogout={onLogout} page={page} setPage={setPage} notifCounts={clientNotifCountsFull} />
       <div style={{ flex: 1, overflowY: "auto" }}>
       <Header client={client} onLogout={onLogout} />
+      <ClientNav client={client} onLogout={onLogout} page={page} setPage={setPage} notifCounts={clientNotifCountsFull} sticky />
       {/* PRICING PAGE */}
       {/* ── OVERVIEW PAGE ── */}
       {page === "overview" && (() => {
@@ -6018,31 +6023,62 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
 
                   {/* Walker preference */}
                   <div style={{ marginBottom: "20px" }}>
-                    <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif",
-                      fontSize: "15px", fontWeight: 600, letterSpacing: "2px",
-                      textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px" }}>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
+                      letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px" }}>
                       Preferred Walker / Stayer <span style={{ fontWeight: 400, textTransform: "none",
                         letterSpacing: 0, color: "#d1d5db" }}>(optional)</span>
-                    </label>
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      {[{ name: "", label: "No preference", avatar: "✦" }, ...getAllWalkers(walkerProfiles).map(w => ({ name: w.name, label: w.name, avatar: w.avatar, color: w.color }))].map(opt => {
-                        const selected = overnightWalker === opt.name;
+                    </div>
+                    <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "4px" }}>
+                      <button onClick={() => setOvernightWalker("")}
+                        style={{
+                          position: "relative", flexShrink: 0, padding: "12px 16px", borderRadius: "14px",
+                          border: overnightWalker === "" ? `2px solid ${purple}` : "1.5px solid #e4e7ec",
+                          background: overnightWalker === "" ? `${purple}10` : "#fff",
+                          cursor: "pointer", textAlign: "left", minWidth: "130px",
+                          boxShadow: overnightWalker === "" ? `0 2px 12px ${purple}22` : "none",
+                          transition: "all 0.15s",
+                        }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                          <span style={{ fontSize: "20px" }}>✦</span>
+                        </div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                          fontSize: "15px", color: "#111827", marginBottom: "2px" }}>No preference</div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af" }}>
+                          Any available
+                        </div>
+                      </button>
+                      {getAllWalkers(walkerProfiles).map(w => {
+                        const isPreferred = w.name === client.preferredWalker;
+                        const isSelected = overnightWalker === w.name;
                         return (
-                          <button key={opt.name} onClick={() => setOvernightWalker(opt.name)}
-                            style={{ padding: "8px 14px", borderRadius: "10px", cursor: "pointer",
-                              border: selected ? `2px solid ${opt.color || purple}` : "1.5px solid #e4e7ec",
-                              background: selected ? (opt.color ? opt.color + "12" : purpleLight) : "#fff",
-                              fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                              color: selected ? (opt.color || purple) : "#6b7280",
-                              fontWeight: selected ? 600 : 400,
-                              display: "flex", alignItems: "center", gap: "6px",
-                              transition: "all 0.15s" }}>
-                            <span>{opt.avatar}</span>{opt.label}
+                          <button key={w.id} onClick={() => setOvernightWalker(w.name)}
+                            ref={isPreferred ? overnightWalkerRef : null}
+                            style={{
+                              position: "relative", flexShrink: 0, padding: "12px 16px", borderRadius: "14px",
+                              border: isSelected ? `2px solid ${w.color}` : "1.5px solid #e4e7ec",
+                              background: isSelected ? `${w.color}10` : "#fff",
+                              cursor: "pointer", textAlign: "left", minWidth: "130px",
+                              boxShadow: isSelected ? `0 2px 12px ${w.color}22` : "none",
+                              transition: "all 0.15s",
+                            }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                              <span style={{ fontSize: "20px" }}>{w.avatar}</span>
+                              {isPreferred && (
+                                <span style={{ fontSize: "11px", background: w.color, color: "#fff",
+                                  borderRadius: "4px", padding: "1px 5px", fontFamily: "'DM Sans', sans-serif",
+                                  fontWeight: 700, letterSpacing: "0.5px" }}>YOUR WALKER</span>
+                              )}
+                            </div>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                              fontSize: "15px", color: "#111827", marginBottom: "2px" }}>{w.name}</div>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af" }}>
+                              Subject to availability
+                            </div>
                           </button>
                         );
                       })}
                     </div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
                       color: "#9ca3af", marginTop: "6px", lineHeight: "1.5" }}>
                       Preferred walkers are subject to availability and may not always be guaranteed.
                     </div>
@@ -10250,9 +10286,35 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
       <style>{GLOBAL_STYLES}</style>
 
       {/* Header + Nav */}
-      {/* Sliding Tab Nav */}
+      <div data-scroll-pane style={{ flex: 1, overflowY: "auto" }}>
+      {/* Header */}
+      <header style={{ background: "#1A3A42", padding: "16px 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <LogoBadge size={30} />
+              <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
+                fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "1px" }}>Lonestar Bark Co.</div>
+            </div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#4E7A8C",
+              fontSize: "16px", marginTop: "2px" }}>
+              {walker.avatar} {walker.name} · {TABS.find(t => t.id === tab)?.label || ""}
+            </div>
+          </div>
+          <button onClick={() => setWalkerMenuOpen(true)} style={{ background: "transparent",
+            border: "1px solid rgba(255,255,255,0.35)", color: "rgba(255,255,255,0.65)", padding: "8px 12px",
+            borderRadius: "8px", cursor: "pointer", fontSize: "18px", lineHeight: 1,
+            display: "flex", flexDirection: "column", gap: "4px", alignItems: "center" }}>
+            <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
+            <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
+            <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
+          </button>
+        </div>
+      </header>
+      {/* Sliding Tab Nav — sticky inside scroll pane */}
       <nav style={{ background: "#1A3A42", borderBottom: "1px solid #254E5E",
-        display: "flex", alignItems: "stretch", flexShrink: 0 }}
+        display: "flex", alignItems: "stretch",
+        position: "sticky", top: 0, zIndex: 10 }}
         className="nav-tabs">
         {/* ── Pinned: My Schedule ── */}
         {(() => {
@@ -10369,31 +10431,6 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
         </div>
       )}
 
-      <div data-scroll-pane style={{ flex: 1, overflowY: "auto" }}>
-      {/* Header */}
-      <header style={{ background: "#1A3A42", padding: "16px 24px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <LogoBadge size={30} />
-              <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
-                fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "1px" }}>Lonestar Bark Co.</div>
-            </div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#4E7A8C",
-              fontSize: "16px", marginTop: "2px" }}>
-              {walker.avatar} {walker.name} · {TABS.find(t => t.id === tab)?.label || ""}
-            </div>
-          </div>
-          <button onClick={() => setWalkerMenuOpen(true)} style={{ background: "transparent",
-            border: "1px solid rgba(255,255,255,0.35)", color: "rgba(255,255,255,0.65)", padding: "8px 12px",
-            borderRadius: "8px", cursor: "pointer", fontSize: "18px", lineHeight: 1,
-            display: "flex", flexDirection: "column", gap: "4px", alignItems: "center" }}>
-            <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
-            <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
-            <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
-          </button>
-        </div>
-      </header>
       <div style={{ maxWidth: "720px", margin: "0 auto", padding: "24px 16px 80px" }}>
 
         {/* ── Dashboard ── */}
@@ -10448,17 +10485,22 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
 
           const kpiCard = (icon, value, label, color, bg, border, onClick) => (
             <div onClick={onClick} style={{ background: bg, border: `1.5px solid ${border}`,
-              borderRadius: "14px", padding: "16px",
+              borderRadius: "14px", padding: "14px 16px",
               cursor: onClick ? "pointer" : "default",
+              display: "flex", alignItems: "center", gap: "12px",
               transition: "box-shadow 0.15s" }}
               onMouseEnter={e => onClick && (e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.10)")}
               onMouseLeave={e => onClick && (e.currentTarget.style.boxShadow = "none")}>
-              <div style={{ fontSize: "22px", marginBottom: "8px" }}>{icon}</div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "22px",
-                fontWeight: 700, color: "#111827", lineHeight: 1, marginBottom: "5px" }}>{value}</div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-                textTransform: "uppercase", letterSpacing: "1px",
-                fontWeight: 600, color }}>{label}</div>
+              <div style={{ fontSize: "24px", flexShrink: 0, lineHeight: 1 }}>{icon}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
+                  fontWeight: 700, color: "#111827", lineHeight: 1.1,
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                  textTransform: "uppercase", letterSpacing: "0.8px",
+                  fontWeight: 600, color, marginTop: "3px",
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+              </div>
             </div>
           );
 
@@ -10507,14 +10549,14 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               )}
 
               {/* ── Walk counts KPI grid ── */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "20px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
                 {kpiCard("📅", todayWalks.length,  "Today",     "#1A3A42", "#EBF4F6", "#A8D0DB", () => setTab("mywalks"))}
                 {kpiCard("📋", weekWalks.length,   "This Week", accentBlue, "#EBF4F6", "#A8D0DB", () => setTab("mywalks"))}
                 {kpiCard("📆", monthWalks.length,  "This Month",accentBlue, "#EBF4F6", "#A8D0DB", () => setTab("mywalks"))}
               </div>
 
               {/* ── Earnings KPI grid ── */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "20px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
                 {kpiCard("💵", fmt(weekPayout, true),    "Week Earnings",  "#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
                 {kpiCard("💰", fmt(monthPayout, true),   "Month Earnings", "#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
                 {kpiCard("🏅", fmt(allTimePayout, true), "All-Time",       "#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
@@ -16768,69 +16810,9 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#faf8f5" }}>
       <style>{GLOBAL_STYLES}</style>
 
-      {/* Sliding Tab Nav */}
-      <nav style={{ background: "#4D2E10", borderBottom: "1px solid #6B4420",
-        display: "flex", alignItems: "stretch", flexShrink: 0 }}
-        className="nav-tabs">
-        {/* ── Pinned: Overview ── */}
-        {(() => {
-          const t = TABS[0];
-          return (
-            <button key={t.id} onClick={() => changeTab(t.id)} style={{
-              padding: "10px 14px", border: "none", whiteSpace: "nowrap",
-              background: "transparent", flexShrink: 0,
-              borderBottom: tab === t.id ? `3px solid ${amber}` : "3px solid transparent",
-              borderRight: "1px solid #6B4420",
-              color: tab === t.id ? "#fff" : "rgba(255,255,255,0.65)",
-              fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-              fontWeight: tab === t.id ? 600 : 400,
-              cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
-              display: "flex", alignItems: "center", gap: "5px",
-            }}>
-              <span style={{ fontSize: "15px" }}>{t.icon}</span> {t.label}
-            </button>
-          );
-        })()}
-        {/* ── Scrollable: everything else + logout ── */}
-        <div style={{ flex: 1, overflowX: "auto", display: "flex",
-          scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
-          {TABS.slice(1).map(t => {
-            const badgeCount = notifCounts[t.id] || 0;
-            return (
-              <button key={t.id} onClick={() => changeTab(t.id)} style={{
-                padding: "10px 14px", border: "none", whiteSpace: "nowrap", background: "transparent",
-                borderBottom: tab === t.id ? `3px solid ${amber}` : "3px solid transparent",
-                color: tab === t.id ? "#fff" : "rgba(255,255,255,0.65)",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                fontWeight: tab === t.id ? 600 : 400,
-                cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
-                display: "flex", alignItems: "center", gap: "5px", flexShrink: 0,
-                position: "relative",
-              }}>
-                <span style={{ fontSize: "15px" }}>{t.icon}</span> {t.label}
-                {badgeCount > 0 && (
-                  <span style={{ background: "#ef4444", color: "#fff", borderRadius: "10px",
-                    fontSize: "16px", fontWeight: 700, padding: "1px 6px", lineHeight: "16px",
-                    minWidth: "16px", textAlign: "center", display: "inline-block" }}>
-                    {badgeCount}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-          <div style={{ flex: 1 }} />
-          <button onClick={onLogout} style={{
-            padding: "10px 14px", border: "none", background: "transparent",
-            color: "rgba(255,255,255,0.65)", fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-            cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
-            borderBottom: "3px solid transparent",
-            display: "flex", alignItems: "center", gap: "5px",
-          }}>↩ Log out</button>
-        </div>
-      </nav>
 
-      {/* Admin Hamburger Drawer */}
-      {adminMenuOpen && (
+
+      {/* Admin Hamburger Drawer */}      {adminMenuOpen && (
         <div style={{ position: "fixed", inset: 0, zIndex: 300 }}>
           <div onClick={() => setAdminMenuOpen(false)}
             style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)" }} />
@@ -16953,6 +16935,67 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
           </div>
         </div>
       </header>
+      {/* Sliding Tab Nav — sticky inside scroll pane */}
+      <nav style={{ background: "#4D2E10", borderBottom: "1px solid #6B4420",
+        display: "flex", alignItems: "stretch",
+        position: "sticky", top: 0, zIndex: 10 }}
+        className="nav-tabs">
+        {/* ── Pinned: Overview ── */}
+        {(() => {
+          const t = TABS[0];
+          return (
+            <button key={t.id} onClick={() => changeTab(t.id)} style={{
+              padding: "10px 14px", border: "none", whiteSpace: "nowrap",
+              background: "transparent", flexShrink: 0,
+              borderBottom: tab === t.id ? `3px solid ${amber}` : "3px solid transparent",
+              borderRight: "1px solid #6B4420",
+              color: tab === t.id ? "#fff" : "rgba(255,255,255,0.65)",
+              fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+              fontWeight: tab === t.id ? 600 : 400,
+              cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
+              display: "flex", alignItems: "center", gap: "5px",
+            }}>
+              <span style={{ fontSize: "15px" }}>{t.icon}</span> {t.label}
+            </button>
+          );
+        })()}
+        {/* ── Scrollable: everything else + logout ── */}
+        <div style={{ flex: 1, overflowX: "auto", display: "flex",
+          scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
+          {TABS.slice(1).map(t => {
+            const badgeCount = notifCounts[t.id] || 0;
+            return (
+              <button key={t.id} onClick={() => changeTab(t.id)} style={{
+                padding: "10px 14px", border: "none", whiteSpace: "nowrap", background: "transparent",
+                borderBottom: tab === t.id ? `3px solid ${amber}` : "3px solid transparent",
+                color: tab === t.id ? "#fff" : "rgba(255,255,255,0.65)",
+                fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                fontWeight: tab === t.id ? 600 : 400,
+                cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
+                display: "flex", alignItems: "center", gap: "5px", flexShrink: 0,
+                position: "relative",
+              }}>
+                <span style={{ fontSize: "15px" }}>{t.icon}</span> {t.label}
+                {badgeCount > 0 && (
+                  <span style={{ background: "#ef4444", color: "#fff", borderRadius: "10px",
+                    fontSize: "16px", fontWeight: 700, padding: "1px 6px", lineHeight: "16px",
+                    minWidth: "16px", textAlign: "center", display: "inline-block" }}>
+                    {badgeCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+          <div style={{ flex: 1 }} />
+          <button onClick={onLogout} style={{
+            padding: "10px 14px", border: "none", background: "transparent",
+            color: "rgba(255,255,255,0.65)", fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+            cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
+            borderBottom: "3px solid transparent",
+            display: "flex", alignItems: "center", gap: "5px",
+          }}>↩ Log out</button>
+        </div>
+      </nav>
       <div style={{ maxWidth: "800px", margin: "0 auto", padding: "24px 16px 80px" }}>
 
         {/* ── Overview ── */}
@@ -17774,31 +17817,37 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                           boxShadow: isOpen ? `0 4px 16px ${s.color}18` : "none",
                           cursor: "pointer" }}
                         onClick={() => setExpandedKpi(isOpen ? null : s.id)}>
-                        <div style={{ padding: "18px 16px", position: "relative" }}>
-                          {s.note && (
-                            <div style={{ position: "absolute", top: "10px", right: "32px",
-                              fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600,
-                              color: s.color, background: `${s.color}15`, padding: "2px 6px",
-                              borderRadius: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                              {s.note}
-                            </div>
-                          )}
-                          <div style={{ position: "absolute", top: "12px", right: "12px",
+                        <div style={{ padding: "14px 16px", position: "relative" }}>
+                          <div style={{ position: "absolute", top: "10px", right: "10px",
                             fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                             color: isOpen ? s.color : "#d1d5db", fontWeight: 600,
                             transition: "transform 0.2s, color 0.2s",
                             transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</div>
-                          <div style={{ fontSize: "20px", marginBottom: "8px" }}>{s.icon}</div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                            fontWeight: 600, color: s.color }}>{s.value}</div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                            color: "#9ca3af", marginTop: "4px" }}>{s.label}</div>
-                          {s.detail && (
-                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                              color: "#b45309", marginTop: "3px", fontWeight: 500 }}>
-                              walker payout: {s.detail}
+                          <div style={{ display: "flex", alignItems: "center", gap: "12px", paddingRight: "20px" }}>
+                            <div style={{ fontSize: "22px", flexShrink: 0, lineHeight: 1 }}>{s.icon}</div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "19px",
+                                fontWeight: 700, color: "#111827", lineHeight: 1.1,
+                                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.value}</div>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                                color: "#9ca3af", marginTop: "3px",
+                                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.label}</div>
+                              {s.note && (
+                                <div style={{ display: "inline-block", marginTop: "4px",
+                                  fontFamily: "'DM Sans', sans-serif", fontSize: "11px", fontWeight: 600,
+                                  color: s.color, background: `${s.color}15`, padding: "1px 6px",
+                                  borderRadius: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                  {s.note}
+                                </div>
+                              )}
+                              {s.detail && (
+                                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                                  color: "#b45309", marginTop: "2px", fontWeight: 500 }}>
+                                  {s.detail}
+                                </div>
+                              )}
                             </div>
-                          )}
+                          </div>
                         </div>
                         {isOpen && (
                           <div style={{ borderTop: `1px solid ${s.color}22`,
