@@ -6282,7 +6282,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                               fontWeight: 500, cursor: "pointer" }}>
                             {selectedWalks.length > 1
                               ? `Continue with ${selectedWalks.length} walks →`
-                              : "Continue →"}
+                              : form.walker ? `Continue booking with ${form.walker} →` : "Continue →"}
                           </button>
                         )}
                       </div>
@@ -6779,7 +6779,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   padding: "16px", borderRadius: "12px", border: "none", background: svc.color,
                   color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                   fontWeight: 500, cursor: submitting ? "wait" : "pointer" }}>
-                  {submitting ? "Confirming…" : isRecurring ? `Confirm Weekly ${svc.label}` : `Confirm ${svc.label} Appointment`}
+                  {submitting ? "Confirming…" : isRecurring
+                    ? `Confirm Weekly ${svc.label}${form.walker ? ` with ${form.walker}` : ""}`
+                    : `Confirm ${svc.label} Appointment${form.walker ? ` with ${form.walker}` : ""}`}
                 </button>
               </div>
             )}
@@ -14044,6 +14046,8 @@ function AdminInvoicesTab({ clients, setClients }) {
   const [invoiceNotes, setInvoiceNotes] = useState("");
   const [sending, setSending] = useState(false);
   const [sentConfirm, setSentConfirm] = useState(null);
+  const [bulkState, setBulkState] = useState("idle"); // "idle"|"confirm"|"sending"|"done"
+  const [bulkResult, setBulkResult] = useState(null); // { clientCount, walkCount }
 
   const green = "#C4541A";
   const amber = "#b45309";
@@ -14115,6 +14119,54 @@ function AdminInvoicesTab({ clients, setClients }) {
   const resetCreate = () => {
     setStep(1); setSelectedClientId(null); setInvoiceType("walk");
     setSelectedWalkKeys([]); setSelectedWeek(null); setInvoiceNotes(""); setSentConfirm(null);
+  };
+
+  // ── Bulk invoice: find all uninvoiced completed walks across every client ──
+  const allUninvoicedByClient = {};
+  activeClients.forEach(c => {
+    const invoicedKeys = new Set(
+      (c.invoices || [])
+        .filter(inv => inv.status !== "draft")
+        .flatMap(inv => (inv.items || []).map(it => it.bookingKey))
+    );
+    const uninvoiced = (c.bookings || []).filter(
+      b => b.adminCompleted && !b.cancelled && !invoicedKeys.has(b.key)
+    );
+    if (uninvoiced.length > 0) allUninvoicedByClient[c.id] = { client: c, walks: uninvoiced };
+  });
+  const bulkClientCount = Object.keys(allUninvoicedByClient).length;
+  const bulkWalkCount   = Object.values(allUninvoicedByClient).reduce((s, v) => s + v.walks.length, 0);
+
+  const handleBulkSend = () => {
+    setBulkState("sending");
+    setTimeout(() => {
+      const now  = new Date().toISOString();
+      const upd  = { ...clients };
+      Object.values(allUninvoicedByClient).forEach(({ client, walks }) => {
+        const items = walks.map(b => ({
+          bookingKey: b.key,
+          description: `${b.form?.pet || "Pet"} · ${b.slot?.duration || ""} · ${b.day}, ${b.date}`,
+          amount: effectivePrice(b),
+        }));
+        const total = items.reduce((s, it) => s + it.amount, 0);
+        const inv = {
+          id: generateInvoiceId(),
+          type: "walk",
+          weekLabel: null,
+          items, subtotal: total, total,
+          notes: "",
+          status: "sent",
+          createdAt: now, sentAt: now,
+          dueDate: getInvoiceDueDate(now),
+        };
+        upd[client.id] = { ...client, invoices: [...(client.invoices || []), inv] };
+        saveInvoiceToDB(inv, client.id, client.name || "", client.email || "");
+      });
+      setClients(upd);
+      saveClients(upd);
+      setBulkResult({ clientCount: bulkClientCount, walkCount: bulkWalkCount });
+      setBulkState("done");
+    }, 900);
   };
 
   const handleSendInvoice = () => {
@@ -14203,14 +14255,31 @@ function AdminInvoicesTab({ clients, setClients }) {
           </p>
         </div>
         {view === "list" && (
-          <button onClick={() => { setView("create"); resetCreate(); }} style={{
-            padding: "10px 20px", borderRadius: "10px", border: "none",
-            background: green, color: "#fff", fontFamily: "'DM Sans', sans-serif",
-            fontSize: "15px", fontWeight: 600, cursor: "pointer",
-            display: "flex", alignItems: "center", gap: "6px",
-          }}>
-            + New Invoice
-          </button>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+            {bulkWalkCount > 0 && (
+              <button onClick={() => setBulkState("confirm")} style={{
+                padding: "10px 18px", borderRadius: "10px",
+                border: "1.5px solid #D4A843", background: "#FDF5EC",
+                color: "#b45309", fontFamily: "'DM Sans', sans-serif",
+                fontSize: "15px", fontWeight: 600, cursor: "pointer",
+                display: "flex", alignItems: "center", gap: "7px",
+              }}>
+                ⚡ Submit All Uninvoiced
+                <span style={{ background: "#b45309", color: "#fff",
+                  borderRadius: "20px", padding: "1px 8px", fontSize: "13px", fontWeight: 700 }}>
+                  {bulkWalkCount}
+                </span>
+              </button>
+            )}
+            <button onClick={() => { setView("create"); resetCreate(); }} style={{
+              padding: "10px 20px", borderRadius: "10px", border: "none",
+              background: green, color: "#fff", fontFamily: "'DM Sans', sans-serif",
+              fontSize: "15px", fontWeight: 600, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: "6px",
+            }}>
+              + New Invoice
+            </button>
+          </div>
         )}
         {view === "create" && (
           <button onClick={() => setView("list")} style={{
@@ -14223,6 +14292,95 @@ function AdminInvoicesTab({ clients, setClients }) {
           </button>
         )}
       </div>
+
+      {/* ── Bulk invoice modal ── */}
+      {(bulkState === "confirm" || bulkState === "sending" || bulkState === "done") && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 500,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
+          <div onClick={() => { if (bulkState !== "sending") setBulkState("idle"); }}
+            style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)" }} />
+          <div className="fade-up" style={{ position: "relative", background: "#fff",
+            borderRadius: "20px", padding: "36px 32px", maxWidth: "440px", width: "100%",
+            boxShadow: "0 24px 64px rgba(0,0,0,0.2)" }}>
+
+            {bulkState === "confirm" && (
+              <>
+                <div style={{ fontSize: "36px", textAlign: "center", marginBottom: "14px" }}>⚡</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
+                  fontWeight: 700, color: "#111827", textAlign: "center", marginBottom: "10px" }}>
+                  Submit All Uninvoiced Walks?
+                </div>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                  color: "#6b7280", textAlign: "center", lineHeight: "1.65", marginBottom: "20px" }}>
+                  This will create and send{" "}
+                  <strong style={{ color: "#111827" }}>{bulkClientCount} invoice{bulkClientCount !== 1 ? "s" : ""}</strong>{" "}
+                  covering{" "}
+                  <strong style={{ color: "#111827" }}>{bulkWalkCount} completed walk{bulkWalkCount !== 1 ? "s" : ""}</strong>{" "}
+                  across {bulkClientCount} client{bulkClientCount !== 1 ? "s" : ""}.
+                </p>
+                <div style={{ background: "#FDF5EC", border: "1.5px solid #D4A843",
+                  borderRadius: "12px", padding: "14px 16px", marginBottom: "24px",
+                  fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#92400e",
+                  lineHeight: "1.6" }}>
+                  Each client will receive one invoice for all of their outstanding uninvoiced walks.
+                  This cannot be undone without voiding individual invoices.
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <button onClick={handleBulkSend} style={{
+                    width: "100%", padding: "14px", borderRadius: "11px", border: "none",
+                    background: "#b45309", color: "#fff",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                    fontWeight: 700, cursor: "pointer" }}>
+                    ⚡ Yes, Submit {bulkWalkCount} Walk{bulkWalkCount !== 1 ? "s" : ""}
+                  </button>
+                  <button onClick={() => setBulkState("idle")} style={{
+                    width: "100%", padding: "14px", borderRadius: "11px",
+                    border: "1.5px solid #e4e7ec", background: "#f9fafb",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                    color: "#374151", cursor: "pointer" }}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+
+            {bulkState === "sending" && (
+              <div style={{ textAlign: "center", padding: "20px 0" }}>
+                <div style={{ fontSize: "40px", marginBottom: "16px" }}>⏳</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "17px",
+                  fontWeight: 600, color: "#111827", marginBottom: "8px" }}>
+                  Generating invoices…
+                </div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af" }}>
+                  Creating {bulkWalkCount} walk{bulkWalkCount !== 1 ? "s" : ""} across {bulkClientCount} client{bulkClientCount !== 1 ? "s" : ""}
+                </div>
+              </div>
+            )}
+
+            {bulkState === "done" && bulkResult && (
+              <>
+                <div style={{ fontSize: "40px", textAlign: "center", marginBottom: "14px" }}>✅</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
+                  fontWeight: 700, color: "#111827", textAlign: "center", marginBottom: "10px" }}>
+                  All Done!
+                </div>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                  color: "#6b7280", textAlign: "center", lineHeight: "1.65", marginBottom: "24px" }}>
+                  <strong style={{ color: "#111827" }}>{bulkResult.clientCount} invoice{bulkResult.clientCount !== 1 ? "s" : ""}</strong> sent
+                  covering <strong style={{ color: "#111827" }}>{bulkResult.walkCount} walk{bulkResult.walkCount !== 1 ? "s" : ""}</strong>.
+                </p>
+                <button onClick={() => { setBulkState("idle"); setBulkResult(null); }}
+                  style={{ width: "100%", padding: "14px", borderRadius: "11px", border: "none",
+                    background: "#C4541A", color: "#fff",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                    fontWeight: 600, cursor: "pointer" }}>
+                  Back to Invoices
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ══ LIST VIEW ══ */}
       {view === "list" && (
@@ -14467,9 +14625,22 @@ function AdminInvoicesTab({ clients, setClients }) {
               {/* Step 1: Select client */}
               {step === 1 && (
                 <div className="fade-up">
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                    fontWeight: 600, color: "#374151", marginBottom: "12px" }}>
-                    Select a client to invoice
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                    marginBottom: "12px" }}>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                      fontWeight: 600, color: "#374151" }}>
+                      Select a client to invoice
+                    </div>
+                    <button onClick={() => { if (selectedClientId) setStep(2); }}
+                      disabled={!selectedClientId}
+                      style={{ padding: "9px 18px", borderRadius: "10px", border: "none",
+                        background: selectedClientId ? green : "#e4e7ec",
+                        color: selectedClientId ? "#fff" : "#9ca3af",
+                        fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                        fontWeight: 600, cursor: selectedClientId ? "pointer" : "default",
+                        whiteSpace: "nowrap", flexShrink: 0 }}>
+                      Next: Choose Walks →
+                    </button>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                     {activeClients.length === 0 && (
@@ -14528,16 +14699,6 @@ function AdminInvoicesTab({ clients, setClients }) {
                       );
                     })}
                   </div>
-                  <button onClick={() => { if (selectedClientId) setStep(2); }}
-                    disabled={!selectedClientId}
-                    style={{ marginTop: "20px", width: "100%", padding: "13px", borderRadius: "11px",
-                      border: "none",
-                      background: selectedClientId ? green : "#e4e7ec",
-                      color: selectedClientId ? "#fff" : "#9ca3af",
-                      fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                      fontWeight: 600, cursor: selectedClientId ? "pointer" : "default" }}>
-                    Next: Choose Walks →
-                  </button>
                 </div>
               )}
 
@@ -16103,6 +16264,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     setClientEditMode(false);
     setClientEditDraft(null);
     setConfirmPayrollWalker(null);
+    setBookingsView("upcoming");
   };
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [expandedKpi, setExpandedKpi] = useState(null);
@@ -18317,42 +18479,109 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 const sortedCompleted = completedBookings.slice().sort((a, b) =>
                   new Date(b.completedAt || b.scheduledDateTime || b.bookedAt) - new Date(a.completedAt || a.scheduledDateTime || a.bookedAt));
 
+                // ── Week grouping helpers ──
+                const getWeekStart = (date) => {
+                  const d = new Date(date);
+                  const day = d.getDay();
+                  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+                  d.setHours(0, 0, 0, 0);
+                  return d;
+                };
+                const thisWeekKey  = getWeekStart(new Date()).toISOString().slice(0, 10);
+                const nextWeekDate = new Date(getWeekStart(new Date())); nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+                const nextWeekKey  = nextWeekDate.toISOString().slice(0, 10);
+                const fmtD = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+                const weekGroupMap = {}; const weekGroupOrder = [];
+                sortedUpcoming.forEach(b => {
+                  const ws = getWeekStart(new Date(b.scheduledDateTime || b.bookedAt));
+                  const k  = ws.toISOString().slice(0, 10);
+                  if (!weekGroupMap[k]) { weekGroupMap[k] = { key: k, weekStart: ws, bookings: [] }; weekGroupOrder.push(k); }
+                  weekGroupMap[k].bookings.push(b);
+                });
+                const weekGroups = weekGroupOrder.map(k => weekGroupMap[k]);
+
+                const getWeekLabel = (ws, k) => {
+                  const we = new Date(ws); we.setDate(we.getDate() + 6);
+                  const range = `${fmtD(ws)} – ${fmtD(we)}`;
+                  if (k === thisWeekKey) return { title: "This Week", range };
+                  if (k === nextWeekKey) return { title: "Next Week", range };
+                  return { title: `Week of ${fmtD(ws)}`, range };
+                };
+
                 return (
                   <>
-                    {/* Upcoming Bookings */}
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
-                      letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "12px" }}>
-                      Upcoming Bookings ({sortedUpcoming.length})
+                    {/* ── Toggle bar ── */}
+                    <div style={{ display: "flex", gap: "8px", marginBottom: "24px" }}>
+                      {[
+                        { id: "upcoming",  label: "Upcoming",  count: sortedUpcoming.length,  color: "#3D6B7A" },
+                        { id: "completed", label: "Completed", count: sortedCompleted.length, color: "#059669" },
+                      ].map(v => {
+                        const active = bookingsView === v.id;
+                        return (
+                          <button key={v.id} onClick={() => { setBookingsView(v.id); setExpandedBooking(null); }} style={{
+                            padding: "9px 20px", borderRadius: "10px", cursor: "pointer", border: "none",
+                            background: active ? v.color : "#f3f4f6",
+                            color: active ? "#fff" : "#6b7280",
+                            fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                            fontWeight: active ? 600 : 400, transition: "all 0.15s",
+                            display: "flex", alignItems: "center", gap: "8px",
+                          }}>
+                            {v.label}
+                            <span style={{
+                              background: active ? "rgba(255,255,255,0.25)" : "#e4e7ec",
+                              color: active ? "#fff" : "#9ca3af",
+                              borderRadius: "20px", padding: "1px 8px",
+                              fontSize: "13px", fontWeight: 600,
+                            }}>{v.count}</span>
+                          </button>
+                        );
+                      })}
                     </div>
-                    {sortedUpcoming.length === 0 ? (
-                      <div style={{ background: "#fff", borderRadius: "14px", padding: "28px",
-                        textAlign: "center", border: "1.5px solid #e4e7ec", marginBottom: "28px" }}>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#9ca3af", fontSize: "15px" }}>
-                          No upcoming bookings.
+
+                    {/* ── Upcoming — week groups ── */}
+                    {bookingsView === "upcoming" && (
+                      weekGroups.length === 0 ? (
+                        <div style={{ background: "#fff", borderRadius: "14px", padding: "28px",
+                          textAlign: "center", border: "1.5px solid #e4e7ec" }}>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#9ca3af", fontSize: "15px" }}>No upcoming bookings.</div>
                         </div>
-                      </div>
-                    ) : (
-                      <div style={{ marginBottom: "28px" }}>
-                        {sortedUpcoming.map((b, i) => renderBookingCard(b, i, false))}
-                      </div>
+                      ) : weekGroups.map(({ key, weekStart, bookings: wBookings }) => {
+                        const lbl = getWeekLabel(weekStart, key);
+                        const isThisWeek = key === thisWeekKey;
+                        return (
+                          <div key={key} style={{ marginBottom: "32px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 700,
+                                letterSpacing: "1.5px", textTransform: "uppercase",
+                                color: isThisWeek ? "#C4541A" : "#6b7280",
+                                whiteSpace: "nowrap" }}>
+                                {lbl.title}
+                              </div>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                                color: "#9ca3af", whiteSpace: "nowrap" }}>{lbl.range}</div>
+                              <div style={{ flex: 1, height: "1px", background: isThisWeek ? "#C4541A44" : "#e4e7ec" }} />
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                                color: "#9ca3af", whiteSpace: "nowrap" }}>
+                                {wBookings.length} walk{wBookings.length !== 1 ? "s" : ""}
+                              </div>
+                            </div>
+                            {wBookings.map((b, i) => renderBookingCard(b, i, false))}
+                          </div>
+                        );
+                      })
                     )}
 
-                    {/* Completed Bookings */}
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
-                      letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "12px" }}>
-                      Completed Bookings ({sortedCompleted.length})
-                    </div>
-                    {sortedCompleted.length === 0 ? (
-                      <div style={{ background: "#fff", borderRadius: "14px", padding: "28px",
-                        textAlign: "center", border: "1.5px solid #e4e7ec" }}>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#9ca3af", fontSize: "15px" }}>
-                          No completed bookings yet.
+                    {/* ── Completed — flat sorted ── */}
+                    {bookingsView === "completed" && (
+                      sortedCompleted.length === 0 ? (
+                        <div style={{ background: "#fff", borderRadius: "14px", padding: "28px",
+                          textAlign: "center", border: "1.5px solid #e4e7ec" }}>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#9ca3af", fontSize: "15px" }}>No completed bookings yet.</div>
                         </div>
-                      </div>
-                    ) : (
-                      <div>
-                        {sortedCompleted.map((b, i) => renderBookingCard(b, i, true))}
-                      </div>
+                      ) : (
+                        <div>{sortedCompleted.map((b, i) => renderBookingCard(b, i, true))}</div>
+                      )
                     )}
                   </>
                 );
