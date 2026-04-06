@@ -4577,7 +4577,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         const tierEmoji = { "Zoomies Mode": "⚡", "Park Regular": "🌳", "Couch Pup": "🛋️" };
         const tierColor = { "Zoomies Mode": "#059669", "Park Regular": "#2563eb", "Couch Pup": "#9ca3af" };
 
-        const KpiCard = ({ icon, label, value, sub, onClick, accent, alert }) => (
+        const renderKpiCard = ({ icon, label, value, sub, onClick, accent, alert }) => (
           <div onClick={onClick} style={{
             background: "#fff", borderRadius: "16px", padding: "18px 20px",
             border: alert ? "1.5px solid #fca5a5" : "1.5px solid #f0ede8",
@@ -4614,51 +4614,47 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
             {/* KPI grid */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "24px" }}>
 
-              {/* Upcoming walks */}
-              <KpiCard
-                icon="📅"
-                label="Upcoming Walks"
-                value={upcomingWalks.length}
-                sub={nextWalk
+              {renderKpiCard({
+                icon: "📅",
+                label: "Upcoming Walks",
+                value: upcomingWalks.length,
+                sub: nextWalk
                   ? `Next: ${new Date(nextWalk.scheduledDateTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`
-                  : "None scheduled"}
-                onClick={() => setPage("mywalks")}
-              />
+                  : "None scheduled",
+                onClick: () => setPage("mywalks"),
+              })}
 
-              {/* Invoices */}
-              <KpiCard
-                icon="🧾"
-                label="Open Invoices"
-                value={openInvoices.length === 0 ? "✓ Paid up" : openInvoices.length}
-                sub={openInvoices.length > 0
+              {renderKpiCard({
+                icon: "🧾",
+                label: "Open Invoices",
+                value: openInvoices.length === 0 ? "✓ Paid up" : openInvoices.length,
+                sub: openInvoices.length > 0
                   ? overdueInvoices.length > 0
                     ? `$${outstandingTotal} due · ${overdueInvoices.length} overdue`
                     : `$${outstandingTotal} outstanding`
-                  : "Nothing owed"}
-                accent={openInvoices.length > 0 ? (overdueInvoices.length > 0 ? "#ef4444" : "#b45309") : "#059669"}
-                alert={overdueInvoices.length > 0}
-                onClick={() => setPage("invoices")}
-              />
+                  : "Nothing owed",
+                accent: openInvoices.length > 0 ? (overdueInvoices.length > 0 ? "#ef4444" : "#b45309") : "#059669",
+                alert: overdueInvoices.length > 0,
+                onClick: () => setPage("invoices"),
+              })}
 
-              {/* Pricing tier */}
-              <KpiCard
-                icon={tierEmoji[currentTier.label] || "💰"}
-                label="Current Tier"
-                value={currentTier.label}
-                sub={`$${currentTier.prices["30 min"]}/30 min · $${currentTier.prices["60 min"]}/60 min`}
-                accent={tierColor[currentTier.label]}
-                onClick={() => setPage("pricing")}
-              />
+              {renderKpiCard({
+                icon: tierEmoji[currentTier.label] || "💰",
+                label: "Current Tier",
+                value: currentTier.label,
+                sub: `$${currentTier.prices["30 min"]}/30 min · $${currentTier.prices["60 min"]}/60 min`,
+                accent: tierColor[currentTier.label],
+                onClick: () => setPage("pricing"),
+              })}
 
-              {/* Preferred walker */}
-              <KpiCard
-                icon="🐕‍🦺"
-                label="Your Walker"
-                value={client.preferredWalker || "None set"}
-                sub={client.preferredWalker ? "Tap to book" : "Set during booking"}
-                accent="#111827"
-                onClick={client.preferredWalker ? () => setPage("book") : undefined}
-              />
+              {renderKpiCard({
+                icon: "🐕‍🦺",
+                label: "Your Walker",
+                value: client.preferredWalker || "None set",
+                sub: client.preferredWalker ? "Tap to book" : "Set during booking",
+                accent: "#111827",
+                onClick: client.preferredWalker ? () => setPage("book") : undefined,
+              })}
             </div>
 
             {/* Punch card KPI — full width */}
