@@ -1103,10 +1103,13 @@ const GLOBAL_STYLES = `
 function Header({ client, onLogout, page, setPage, notifCounts = {} }) {
   return (
     <div style={{ flexShrink: 0 }}>
-      <header style={{ background: "#0B1423", padding: "24px 24px 20px", textAlign: "center" }}>
-        <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
-          fontSize: "clamp(22px,5vw,34px)", fontWeight: 600, letterSpacing: "2px", marginBottom: "4px" }}>
-          Lonestar Bark Co.
+      <header style={{ background: "#0B1423", padding: "16px 24px 14px", textAlign: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "14px", marginBottom: "4px" }}>
+          <img src="/logo.png" alt="Lonestar Bark" style={{ width: "48px", height: "48px", borderRadius: "50%" }} />
+          <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
+            fontSize: "clamp(22px,5vw,34px)", fontWeight: 600, letterSpacing: "2px" }}>
+            Lonestar Bark Co.
+          </div>
         </div>
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff99",
           fontSize: "16px", letterSpacing: "3px", textTransform: "uppercase", fontWeight: 300 }}>
@@ -1395,7 +1398,7 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
       <style>{GLOBAL_STYLES}</style>
 
       <div style={{ textAlign: "center", marginBottom: "40px" }}>
-        <div style={{ fontSize: "40px", marginBottom: "10px" }}>🐾</div>
+        <img src="/logo.png" alt="Lonestar Bark" style={{ width: "72px", height: "72px", borderRadius: "50%", marginBottom: "12px" }} />
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
           fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "2px", marginBottom: "6px" }}>
           Lonestar Bark Co.
@@ -8245,7 +8248,7 @@ function RoleSelectScreen({ onSelectRole, onBack }) {
     }}>
       <style>{GLOBAL_STYLES}</style>
       <div style={{ textAlign: "center", marginBottom: "40px" }}>
-        <div style={{ fontSize: "48px", marginBottom: "12px" }}>🐾</div>
+        <img src="/logo.png" alt="Lonestar Bark" style={{ width: "88px", height: "88px", borderRadius: "50%", marginBottom: "14px" }} />
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
           fontSize: "clamp(26px,6vw,36px)", fontWeight: 600, letterSpacing: "2px", marginBottom: "6px" }}>
           Lonestar Bark Co.
@@ -9941,8 +9944,11 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
         <div style={{ display: "flex",
           alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
-              fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "1px" }}>Lonestar Bark Co.</div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src="/logo.png" alt="Lonestar Bark" style={{ width: "30px", height: "30px", borderRadius: "50%" }} />
+              <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
+                fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "1px" }}>Lonestar Bark Co.</div>
+            </div>
             <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#4E7A8C",
               fontSize: "16px", marginTop: "2px" }}>
               {walker.avatar} {walker.name} · {TABS.find(t => t.id === tab)?.label || ""}
@@ -10033,8 +10039,11 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
             <div style={{ padding: "24px 20px 16px", borderBottom: "1px solid #254E5E",
               display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
-                  fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600 }}>Lonestar Bark Co.</div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <img src="/logo.png" alt="Lonestar Bark" style={{ width: "28px", height: "28px", borderRadius: "50%" }} />
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
+                    fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600 }}>Lonestar Bark Co.</div>
+                </div>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#4E7A8C",
                   fontSize: "15px", marginTop: "2px", color: "rgba(255,255,255,0.65)" }}>{walker.avatar} {walker.name}</div>
               </div>
@@ -16333,8 +16342,11 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
             <div style={{ padding: "24px 20px 16px", borderBottom: "1px solid #6B4420",
               display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
-                  fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600 }}>Lonestar Bark Co.</div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <img src="/logo.png" alt="Lonestar Bark" style={{ width: "28px", height: "28px", borderRadius: "50%" }} />
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
+                    fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600 }}>Lonestar Bark Co.</div>
+                </div>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#d97706",
                   fontSize: "15px", marginTop: "2px" }}>🛡️ Admin Dashboard</div>
               </div>
