@@ -16241,6 +16241,10 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
   const [tab, setTab] = useState("overview");
   const [bookingsView, setBookingsView] = useState("upcoming"); // "upcoming" | "completed"
   const [invoicesKey, setInvoicesKey] = useState(0); // increments to remount AdminInvoicesTab on nav
+  const [clientSearch, setClientSearch] = useState("");
+  const [walkerSearch, setWalkerSearch] = useState("");
+  const [appSearch,    setAppSearch]    = useState("");
+  const [bookingSearch,setBookingSearch]= useState("");
   const [pings, setPings] = useState({}); // { [walkerId]: { at: Date, adminName: string } }
 
   // Send a ping to a walker (internal now; wire Twilio here later)
@@ -16279,6 +16283,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     setConfirmPayrollWalker(null);
     setBookingsView("upcoming");
     if (newTab === "invoices") setInvoicesKey(k => k + 1);
+    setClientSearch(""); setWalkerSearch(""); setAppSearch(""); setBookingSearch("");
   };
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [expandedKpi, setExpandedKpi] = useState(null);
@@ -18107,9 +18112,27 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                 fontWeight: 600, color: "#111827", marginBottom: "6px" }}>All Bookings</div>
               <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
-                marginBottom: "24px" }}>
+                marginBottom: "12px" }}>
                 {upcoming.length} upcoming · {completedBookings.length} completed — click any booking to edit.
               </p>
+
+              {/* Search */}
+              <div style={{ position: "relative", marginBottom: "20px" }}>
+                <span style={{ position: "absolute", left: "12px", top: "50%",
+                  transform: "translateY(-50%)", fontSize: "15px", pointerEvents: "none" }}>🔍</span>
+                <input value={bookingSearch} onChange={e => setBookingSearch(e.target.value)}
+                  placeholder="Search by client, walker, or pet name…"
+                  style={{ width: "100%", boxSizing: "border-box", padding: "10px 36px 10px 36px",
+                    borderRadius: "10px", border: "1.5px solid #e4e7ec",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                    color: "#111827", outline: "none", background: "#fff" }} />
+                {bookingSearch && (
+                  <button onClick={() => setBookingSearch("")}
+                    style={{ position: "absolute", right: "10px", top: "50%",
+                      transform: "translateY(-50%)", background: "none", border: "none",
+                      cursor: "pointer", color: "#9ca3af", fontSize: "16px", lineHeight: 1 }}>✕</button>
+                )}
+              </div>
 
               {/* ── Render a booking card (shared between sections) ── */}
               {(() => {
@@ -18468,9 +18491,16 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                   );
                 };
 
-                const sortedUpcoming = upcoming.slice().sort((a, b) =>
+                const bookingMatchesSearch = (b) => {
+                  if (!bookingSearch) return true;
+                  const q = bookingSearch.toLowerCase();
+                  return (b.clientName || "").toLowerCase().includes(q)
+                    || (b.form?.walker || "").toLowerCase().includes(q)
+                    || (b.form?.pet    || "").toLowerCase().includes(q);
+                };
+                const sortedUpcoming = upcoming.filter(bookingMatchesSearch).slice().sort((a, b) =>
                   new Date(a.scheduledDateTime || a.bookedAt) - new Date(b.scheduledDateTime || b.bookedAt));
-                const sortedCompleted = completedBookings.slice().sort((a, b) =>
+                const sortedCompleted = completedBookings.filter(bookingMatchesSearch).slice().sort((a, b) =>
                   new Date(b.completedAt || b.scheduledDateTime || b.bookedAt) - new Date(a.completedAt || a.scheduledDateTime || a.bookedAt));
 
                 // ── Week grouping helpers ──
@@ -19368,7 +19398,14 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
             c.createdAt &&
             (Date.now() - new Date(c.createdAt).getTime() < 48 * 3600000);
 
-          const sortedClients = [...clientList].sort((a, b) => {
+          const sortedClients = [...clientList].filter(({ c, pets }) => {
+            if (!clientSearch) return true;
+            const q = clientSearch.toLowerCase();
+            return (c.name || "").toLowerCase().includes(q)
+              || (c.email || "").toLowerCase().includes(q)
+              || (c.dogs || []).some(d => d.toLowerCase().includes(q))
+              || (c.cats || []).some(d => d.toLowerCase().includes(q));
+          }).sort((a, b) => {
             const aNew = isNewClient(a.c) ? 1 : 0;
             const bNew = isNewClient(b.c) ? 1 : 0;
             if (bNew !== aNew) return bNew - aNew;
@@ -19398,9 +19435,27 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 </button>
               </div>
               <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
-                marginBottom: "16px" }}>
+                marginBottom: "12px" }}>
                 {Object.keys(clients).length} registered client{Object.keys(clients).length !== 1 ? "s" : ""} — click any client to view their full profile.
               </p>
+
+              {/* Search */}
+              <div style={{ position: "relative", marginBottom: "16px" }}>
+                <span style={{ position: "absolute", left: "12px", top: "50%",
+                  transform: "translateY(-50%)", fontSize: "15px", pointerEvents: "none" }}>🔍</span>
+                <input value={clientSearch} onChange={e => setClientSearch(e.target.value)}
+                  placeholder="Search by name, email, or pet…"
+                  style={{ width: "100%", boxSizing: "border-box", padding: "10px 36px 10px 36px",
+                    borderRadius: "10px", border: "1.5px solid #e4e7ec",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                    color: "#111827", outline: "none", background: "#fff" }} />
+                {clientSearch && (
+                  <button onClick={() => setClientSearch("")}
+                    style={{ position: "absolute", right: "10px", top: "50%",
+                      transform: "translateY(-50%)", background: "none", border: "none",
+                      cursor: "pointer", color: "#9ca3af", fontSize: "16px", lineHeight: 1 }}>✕</button>
+                )}
+              </div>
 
               {/* ── Add Client form ── */}
               {showAdminAddClient && (
@@ -20466,7 +20521,25 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 </button>
               </div>
               <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
-                marginBottom: "20px" }}>Click a walker to view and edit their full profile.</p>
+                marginBottom: "12px" }}>Click a walker to view and edit their full profile.</p>
+
+              {/* Search */}
+              <div style={{ position: "relative", marginBottom: "20px" }}>
+                <span style={{ position: "absolute", left: "12px", top: "50%",
+                  transform: "translateY(-50%)", fontSize: "15px", pointerEvents: "none" }}>🔍</span>
+                <input value={walkerSearch} onChange={e => setWalkerSearch(e.target.value)}
+                  placeholder="Search walkers by name or email…"
+                  style={{ width: "100%", boxSizing: "border-box", padding: "10px 36px 10px 36px",
+                    borderRadius: "10px", border: "1.5px solid #e4e7ec",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                    color: "#111827", outline: "none", background: "#fff" }} />
+                {walkerSearch && (
+                  <button onClick={() => setWalkerSearch("")}
+                    style={{ position: "absolute", right: "10px", top: "50%",
+                      transform: "translateY(-50%)", background: "none", border: "none",
+                      cursor: "pointer", color: "#9ca3af", fontSize: "16px", lineHeight: 1 }}>✕</button>
+                )}
+              </div>
 
               {/* ── Add Walker form ── */}
               {showAddWalker && (() => {
@@ -20645,7 +20718,12 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 );
               })()}
 
-              {getAllWalkers(walkerProfiles).map(w => {
+              {getAllWalkers(walkerProfiles).filter(w => {
+                if (!walkerSearch) return true;
+                const q = walkerSearch.toLowerCase();
+                return (w.name || "").toLowerCase().includes(q)
+                  || ((walkerProfiles[w.id]?.email) || "").toLowerCase().includes(q);
+              }).map(w => {
                 const prof = walkerProfiles[w.id] || {};
                 const walkerUpcoming = upcoming.filter(b => b.form?.walker === w.name);
                 const walkerCompleted = completedBookings.filter(b => b.form?.walker === w.name);
@@ -21019,9 +21097,27 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                 fontWeight: 600, color: "#111827", marginBottom: "4px" }}>Potential Walkers</div>
               <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                color: "#6b7280", marginBottom: "20px" }}>
+                color: "#6b7280", marginBottom: "12px" }}>
                 Incoming applications from the Join the Team form.
               </p>
+
+              {/* Search */}
+              <div style={{ position: "relative", marginBottom: "20px" }}>
+                <span style={{ position: "absolute", left: "12px", top: "50%",
+                  transform: "translateY(-50%)", fontSize: "15px", pointerEvents: "none" }}>🔍</span>
+                <input value={appSearch} onChange={e => setAppSearch(e.target.value)}
+                  placeholder="Search applicants by name or email…"
+                  style={{ width: "100%", boxSizing: "border-box", padding: "10px 36px 10px 36px",
+                    borderRadius: "10px", border: "1.5px solid #e4e7ec",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                    color: "#111827", outline: "none", background: "#fff" }} />
+                {appSearch && (
+                  <button onClick={() => setAppSearch("")}
+                    style={{ position: "absolute", right: "10px", top: "50%",
+                      transform: "translateY(-50%)", background: "none", border: "none",
+                      cursor: "pointer", color: "#9ca3af", fontSize: "16px", lineHeight: 1 }}>✕</button>
+                )}
+              </div>
 
               {appsLoading ? (
                 <div style={{ textAlign: "center", padding: "40px",
@@ -21335,9 +21431,17 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
           }
 
           // Application list
-          const pending   = applications.filter(a => a.status === "pending");
-          const approved  = applications.filter(a => a.status === "approved");
-          const declined  = applications.filter(a => a.status === "declined");
+          const filteredApps = appSearch
+            ? applications.filter(a => {
+                const q = appSearch.toLowerCase();
+                return (`${a.first_name || ""} ${a.last_name || ""}`).toLowerCase().includes(q)
+                  || (a.email || "").toLowerCase().includes(q)
+                  || (a.city  || "").toLowerCase().includes(q);
+              })
+            : applications;
+          const pending   = filteredApps.filter(a => a.status === "pending");
+          const approved  = filteredApps.filter(a => a.status === "approved");
+          const declined  = filteredApps.filter(a => a.status === "declined");
 
           const AppCard = ({ a }) => (
             <button onClick={() => setSelectedApp(a)} style={{
@@ -21390,9 +21494,27 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                   fontSize: "16px", cursor: "pointer" }}>↺ Refresh</button>
               </div>
               <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                color: "#6b7280", marginBottom: "20px" }}>
+                color: "#6b7280", marginBottom: "12px" }}>
                 Incoming applications from the Join the Team form.
               </p>
+
+              {/* Search */}
+              <div style={{ position: "relative", marginBottom: "20px" }}>
+                <span style={{ position: "absolute", left: "12px", top: "50%",
+                  transform: "translateY(-50%)", fontSize: "15px", pointerEvents: "none" }}>🔍</span>
+                <input value={appSearch} onChange={e => setAppSearch(e.target.value)}
+                  placeholder="Search applicants by name or email…"
+                  style={{ width: "100%", boxSizing: "border-box", padding: "10px 36px 10px 36px",
+                    borderRadius: "10px", border: "1.5px solid #e4e7ec",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                    color: "#111827", outline: "none", background: "#fff" }} />
+                {appSearch && (
+                  <button onClick={() => setAppSearch("")}
+                    style={{ position: "absolute", right: "10px", top: "50%",
+                      transform: "translateY(-50%)", background: "none", border: "none",
+                      cursor: "pointer", color: "#9ca3af", fontSize: "16px", lineHeight: 1 }}>✕</button>
+                )}
+              </div>
 
               {appsLoading ? (
                 <div style={{ textAlign: "center", padding: "40px",
