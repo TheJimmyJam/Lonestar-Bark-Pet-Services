@@ -2941,13 +2941,11 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
   const slotSectionRef   = useRef(null);
   const detailsSectionRef = useRef(null);
   const pickSectionRef   = useRef(null);
-  const preferredWalkerRef = useRef(null);
 
   // Auto-scroll when stage enters "pick"
   useEffect(() => {
     if (stage === "pick") {
       setTimeout(() => pickSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
-      setTimeout(() => preferredWalkerRef.current?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" }), 200);
     }
   }, [stage]);
 
@@ -4266,12 +4264,20 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
 
   // Walker availability loaded from Supabase — keyed by walkerId then dateKey
   const [walkerAvailability, setWalkerAvailability] = useState({});
+  const preferredWalkerRef = useRef(null);
   useEffect(() => {
     // Load availability for the visible 12-week window
     const start = toDateKey(getWeekDates(0)[0]);
     const end = toDateKey(getWeekDates(11)[6]);
     loadAllWalkersAvailability(start, end).then(data => setWalkerAvailability(data));
   }, []);
+
+  // Scroll preferred walker into view when landing on the book page
+  useEffect(() => {
+    if (page === "book") {
+      setTimeout(() => preferredWalkerRef.current?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" }), 300);
+    }
+  }, [page]);
 
   // Get available slots for selected walker on selected day
   const selectedDateKey = toDateKey(weekDates[selectedDay]);
@@ -4651,9 +4657,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 icon: "🐕‍🦺",
                 label: "Your Walker",
                 value: client.preferredWalker || "None set",
-                sub: client.preferredWalker ? "Tap to book" : "Set during booking",
+                sub: client.preferredWalker ? "Your go-to walker" : "Set during booking",
                 accent: "#111827",
-                onClick: client.preferredWalker ? () => setPage("book") : undefined,
               })}
             </div>
 
