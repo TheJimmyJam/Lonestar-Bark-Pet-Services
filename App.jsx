@@ -10563,16 +10563,16 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
 
               {/* ── Walk counts KPI grid ── */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
-                {kpiCard("📅", todayWalks.length,  "Today",     "#1A3A42", "#EBF4F6", "#A8D0DB", () => setTab("mywalks"))}
-                {kpiCard("📋", weekWalks.length,   "This Week", accentBlue, "#EBF4F6", "#A8D0DB", () => setTab("mywalks"))}
-                {kpiCard("📆", monthWalks.length,  "This Month",accentBlue, "#EBF4F6", "#A8D0DB", () => setTab("mywalks"))}
+                {kpiCard("📅", todayWalks.length,  "Walks Today",      "#1A3A42", "#EBF4F6", "#A8D0DB", () => setTab("mywalks"))}
+                {kpiCard("📋", weekWalks.length,   "Walks This Week",  accentBlue, "#EBF4F6", "#A8D0DB", () => setTab("mywalks"))}
+                {kpiCard("📆", monthWalks.length,  "Walks This Month", accentBlue, "#EBF4F6", "#A8D0DB", () => setTab("mywalks"))}
               </div>
 
               {/* ── Earnings KPI grid ── */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
-                {kpiCard("💵", fmt(weekPayout, true),    "Week Earnings",  "#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
-                {kpiCard("💰", fmt(monthPayout, true),   "Month Earnings", "#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
-                {kpiCard("🏅", fmt(allTimePayout, true), "All-Time",       "#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
+                {kpiCard("💵", fmt(weekPayout, true),    "Week's Earnings",  "#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
+                {kpiCard("💰", fmt(monthPayout, true),   "Month's Earnings", "#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
+                {kpiCard("🏅", fmt(allTimePayout, true), "All-Time Earnings","#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
               </div>
 
               {/* ── Invoice / outstanding row ── */}
@@ -10591,7 +10591,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "24px" }}>
                 {kpiCard("🗝️", myKeyClients.length, "Key Clients",
                   "#7A4D6E", "#F9F0F7", "#D8ABCF", () => setTab("myclients"))}
-                {kpiCard("✅", completedWalks.length, "Total Completed",
+                {kpiCard("✅", completedWalks.length, "Completed Walks",
                   "#059669", "#f0fdf4", "#a8d5bf", () => setTab("completed"))}
               </div>
 
@@ -12298,10 +12298,10 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "24px" }}>
               {[
-                { label: "This Week", value: fmt(weekEarned, true), icon: "📅", color: accentBlue },
-                { label: "All Time", value: fmt(totalEarned, true), icon: "💵", color: "#C4541A" },
+                { label: "Week's Earnings", value: fmt(weekEarned, true), icon: "📅", color: accentBlue },
+                { label: "All-Time Earnings", value: fmt(totalEarned, true), icon: "💵", color: "#C4541A" },
                 { label: "Walks This Week", value: thisWeek.length.toString(), icon: "🐕", color: "#b45309" },
-                { label: "Walks All Time", value: completedWalks.length.toString(), icon: "🏅", color: "#7A4D6E" },
+                { label: "All-Time Walks", value: completedWalks.length.toString(), icon: "🏅", color: "#7A4D6E" },
               ].map((s, i) => (
                 <div key={i} style={{ background: "#fff", border: `1.5px solid ${s.color}22`,
                   borderRadius: "14px", padding: "18px 16px" }}>
@@ -12420,7 +12420,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                   ["Payout Rate",   "60%"],
                   ["Walks Total",   completedWalks.length],
                   ["Total Earned",  fmt(totalEarned, true)],
-                  ["This Week",     fmt(weekEarned, true)],
+                  ["Week's Earnings",     fmt(weekEarned, true)],
                   ["Exported",      new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })],
                 ];
                 const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
@@ -17066,9 +17066,9 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
               }).sort((a, b) => b.spent - a.spent);
 
               const kpis = [
-                { id: "weekRev",        label: "This Week's Revenue", value: fmt(weekRevenue, true),          icon: "📅", color: amber,     note: "completed" },
-                { id: "allRev",         label: "All Time Revenue",  value: fmt(totalRevenue, true),           icon: "💰", color: "#7A4D6E", note: "completed" },
-                { id: "profit",         label: "Profit",            value: fmt(totalProfit, true),            icon: "📈", color: "#059669", note: "lifetime",   detail: `This week: ${fmt(weekProfit, true)}` },
+                { id: "weekRev",        label: "Week's Revenue",    value: fmt(weekRevenue, true),          icon: "📅", color: amber,     note: "completed" },
+                { id: "allRev",         label: "All-Time Revenue",  value: fmt(totalRevenue, true),         icon: "💰", color: "#7A4D6E", note: "completed" },
+                { id: "profit",         label: "All-Time Profit",   value: fmt(totalProfit, true),          icon: "📈", color: "#059669", note: "lifetime",   detail: `This week: ${fmt(weekProfit, true)}` },
                 { id: "dailyConfirm",   label: "Today's Walks",     value: `${todayConfirmedCount}/${todayTotalCount}`, icon: "✅", color: todayTotalCount > 0 && todayConfirmedCount === todayTotalCount ? "#059669" : "#C4541A", note: "confirmed",  detail: todayTotalCount === 0 ? "no walks today" : todayConfirmedCount === todayTotalCount ? "all confirmed!" : `${todayTotalCount - todayConfirmedCount} remaining` },
                 { id: "clients",        label: "Total Clients",     value: Object.keys(clients).length, icon: "👥", color: "#C4541A" },
                 { id: "activeBook",     label: "Active Bookings",   value: allBookings.length,           icon: "📋", color: "#3D6B7A" },
