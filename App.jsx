@@ -1099,13 +1099,63 @@ const GLOBAL_STYLES = `
 `;
 
 
+
+// ─── Logo Badge (inline SVG — no image file needed) ──────────────────────────
+function LogoBadge({ size = 48 }) {
+  const cx = size / 2;
+  const cy = size / 2;
+  const r  = size / 2 - 1;
+
+  // Star: 5-pointed, pointing up
+  function starPoints(cx, cy, outerR, innerR) {
+    const pts = [];
+    for (let i = 0; i < 10; i++) {
+      const angle = (Math.PI / 5) * i - Math.PI / 2;
+      const rad   = i % 2 === 0 ? outerR : innerR;
+      pts.push(`${cx + rad * Math.cos(angle)},${cy + rad * Math.sin(angle)}`);
+    }
+    return pts.join(" ");
+  }
+
+  const sc   = size / 120;            // scale factor (design unit = 120px)
+  const starCY   = cy - 13 * sc;
+  const starOuter = 26 * sc;
+  const starInner = 10.5 * sc;
+  const pawCY    = cy + 18 * sc;
+  const mainRX   = 12 * sc;
+  const mainRY   = 9.5 * sc;
+  const toeR     = 6.5 * sc;
+  const toeRY    = 5.5 * sc;
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}
+      style={{ display: "block", flexShrink: 0 }}>
+      {/* Background circle */}
+      <circle cx={cx} cy={cy} r={r} fill="#0B1423" />
+      {/* Outer ring */}
+      <circle cx={cx} cy={cy} r={r - 1.5 * sc} fill="none" stroke="#D4A843" strokeWidth={Math.max(0.8, 1.2 * sc)} />
+      {/* Inner ring */}
+      <circle cx={cx} cy={cy} r={r - 5.5 * sc} fill="none" stroke="#D4A843" strokeWidth={Math.max(0.4, 0.6 * sc)} />
+      {/* Star */}
+      <polygon points={starPoints(cx, starCY, starOuter, starInner)} fill="#D4A843" />
+      {/* Paw — toe pads */}
+      <ellipse cx={cx - 16 * sc} cy={pawCY - 7 * sc} rx={toeR} ry={toeRY} fill="#C4541A" />
+      <ellipse cx={cx - 6.5 * sc} cy={pawCY - 11 * sc} rx={toeR} ry={toeRY} fill="#C4541A" />
+      <ellipse cx={cx + 6.5 * sc} cy={pawCY - 11 * sc} rx={toeR} ry={toeRY} fill="#C4541A" />
+      <ellipse cx={cx + 16 * sc}  cy={pawCY - 7 * sc}  rx={toeR} ry={toeRY} fill="#C4541A" />
+      {/* Paw — main pad */}
+      <ellipse cx={cx} cy={pawCY + 2 * sc} rx={mainRX} ry={mainRY} fill="#C4541A" />
+    </svg>
+  );
+}
+
 // ─── Header ───────────────────────────────────────────────────────────────────
 function Header({ client, onLogout, page, setPage, notifCounts = {} }) {
   return (
     <div style={{ flexShrink: 0 }}>
       <header style={{ background: "#0B1423", padding: "16px 24px 14px", textAlign: "center" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "14px", marginBottom: "4px" }}>
-          <img src="/logo.png" alt="Lonestar Bark" style={{ width: "48px", height: "48px", borderRadius: "50%" }} />
+          <LogoBadge size={48} />
           <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
             fontSize: "clamp(22px,5vw,34px)", fontWeight: 600, letterSpacing: "2px" }}>
             Lonestar Bark Co.
@@ -1398,7 +1448,7 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
       <style>{GLOBAL_STYLES}</style>
 
       <div style={{ textAlign: "center", marginBottom: "40px" }}>
-        <img src="/logo.png" alt="Lonestar Bark" style={{ width: "72px", height: "72px", borderRadius: "50%", marginBottom: "12px" }} />
+        <LogoBadge size={72} />
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
           fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "2px", marginBottom: "6px" }}>
           Lonestar Bark Co.
@@ -6953,7 +7003,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 
-            <img src="/logo.png" alt="Lonestar Bark" style={{ width: "32px", height: "32px", borderRadius: "50%" }} />
+            <LogoBadge size={32} />
             <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
               fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "1.5px" }}>
               Lonestar Bark Co.
@@ -6991,7 +7041,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             <div style={{ padding: "24px 20px 16px", borderBottom: "1px solid #1E4A32",
               display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <img src="/logo.png" alt="Lonestar Bark" style={{ width: "28px", height: "28px", borderRadius: "50%" }} />
+                <LogoBadge size={28} />
                 <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
                   fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "1px" }}>Lonestar Bark Co.</div>
               </div>
@@ -7106,8 +7156,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           gap: "clamp(32px,6vw,72px)", flexWrap: "wrap", justifyContent: "center" }}>
           {/* Logo mark */}
           <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: "16px" }}>
-            <img src="/logo.png" alt="Lonestar Bark" style={{ width: "120px", height: "120px", borderRadius: "50%",
-              border: "2px solid rgba(212,168,67,0.4)" }} />
+            <LogoBadge size={120} />
             <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#D4A843",
               fontSize: "11px", letterSpacing: "0.45em", textTransform: "uppercase" }}>
               Lake Highlands, Dallas ★
@@ -8293,7 +8342,7 @@ function RoleSelectScreen({ onSelectRole, onBack }) {
     }}>
       <style>{GLOBAL_STYLES}</style>
       <div style={{ textAlign: "center", marginBottom: "40px" }}>
-        <img src="/logo.png" alt="Lonestar Bark" style={{ width: "88px", height: "88px", borderRadius: "50%", marginBottom: "14px" }} />
+        <LogoBadge size={88} />
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
           fontSize: "clamp(26px,6vw,36px)", fontWeight: 600, letterSpacing: "2px", marginBottom: "6px" }}>
           Lonestar Bark Co.
@@ -9990,7 +10039,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
           alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <img src="/logo.png" alt="Lonestar Bark" style={{ width: "30px", height: "30px", borderRadius: "50%" }} />
+              <LogoBadge size={30} />
               <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
                 fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "1px" }}>Lonestar Bark Co.</div>
             </div>
@@ -10085,7 +10134,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <img src="/logo.png" alt="Lonestar Bark" style={{ width: "28px", height: "28px", borderRadius: "50%" }} />
+                  <LogoBadge size={28} />
                   <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
                     fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600 }}>Lonestar Bark Co.</div>
                 </div>
@@ -16388,7 +16437,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
               display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <img src="/logo.png" alt="Lonestar Bark" style={{ width: "28px", height: "28px", borderRadius: "50%" }} />
+                  <LogoBadge size={28} />
                   <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
                     fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600 }}>Lonestar Bark Co.</div>
                 </div>
