@@ -1180,6 +1180,7 @@ function Header({ client, onLogout }) {
 
 function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky = false }) {
   if (!client) return null;
+  const scrollTop = () => document.querySelector('[data-scroll-pane]')?.scrollTo({ top: 0, behavior: 'instant' });
   const clientTabs = [
     { id: "overview", label: "Overview", icon: "🏠" },
     { id: "book", label: "Book a Walk", icon: "🐾" },
@@ -1196,7 +1197,7 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
       display: "flex", alignItems: "stretch",
       ...(sticky ? { position: "sticky", top: 0, zIndex: 10 } : { flexShrink: 0 }) }}
       className="nav-tabs">
-      <button onClick={() => setPage(pinned.id)} style={{
+      <button onClick={() => { setPage(pinned.id); scrollTop(); }} style={{
         padding: "10px 16px", border: "none", whiteSpace: "nowrap",
         background: "transparent", flexShrink: 0,
         borderBottom: page === pinned.id ? "3px solid #8B5E3C" : "3px solid transparent",
@@ -1214,7 +1215,7 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
         {rest.map(t => {
           const badge = notifCounts[t.id] || 0;
           return (
-            <button key={t.id} onClick={() => setPage(t.id)} style={{
+            <button key={t.id} onClick={() => { setPage(t.id); scrollTop(); }} style={{
               padding: "10px 16px", border: "none", whiteSpace: "nowrap", background: "transparent",
               borderBottom: page === t.id ? "3px solid #8B5E3C" : "3px solid transparent",
               color: page === t.id ? "#fff" : "#ffffff88",
@@ -10315,7 +10316,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
         {(() => {
           const t = TABS[0];
           return (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
+            <button key={t.id} onClick={() => { setTab(t.id); document.querySelector('[data-scroll-pane]')?.scrollTo({ top: 0, behavior: 'instant' }); }} style={{
               padding: "10px 14px", border: "none", whiteSpace: "nowrap",
               background: "transparent", flexShrink: 0,
               borderBottom: tab === t.id ? "3px solid #3A849A" : "3px solid transparent",
@@ -10336,7 +10337,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
           {TABS.slice(1).map(t => {
             const badge = walkerNotifCounts[t.id] || 0;
             return (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{
+              <button key={t.id} onClick={() => { setTab(t.id); document.querySelector('[data-scroll-pane]')?.scrollTo({ top: 0, behavior: 'instant' }); }} style={{
                 padding: "10px 14px", border: "none", whiteSpace: "nowrap", background: "transparent",
                 borderBottom: tab === t.id ? "3px solid #3A849A" : "3px solid transparent",
                 color: tab === t.id ? "#fff" : "rgba(255,255,255,0.65)",
@@ -16935,11 +16936,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
         {(() => {
           const t = TABS[0];
           return (
-            <button key={t.id} onClick={() => changeTab(t.id)} style={{
-              padding: "10px 14px", border: "none", whiteSpace: "nowrap",
-              background: "transparent", flexShrink: 0,
-              borderBottom: tab === t.id ? `3px solid ${amber}` : "3px solid transparent",
-              borderRight: "1px solid #6B4420",
+            <button key={t.id} onClick={() => { changeTab(t.id); document.querySelector('[data-scroll-pane]')?.scrollTo({ top: 0, behavior: 'instant' }); }} style={{
               color: tab === t.id ? "#fff" : "rgba(255,255,255,0.65)",
               fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
               fontWeight: tab === t.id ? 600 : 400,
@@ -16956,15 +16953,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
           {TABS.slice(1).map(t => {
             const badgeCount = notifCounts[t.id] || 0;
             return (
-              <button key={t.id} onClick={() => changeTab(t.id)} style={{
-                padding: "10px 14px", border: "none", whiteSpace: "nowrap", background: "transparent",
-                borderBottom: tab === t.id ? `3px solid ${amber}` : "3px solid transparent",
-                color: tab === t.id ? "#fff" : "rgba(255,255,255,0.65)",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                fontWeight: tab === t.id ? 600 : 400,
-                cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
-                display: "flex", alignItems: "center", gap: "5px", flexShrink: 0,
-                position: "relative",
+              <button key={t.id} onClick={() => { changeTab(t.id); document.querySelector('[data-scroll-pane]')?.scrollTo({ top: 0, behavior: 'instant' }); }} style={{
               }}>
                 <span style={{ fontSize: "15px" }}>{t.icon}</span> {t.label}
                 {badgeCount > 0 && (
