@@ -4590,25 +4590,24 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         const tierEmoji = { "Zoomies Mode": "⚡", "Park Regular": "🌳", "Couch Pup": "🛋️" };
         const tierColor = { "Zoomies Mode": "#059669", "Park Regular": "#2563eb", "Couch Pup": "#9ca3af" };
 
-        const renderKpiCard = ({ icon, label, value, sub, onClick, accent, alert }) => (
+        const renderKpiCard = ({ label, value, sub, onClick, accent, alert }) => (
           <div onClick={onClick} style={{
-            background: "#fff", borderRadius: "16px", padding: "18px 20px",
+            background: "#fff", borderRadius: "16px", padding: "16px 18px",
             border: alert ? "1.5px solid #fca5a5" : "1.5px solid #f0ede8",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
             cursor: onClick ? "pointer" : "default",
-            display: "flex", flexDirection: "column", gap: "6px",
+            display: "flex", flexDirection: "column", gap: "4px",
             transition: "box-shadow 0.15s",
           }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: "22px" }}>{icon}</span>
-              {onClick && <span style={{ fontSize: "13px", color: "#9ca3af" }}>View →</span>}
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", fontWeight: 600,
+                textTransform: "uppercase", letterSpacing: "1px", color: "#9ca3af" }}>{label}</div>
+              {onClick && <span style={{ fontSize: "12px", color: "#d1d5db" }}>→</span>}
             </div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "26px", fontWeight: 700,
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "24px", fontWeight: 700,
               color: accent || "#111827", lineHeight: 1.1 }}>{value}</div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600,
-              textTransform: "uppercase", letterSpacing: "1px", color: "#9ca3af" }}>{label}</div>
-            {sub && <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-              color: alert ? "#ef4444" : "#6b7280", marginTop: "2px" }}>{sub}</div>}
+            {sub && <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+              color: alert ? "#ef4444" : "#9ca3af" }}>{sub}</div>}
           </div>
         );
 
@@ -4628,7 +4627,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "24px" }}>
 
               {renderKpiCard({
-                icon: "📅",
                 label: "Upcoming Walks",
                 value: upcomingWalks.length,
                 sub: nextWalk
@@ -4638,7 +4636,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               })}
 
               {renderKpiCard({
-                icon: "🧾",
                 label: "Open Invoices",
                 value: openInvoices.length === 0 ? "✓ Paid up" : openInvoices.length,
                 sub: openInvoices.length > 0
@@ -4652,7 +4649,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               })}
 
               {renderKpiCard({
-                icon: tierEmoji[currentTier.label] || "💰",
                 label: "Current Tier",
                 value: currentTier.label,
                 sub: `$${currentTier.prices["30 min"]}/30 min · $${currentTier.prices["60 min"]}/60 min`,
@@ -4661,7 +4657,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               })}
 
               {renderKpiCard({
-                icon: "🐕‍🦺",
                 label: "Your Walker",
                 value: client.preferredWalker || "None set",
                 sub: client.preferredWalker ? "Your go-to walker" : "Set during booking",
@@ -10487,20 +10482,16 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
             <div onClick={onClick} style={{ background: bg, border: `1.5px solid ${border}`,
               borderRadius: "14px", padding: "14px 16px",
               cursor: onClick ? "pointer" : "default",
-              display: "flex", alignItems: "center", gap: "12px",
+              display: "flex", flexDirection: "column", gap: "4px",
               transition: "box-shadow 0.15s" }}
               onMouseEnter={e => onClick && (e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.10)")}
               onMouseLeave={e => onClick && (e.currentTarget.style.boxShadow = "none")}>
-              <div style={{ fontSize: "24px", flexShrink: 0, lineHeight: 1 }}>{icon}</div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
-                  fontWeight: 700, color: "#111827", lineHeight: 1.1,
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
-                  textTransform: "uppercase", letterSpacing: "0.8px",
-                  fontWeight: 600, color, marginTop: "3px",
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
-              </div>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px",
+                textTransform: "uppercase", letterSpacing: "1px",
+                fontWeight: 600, color }}>{label}</div>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "22px",
+                fontWeight: 700, color: "#111827", lineHeight: 1,
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
             </div>
           );
 
@@ -17818,35 +17809,33 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                           cursor: "pointer" }}
                         onClick={() => setExpandedKpi(isOpen ? null : s.id)}>
                         <div style={{ padding: "14px 16px", position: "relative" }}>
-                          <div style={{ position: "absolute", top: "10px", right: "10px",
+                          <div style={{ position: "absolute", top: "12px", right: "12px",
                             fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                             color: isOpen ? s.color : "#d1d5db", fontWeight: 600,
                             transition: "transform 0.2s, color 0.2s",
                             transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</div>
-                          <div style={{ display: "flex", alignItems: "center", gap: "12px", paddingRight: "20px" }}>
-                            <div style={{ fontSize: "22px", flexShrink: 0, lineHeight: 1 }}>{s.icon}</div>
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "19px",
-                                fontWeight: 700, color: "#111827", lineHeight: 1.1,
-                                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.value}</div>
-                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
-                                color: "#9ca3af", marginTop: "3px",
-                                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.label}</div>
-                              {s.note && (
-                                <div style={{ display: "inline-block", marginTop: "4px",
-                                  fontFamily: "'DM Sans', sans-serif", fontSize: "11px", fontWeight: 600,
-                                  color: s.color, background: `${s.color}15`, padding: "1px 6px",
-                                  borderRadius: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                                  {s.note}
-                                </div>
-                              )}
-                              {s.detail && (
-                                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
-                                  color: "#b45309", marginTop: "2px", fontWeight: 500 }}>
-                                  {s.detail}
-                                </div>
-                              )}
-                            </div>
+                          <div style={{ paddingRight: "20px" }}>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px",
+                              textTransform: "uppercase", letterSpacing: "1px",
+                              fontWeight: 600, color: s.color, marginBottom: "4px" }}>{s.label}</div>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
+                              fontWeight: 700, color: "#111827", lineHeight: 1.1,
+                              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.value}</div>
+                            {(s.note || s.detail) && (
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "5px", flexWrap: "wrap" }}>
+                                {s.note && (
+                                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", fontWeight: 600,
+                                    color: s.color, background: `${s.color}15`, padding: "1px 6px",
+                                    borderRadius: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                    {s.note}
+                                  </span>
+                                )}
+                                {s.detail && (
+                                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                                    color: "#9ca3af" }}>{s.detail}</span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                         {isOpen && (
