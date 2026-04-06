@@ -10433,7 +10433,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                       tab: "clientmsgs",
                     },
                   ].filter(Boolean).map((alert, i) => (
-                    <div key={i} onClick={() => setTab(alert.tab)}
+                    <div key={i} onClick={() => changeTab(alert.tab)}
                       style={{ display: "flex", alignItems: "center", gap: "12px",
                         padding: "11px 14px", borderRadius: "10px",
                         background: alert.bg, border: `1.5px solid ${alert.border}`,
@@ -16052,6 +16052,33 @@ function AdminMyInfo({ admin, setAdmin, adminList, setAdminList, onLogout }) {
 
 function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, setWalkerProfiles, trades, setTrades, adminList, setAdminList, onLogout }) {
   const [tab, setTab] = useState("overview");
+
+  // Reset all expanded/selected/drill-down state when switching tabs
+  const changeTab = (newTab) => {
+    setTab(newTab);
+    setSelectedWalkerId(null);
+    setSelectedClientId(null);
+    setExpandedKpi(null);
+    setExpandedBooking(null);
+    setExpandedClient(null);
+    setExpandedWalkKey(null);
+    setWalkEditDraft(null);
+    setConfirmDeleteWalkKey(null);
+    setOvwExpandedWalkKey(null);
+    setOvwWalkEditDraft(null);
+    setOvwConfirmDeleteWalkKey(null);
+    setEditingWalker(null);
+    setEditingBookingKey(null);
+    setEditDraft(null);
+    setShowAddWalker(false);
+    setShowAdminAddClient(false);
+    setSelectedApp(null);
+    setConfirmDeleteWalkerId(null);
+    setConfirmDeleteClientId(null);
+    setClientEditMode(false);
+    setClientEditDraft(null);
+    setConfirmPayrollWalker(null);
+  };
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [expandedKpi, setExpandedKpi] = useState(null);
   const [expandedBooking, setExpandedBooking] = useState(null);
@@ -16410,7 +16437,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
         {(() => {
           const t = TABS[0];
           return (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
+            <button key={t.id} onClick={() => changeTab(t.id)} style={{
               padding: "10px 14px", border: "none", whiteSpace: "nowrap",
               background: "transparent", flexShrink: 0,
               borderBottom: tab === t.id ? `3px solid ${amber}` : "3px solid transparent",
@@ -16431,7 +16458,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
           {TABS.slice(1).map(t => {
             const badgeCount = notifCounts[t.id] || 0;
             return (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{
+              <button key={t.id} onClick={() => changeTab(t.id)} style={{
                 padding: "10px 14px", border: "none", whiteSpace: "nowrap", background: "transparent",
                 borderBottom: tab === t.id ? `3px solid ${amber}` : "3px solid transparent",
                 color: tab === t.id ? "#fff" : "rgba(255,255,255,0.65)",
@@ -16490,7 +16517,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
               {TABS.map(t => {
                 const badgeCount = notifCounts[t.id] || 0;
                 return (
-                  <button key={t.id} onClick={() => { setTab(t.id); setAdminMenuOpen(false); }} style={{
+                  <button key={t.id} onClick={() => { changeTab(t.id); setAdminMenuOpen(false); }} style={{
                     width: "100%", padding: "13px 20px", border: "none",
                     display: "flex", alignItems: "center", gap: "14px", cursor: "pointer",
                     borderLeft: tab === t.id ? `3px solid ${amber}` : "3px solid transparent",
@@ -17414,7 +17441,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#6b7280" }}>
                   Go to "Assign Walks" to resolve these.
                 </div>
-                <button onClick={() => setTab("assign")} style={{
+                <button onClick={() => changeTab("assign")} style={{
                   marginTop: "10px", padding: "8px 16px", borderRadius: "8px",
                   border: "none", background: "#dc2626", color: "#fff",
                   fontFamily: "'DM Sans', sans-serif", fontSize: "16px", cursor: "pointer" }}>
@@ -17475,7 +17502,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
               const total   = applications.length;
               return (
                 <button onClick={async () => {
-                  setTab("applications");
+                  changeTab("applications");
                   if (applications.length === 0) {
                     setAppsLoading(true);
                     try {
@@ -18954,13 +18981,15 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
             }
           };
 
-          const isNewWalkerClient = (c) =>
-            c.addedByWalker && c.createdAt &&
-            (Date.now() - new Date(c.createdAt).getTime() < 86400000);
+          // New = signed up within 48 hrs AND no admin has viewed them yet
+          const isNewClient = (c) =>
+            !c.adminViewedAt &&
+            c.createdAt &&
+            (Date.now() - new Date(c.createdAt).getTime() < 48 * 3600000);
 
           const sortedClients = [...clientList].sort((a, b) => {
-            const aNew = isNewWalkerClient(a.c) ? 1 : 0;
-            const bNew = isNewWalkerClient(b.c) ? 1 : 0;
+            const aNew = isNewClient(a.c) ? 1 : 0;
+            const bNew = isNewClient(b.c) ? 1 : 0;
             if (bNew !== aNew) return bNew - aNew;
             let av = a[clientSortKey], bv = b[clientSortKey];
             const cmp = typeof av === "string"
@@ -19040,13 +19069,23 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                   </div>
                 </div>
               ) : sortedClients.map(({ c, pets, activeCount, completedCount, totalSpend }) => {
-                const isNew = isNewWalkerClient(c);
+                const isNew = isNewClient(c);
                 return (
                 <button key={c.id}
-                  onClick={() => setSelectedClientId(c.id)}
+                  onClick={() => {
+                    setSelectedClientId(c.id);
+                    // Mark as viewed by this admin if not already
+                    if (isNew) {
+                      const updated = {
+                        ...clients,
+                        [c.id]: { ...c, adminViewedAt: new Date().toISOString() },
+                      };
+                      setClients(updated);
+                    }
+                  }}
                   style={{
-                    width: "100%", background: isNew ? "#fffbeb" : "#fff",
-                    border: isNew ? "1.5px solid #fbbf24" : "1.5px solid #e4e7ec",
+                    width: "100%", background: isNew ? "#FDF5EC" : "#fff",
+                    border: isNew ? "1.5px solid #C4541A" : "1.5px solid #e4e7ec",
                     borderRadius: "14px", padding: "0", marginBottom: "10px",
                     cursor: "pointer", textAlign: "left", transition: "all 0.15s",
                     overflow: "hidden",
@@ -19055,15 +19094,14 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 >
                   {isNew && (
                     <div style={{
-                      background: "linear-gradient(90deg, #d97706, #f59e0b)",
-                      padding: "5px 18px", display: "flex", alignItems: "center", gap: "6px",
+                      background: "#C4541A",
+                      padding: "5px 18px", display: "flex", alignItems: "center", gap: "8px",
                     }}>
-                      <span style={{ fontSize: "15px" }}>✨</span>
-                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                        fontWeight: 700, color: "#fff", letterSpacing: "1.2px",
+                      <span style={{ width: "7px", height: "7px", borderRadius: "50%",
+                        background: "#fff", display: "inline-block", flexShrink: 0 }} />
+                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px",
+                        fontWeight: 700, color: "#fff", letterSpacing: "1.5px",
                         textTransform: "uppercase" }}>New Client</span>
-                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                        color: "#fef3c7", marginLeft: "auto" }}>Added by walker</span>
                     </div>
                   )}
                   <div style={{ padding: "16px 18px" }}>
@@ -20323,7 +20361,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
 
               {/* ── Potential Walkers banner ── */}
               <button onClick={async () => {
-                setTab("applications");
+                changeTab("applications");
                 setSelectedApp(null);
                 if (applications.length === 0) {
                   setAppsLoading(true);
@@ -21116,7 +21154,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
           <ScheduleWalkForm
             clients={clients}
             setClients={setClients}
-            onDone={() => setTab("bookings")}
+            onDone={() => changeTab("bookings")}
             walkerProfiles={walkerProfiles}
             allowHistorical={true}
           />
