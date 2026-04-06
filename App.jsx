@@ -16241,6 +16241,16 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
   const [tab, setTab] = useState("overview");
   const [bookingsView, setBookingsView] = useState("upcoming"); // "upcoming" | "completed"
   const [invoicesKey, setInvoicesKey] = useState(0); // increments to remount AdminInvoicesTab on nav
+  const [pings, setPings] = useState({}); // { [walkerId]: { at: Date, adminName: string } }
+
+  // Send a ping to a walker (internal now; wire Twilio here later)
+  const sendPing = (walkerId, walkerName, walkerPhone) => {
+    setPings(prev => ({ ...prev, [walkerId]: { at: new Date(), adminName: admin.name || "Admin" } }));
+    // TODO: replace with Twilio SMS when ready
+    // await fetch("/api/ping-walker", { method: "POST",
+    //   body: JSON.stringify({ walkerId, walkerName, walkerPhone, adminName: admin.name }) });
+    console.log(`[PING] ${walkerName} (${walkerPhone}) pinged by ${admin.name} at ${new Date().toLocaleTimeString()}`);
+  };
 
   // Reset all expanded/selected/drill-down state when switching tabs
   const changeTab = (newTab) => {
@@ -16810,16 +16820,16 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
               }).sort((a, b) => b.spent - a.spent);
 
               const kpis = [
-                { id: "clients",        label: "Total Clients",     value: Object.keys(clients).length, icon: "👥", color: "#C4541A" },
-                { id: "activeBook",     label: "Active Bookings",   value: allBookings.length,           icon: "📋", color: "#3D6B7A" },
-                { id: "weekRev",        label: "This Week Revenue", value: fmt(weekRevenue, true),            icon: "📅", color: amber,     note: "completed" },
+                { id: "weekRev",        label: "This Week's Revenue", value: fmt(weekRevenue, true),          icon: "📅", color: amber,     note: "completed" },
                 { id: "allRev",         label: "All Time Revenue",  value: fmt(totalRevenue, true),           icon: "💰", color: "#7A4D6E", note: "completed" },
                 { id: "profit",         label: "Profit",            value: fmt(totalProfit, true),            icon: "📈", color: "#059669", note: "lifetime",   detail: `This week: ${fmt(weekProfit, true)}` },
                 { id: "dailyConfirm",   label: "Today's Walks",     value: `${todayConfirmedCount}/${todayTotalCount}`, icon: "✅", color: todayTotalCount > 0 && todayConfirmedCount === todayTotalCount ? "#059669" : "#C4541A", note: "confirmed",  detail: todayTotalCount === 0 ? "no walks today" : todayConfirmedCount === todayTotalCount ? "all confirmed!" : `${todayTotalCount - todayConfirmedCount} remaining` },
-                { id: "upcoming",       label: "Upcoming Walks",    value: upcoming.length,              icon: "🐕", color: "#C4541A" },
-                { id: "completed",      label: "Completed Walks",   value: completedBookings.length,     icon: "✅", color: "#059669" },
+                { id: "clients",        label: "Total Clients",     value: Object.keys(clients).length, icon: "👥", color: "#C4541A" },
+                { id: "activeBook",     label: "Active Bookings",   value: allBookings.length,           icon: "📋", color: "#3D6B7A" },
                 { id: "pipelineRev",    label: "Pipeline Revenue",  value: fmt(pipelineRevenue, true),        icon: "🔮", color: "#7A4D6E", note: "upcoming", detail: `${upcoming.filter(b => !b.isOvernight).length} walks` },
                 { id: "uninvoiced",     label: "Uninvoiced Walks",  value: (() => { const cnt = Object.values(clients).filter(c => !c.deleted).reduce((s, c) => { const ik = new Set((c.invoices||[]).filter(i=>i.status!=="draft").flatMap(i=>(i.items||[]).map(it=>it.bookingKey))); return s + (c.bookings||[]).filter(b=>b.adminCompleted&&!b.cancelled&&!ik.has(b.key)).length; }, 0); return cnt; })(), icon: "📬", color: "#3D6B7A", note: "pending" },
+                { id: "upcoming",       label: "Upcoming Walks",    value: upcoming.length,              icon: "🐕", color: "#C4541A" },
+                { id: "completed",      label: "Completed Walks",   value: completedBookings.length,     icon: "✅", color: "#059669" },
               ];
 
               const drawerContent = (id) => {
@@ -18624,7 +18634,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                         fontWeight: 600, color: totalConfirmed === totalScheduled && totalScheduled > 0 ? "#059669" : amber }}>
-                        {totalConfirmed}<span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 400, color: "#9ca3af" }}>/{"}}totalScheduled{{"} </span>
+                        {totalConfirmed}<span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 400, color: "#9ca3af" }}>/{totalScheduled}</span>
                       </div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#9ca3af" }}>confirmed today</div>
                     </div>
@@ -18636,8 +18646,15 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       transition: "width 0.4s ease" }} />
                   </div>
                   {walkerStats.map(({ w, scheduled, confirmed }, i) => {
-                    const pct = scheduled > 0 ? Math.round((confirmed / scheduled) * 100) : 0;
+                    const pct     = scheduled > 0 ? Math.round((confirmed / scheduled) * 100) : 0;
                     const allDone = confirmed === scheduled;
+                    const ping    = pings[w.id];
+                    const pingAgo = ping ? (() => {
+                      const mins = Math.floor((new Date() - ping.at) / 60000);
+                      if (mins < 1)  return "just now";
+                      if (mins < 60) return `${mins}m ago`;
+                      return `${Math.floor(mins / 60)}h ago`;
+                    })() : null;
                     return (
                       <div key={w.id} style={{ padding: "12px 0",
                         borderBottom: i < walkerStats.length - 1 ? "1px solid #f3f4f6" : "none" }}>
@@ -18652,11 +18669,38 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                               fontWeight: 600, color: "#111827" }}>{w.name}</div>
                             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af" }}>
                               {confirmed} of {scheduled} confirmed
+                              {w.phone && !allDone && (
+                                <span style={{ marginLeft: "8px", color: "#d1d5db" }}>· {w.phone}</span>
+                              )}
                             </div>
                           </div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600,
-                            color: allDone ? "#059669" : confirmed > 0 ? amber : "#9ca3af" }}>
-                            {allDone ? "✅ All done" : `${pct}%`}
+
+                          {/* Right side: status + ping button */}
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px", flexShrink: 0 }}>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600,
+                              color: allDone ? "#059669" : confirmed > 0 ? amber : "#9ca3af" }}>
+                              {allDone ? "✅ All done" : `${pct}%`}
+                            </div>
+                            {!allDone && (
+                              <button
+                                onClick={() => sendPing(w.id, w.name, w.phone)}
+                                style={{
+                                  padding: "5px 12px", borderRadius: "8px", cursor: "pointer",
+                                  border: ping ? "1.5px solid #e4e7ec" : "1.5px solid #C4541A",
+                                  background: ping ? "#f9fafb" : "#FDF5EC",
+                                  color: ping ? "#9ca3af" : "#C4541A",
+                                  fontFamily: "'DM Sans', sans-serif",
+                                  fontSize: "13px", fontWeight: 600,
+                                  display: "flex", alignItems: "center", gap: "5px",
+                                  transition: "all 0.15s",
+                                }}>
+                                {ping ? (
+                                  <>🔔 Pinged {pingAgo}</>
+                                ) : (
+                                  <>🔔 Ping</>
+                                )}
+                              </button>
+                            )}
                           </div>
                         </div>
                         <div style={{ height: "4px", borderRadius: "99px", background: "#f3f4f6", overflow: "hidden" }}>
