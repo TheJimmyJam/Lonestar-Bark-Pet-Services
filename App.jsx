@@ -8566,7 +8566,7 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin }) {
               textAlign: "center", marginBottom: "24px" }}>
               Enter your walker email to continue.
             </div>
-            <input type="email" placeholder="you@lonestarkbark.com" value={email}
+            <input type="email" placeholder="you@lonestarbark.com" value={email}
               onChange={e => { setEmail(e.target.value); setEmailError(""); }}
               onKeyDown={e => e.key === "Enter" && handleEmailSubmit()}
               style={{ width: "100%", padding: "14px 16px", borderRadius: "12px",
@@ -8667,7 +8667,7 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin }) {
 const DEFAULT_ADMIN = {
   id: "admin-1",
   name: "Admin",
-  email: "admin@lonestarkbark.com",
+  email: "admin@lonestarbark.com",
   pin: "0000",
   status: "active",
   isMaster: true,
@@ -8841,7 +8841,7 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
               fontSize: "15px", textAlign: "center", marginBottom: "24px" }}>
               Enter your admin email to continue.
             </div>
-            <input type="email" placeholder="admin@lonestarkbark.com" value={email}
+            <input type="email" placeholder="admin@lonestarbark.com" value={email}
               onChange={e => { setEmail(e.target.value); setEmailError(""); }}
               onKeyDown={e => e.key === "Enter" && handleEmailSubmit()}
               style={{ width: "100%", padding: "14px 16px", borderRadius: "12px",
@@ -14713,7 +14713,7 @@ function AdminInvoicesTab({ clients, setClients }) {
                           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                             fontWeight: 600, color: "#fff", marginBottom: "2px" }}>Lonestar Bark Co.</div>
                           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                            color: "#ffffff99" }}>Dallas, TX · lonestarkbark.com</div>
+                            color: "#ffffff99" }}>Dallas, TX · lonestarbark.com</div>
                         </div>
                         <div style={{ textAlign: "right" }}>
                           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
@@ -19894,7 +19894,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                     )}
                   </div>
 
-                  <Field label="Email" field="email" placeholder="walker@lonestarkbark.com"
+                  <Field label="Email" field="email" placeholder="walker@lonestarbark.com"
                     value={prof.email || w.email} />
                   <Field label="Phone" field="phone" placeholder="(214) 555-0000" />
                   <div style={{ marginBottom: "14px" }}>
@@ -20065,7 +20065,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                     <div style={{ marginBottom: "12px" }}>
                       <label style={labelStyle}>Email * (login)</label>
                       <input type="email" value={wf.email} onChange={e => setWalkerForm(f => ({ ...f, email: e.target.value }))}
-                        placeholder="jane@lonestarkbark.com" style={iStyle(wfErrors.email)} />
+                        placeholder="jane@lonestarbark.com" style={iStyle(wfErrors.email)} />
                       {wfErrors.email && <div style={{ color: "#ef4444", fontSize: "15px", marginTop: "3px", fontFamily: "'DM Sans', sans-serif" }}>{wfErrors.email}</div>}
                       <div style={{ marginTop: "6px", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af" }}>
                         🔐 The walker will set their own PIN when they log in for the first time.
