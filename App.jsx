@@ -9473,6 +9473,7 @@ function DayAvailSliders({ slots, onChange, color, isPast }) {
 function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalkerProfiles, trades, setTrades, onLogout }) {
   const [tab, setTab] = useState("dashboard");
   const [walkerMenuOpen, setWalkerMenuOpen] = useState(false);
+  const [invFilter, setInvFilter] = useState("all");
   // New calendar-based availability: { "2025-04-07": ["8:00 AM", ...], ... }
   const [availability, setAvailability] = useState({});
   const [availLoading, setAvailLoading] = useState(false);
@@ -13274,8 +13275,6 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
             }))
           ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-          const [invFilter, setInvFilter] = React.useState("all");
-
           const filtered = invFilter === "all" ? myInvoices : myInvoices.filter(inv => {
             const { effectiveStatus } = invoiceStatusMeta(inv.status, inv.dueDate);
             return effectiveStatus === invFilter;
@@ -14048,14 +14047,21 @@ function AdminInvoicesTab({ clients, setClients }) {
   const [sentConfirm, setSentConfirm] = useState(null);
   const [bulkState, setBulkState] = useState("idle"); // "idle"|"confirm"|"sending"|"done"
   const [bulkResult, setBulkResult] = useState(null); // { clientCount, walkCount }
+  const [invoiceSearch, setInvoiceSearch] = useState("");
 
   const green = "#C4541A";
   const amber = "#b45309";
 
   const allInvoices = getAllInvoices(clients);
-  const filtered = filterStatus === "all" ? allInvoices : allInvoices.filter(inv => {
+  const filtered = (filterStatus === "all" ? allInvoices : allInvoices.filter(inv => {
     const { effectiveStatus } = invoiceStatusMeta(inv.status, inv.dueDate);
     return effectiveStatus === filterStatus;
+  })).filter(inv => {
+    if (!invoiceSearch) return true;
+    const q = invoiceSearch.toLowerCase();
+    return (inv.clientName  || "").toLowerCase().includes(q)
+      || (inv.clientEmail || "").toLowerCase().includes(q)
+      || (inv.id          || "").toLowerCase().includes(q);
   });
 
   const activeClients = Object.values(clients).filter(c => !c.deleted);
@@ -14407,6 +14413,24 @@ function AdminInvoicesTab({ clients, setClients }) {
             ))}
           </div>
 
+          {/* Search */}
+          <div style={{ position: "relative", marginBottom: "12px" }}>
+            <span style={{ position: "absolute", left: "12px", top: "50%",
+              transform: "translateY(-50%)", fontSize: "15px", pointerEvents: "none" }}>🔍</span>
+            <input value={invoiceSearch} onChange={e => setInvoiceSearch(e.target.value)}
+              placeholder="Search by client name, email, or invoice ID…"
+              style={{ width: "100%", boxSizing: "border-box", padding: "10px 36px 10px 36px",
+                borderRadius: "10px", border: "1.5px solid #e4e7ec",
+                fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                color: "#111827", outline: "none", background: "#fff" }} />
+            {invoiceSearch && (
+              <button onClick={() => setInvoiceSearch("")}
+                style={{ position: "absolute", right: "10px", top: "50%",
+                  transform: "translateY(-50%)", background: "none", border: "none",
+                  cursor: "pointer", color: "#9ca3af", fontSize: "16px", lineHeight: 1 }}>✕</button>
+            )}
+          </div>
+
           {/* Filter tabs */}
           <div style={{ display: "flex", gap: "6px", marginBottom: "16px", flexWrap: "wrap" }}>
             {[
@@ -14433,9 +14457,11 @@ function AdminInvoicesTab({ clients, setClients }) {
               borderRadius: "16px", padding: "40px", textAlign: "center" }}>
               <div style={{ fontSize: "32px", marginBottom: "12px" }}>🧾</div>
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                fontWeight: 600, color: "#374151", marginBottom: "4px" }}>No invoices yet</div>
+                fontWeight: 600, color: "#374151", marginBottom: "4px" }}>
+                {invoiceSearch ? "No matching invoices" : "No invoices yet"}
+              </div>
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#9ca3af" }}>
-                Click "New Invoice" to create and send your first one.
+                {invoiceSearch ? `No invoices match "${invoiceSearch}"` : 'Click "New Invoice" to create and send your first one.'}
               </div>
             </div>
           ) : (
