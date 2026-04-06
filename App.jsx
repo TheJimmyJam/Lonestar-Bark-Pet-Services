@@ -1177,7 +1177,7 @@ function Header({ client, onLogout, page, setPage, notifCounts = {} }) {
         )}
       </header>
       {client && (() => {
-        const clientTabs = [{ id: "book", label: "Book a Walk", icon: "🐾" }, { id: "mywalks", label: "My Walks", icon: "📅" }, { id: "invoices", label: "Invoices", icon: "🧾" }, { id: "pricing", label: "Pricing", icon: "💰" }, { id: "about", label: "Our Team", icon: "👥" }, ...(client.keyholder ? [{ id: "messages", label: "Messages", icon: "💬" }] : []), { id: "myinfo", label: "My Info", icon: "👤" }];
+        const clientTabs = [{ id: "overview", label: "Overview", icon: "🏠" }, { id: "book", label: "Book a Walk", icon: "🐾" }, { id: "mywalks", label: "My Walks", icon: "📅" }, { id: "invoices", label: "Invoices", icon: "🧾" }, { id: "pricing", label: "Pricing", icon: "💰" }, { id: "about", label: "Our Team", icon: "👥" }, ...(client.keyholder ? [{ id: "messages", label: "Messages", icon: "💬" }] : []), { id: "myinfo", label: "My Info", icon: "👤" }];
         const [pinned, ...rest] = clientTabs;
         return (
           <>
@@ -4190,7 +4190,7 @@ function QuickRebookBanner({ client, service, myBookings, clients, setClients, o
 }
 
 function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {} }) {
-  const [page, setPage] = useState("book");
+  const [page, setPage] = useState("overview");
   const [service, setService] = useState("dog");
 
   // ── Client ↔ Walker messaging state ──
@@ -4554,6 +4554,165 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       <div style={{ flex: 1, overflowY: "auto" }}>
       <Header client={client} onLogout={onLogout} page={page} setPage={setPage} notifCounts={clientNotifCountsFull} />
       {/* PRICING PAGE */}
+      {/* ── OVERVIEW PAGE ── */}
+      {page === "overview" && (() => {
+        const now = new Date();
+        const upcomingWalks = myBookings
+          .filter(b => !b.cancelled && b.scheduledDateTime && new Date(b.scheduledDateTime) > now)
+          .sort((a, b) => new Date(a.scheduledDateTime) - new Date(b.scheduledDateTime));
+        const nextWalk = upcomingWalks[0];
+
+        const completedWalks = myBookings.filter(b => !b.cancelled && b.scheduledDateTime && new Date(b.scheduledDateTime) <= now).length;
+        const walksInCycle = completedWalks % 11;
+        const readyForFree = walksInCycle >= 10;
+        const punchesLeft = 10 - Math.min(walksInCycle, 10);
+
+        const openInvoices = (client.invoices || []).filter(inv => {
+          const { effectiveStatus } = invoiceStatusMeta(inv.status, inv.dueDate);
+          return effectiveStatus === "sent" || effectiveStatus === "overdue";
+        });
+        const overdueInvoices = openInvoices.filter(inv => invoiceStatusMeta(inv.status, inv.dueDate).effectiveStatus === "overdue");
+        const outstandingTotal = openInvoices.reduce((s, inv) => s + (inv.total || 0), 0);
+
+        const tierEmoji = { "Zoomies Mode": "⚡", "Park Regular": "🌳", "Couch Pup": "🛋️" };
+        const tierColor = { "Zoomies Mode": "#059669", "Park Regular": "#2563eb", "Couch Pup": "#9ca3af" };
+
+        const KpiCard = ({ icon, label, value, sub, onClick, accent, alert }) => (
+          <div onClick={onClick} style={{
+            background: "#fff", borderRadius: "16px", padding: "18px 20px",
+            border: alert ? "1.5px solid #fca5a5" : "1.5px solid #f0ede8",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+            cursor: onClick ? "pointer" : "default",
+            display: "flex", flexDirection: "column", gap: "6px",
+            transition: "box-shadow 0.15s",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "22px" }}>{icon}</span>
+              {onClick && <span style={{ fontSize: "13px", color: "#9ca3af" }}>View →</span>}
+            </div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "26px", fontWeight: 700,
+              color: accent || "#111827", lineHeight: 1.1 }}>{value}</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600,
+              textTransform: "uppercase", letterSpacing: "1px", color: "#9ca3af" }}>{label}</div>
+            {sub && <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+              color: alert ? "#ef4444" : "#6b7280", marginTop: "2px" }}>{sub}</div>}
+          </div>
+        );
+
+        return (
+          <div className="app-container fade-up" style={{ padding: "24px 16px 80px", maxWidth: "600px", margin: "0 auto" }}>
+            {/* Greeting */}
+            <div style={{ fontFamily: "'DM Sans', sans-serif", marginBottom: "24px" }}>
+              <div style={{ fontSize: "22px", fontWeight: 700, color: "#111827" }}>
+                Hey, {(client.name || client.email).split(" ")[0]} 👋
+              </div>
+              <div style={{ fontSize: "15px", color: "#6b7280", marginTop: "2px" }}>
+                Here's a snapshot of your account.
+              </div>
+            </div>
+
+            {/* KPI grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "24px" }}>
+
+              {/* Upcoming walks */}
+              <KpiCard
+                icon="📅"
+                label="Upcoming Walks"
+                value={upcomingWalks.length}
+                sub={nextWalk
+                  ? `Next: ${new Date(nextWalk.scheduledDateTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`
+                  : "None scheduled"}
+                onClick={() => setPage("mywalks")}
+              />
+
+              {/* Invoices */}
+              <KpiCard
+                icon="🧾"
+                label="Open Invoices"
+                value={openInvoices.length === 0 ? "✓ Paid up" : openInvoices.length}
+                sub={openInvoices.length > 0
+                  ? overdueInvoices.length > 0
+                    ? `$${outstandingTotal} due · ${overdueInvoices.length} overdue`
+                    : `$${outstandingTotal} outstanding`
+                  : "Nothing owed"}
+                accent={openInvoices.length > 0 ? (overdueInvoices.length > 0 ? "#ef4444" : "#b45309") : "#059669"}
+                alert={overdueInvoices.length > 0}
+                onClick={() => setPage("invoices")}
+              />
+
+              {/* Pricing tier */}
+              <KpiCard
+                icon={tierEmoji[currentTier.label] || "💰"}
+                label="Current Tier"
+                value={currentTier.label}
+                sub={`$${currentTier.prices["30 min"]}/30 min · $${currentTier.prices["60 min"]}/60 min`}
+                accent={tierColor[currentTier.label]}
+                onClick={() => setPage("pricing")}
+              />
+
+              {/* Preferred walker */}
+              <KpiCard
+                icon="🐕‍🦺"
+                label="Your Walker"
+                value={client.preferredWalker || "None set"}
+                sub={client.preferredWalker ? "Tap to book" : "Set during booking"}
+                accent="#111827"
+                onClick={client.preferredWalker ? () => setPage("book") : undefined}
+              />
+            </div>
+
+            {/* Punch card KPI — full width */}
+            <div onClick={() => setPage("pricing")} style={{
+              background: readyForFree ? "linear-gradient(135deg,#3D8B5F,#0B1423)" : "#fff",
+              borderRadius: "16px", padding: "20px",
+              border: readyForFree ? "none" : "1.5px solid #f0ede8",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+              cursor: "pointer",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
+                <div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600,
+                    textTransform: "uppercase", letterSpacing: "1px",
+                    color: readyForFree ? "#C4A07A" : "#9ca3af" }}>Loyalty Punch Card</div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px", fontWeight: 700,
+                    color: readyForFree ? "#fff" : "#111827", marginTop: "4px" }}>
+                    {readyForFree ? "🎉 Free Walk Ready!" : `${walksInCycle} / 10 walks`}
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                    color: readyForFree ? "rgba(255,255,255,0.75)" : "#6b7280", marginTop: "2px" }}>
+                    {readyForFree ? "Contact us to redeem your free session" : `${punchesLeft} more walk${punchesLeft !== 1 ? "s" : ""} until your free session`}
+                  </div>
+                </div>
+                <span style={{ fontSize: "32px" }}>{readyForFree ? "🏆" : "🐾"}</span>
+              </div>
+              {/* Progress dots */}
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div key={i} style={{
+                    width: "28px", height: "28px", borderRadius: "50%",
+                    background: i < walksInCycle ? "#C4541A" : readyForFree ? "rgba(255,255,255,0.15)" : "#FDF5EC",
+                    border: `2px solid ${i < walksInCycle ? "#C4541A" : readyForFree ? "rgba(255,255,255,0.3)" : "#D4A843"}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: "13px",
+                  }}>{i < walksInCycle ? "🐾" : ""}</div>
+                ))}
+              </div>
+            </div>
+
+            {/* Quick action */}
+            <button onClick={() => setPage("book")} style={{
+              marginTop: "20px", width: "100%", padding: "16px",
+              background: "#0B1423", border: "none", borderRadius: "14px",
+              color: "#fff", fontFamily: "'DM Sans', sans-serif",
+              fontSize: "16px", fontWeight: 600, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+            }}>
+              🐾 Book a Walk
+            </button>
+          </div>
+        );
+      })()}
+
       {page === "pricing" && (
         <div className="app-container fade-up">
           {/* Current tier banner */}
