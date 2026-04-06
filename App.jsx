@@ -6931,6 +6931,15 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
   const [landingMenuOpen, setLandingMenuOpen] = useState(false);
   const [landingView, setLandingView] = useState("home"); // "home" | "apply"
 
+  // Hash-based deep link: lonestarbark.netlify.app#apply → open Join the Team directly
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash === "#apply") {
+      setLandingView("apply");
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
+
   useEffect(() => {
     const handleScroll = () => setNavScrolled(window.scrollY > 40);
     window.addEventListener("scroll", handleScroll);
