@@ -7915,15 +7915,15 @@ function WalkerApplicationPage({ onBack }) {
                   {form.hasDogExp === true && (
                     <div style={{ background: "#FDF5EC", border: "1.5px solid #D4A87A",
                       borderRadius: "12px", padding: "16px", marginBottom: "20px" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "12px", marginBottom: "12px" }}>
-                        <div>
-                          <label style={lbl}>Years of experience</label>
+                      <div style={{ display: "flex", gap: "12px", alignItems: "flex-end", marginBottom: "12px" }}>
+                        <div style={{ flex: "0 0 110px" }}>
+                          <label style={lbl}>Years exp.</label>
                           <input type="number" min="0" max="40" value={form.expYears}
                             onChange={e => f("expYears", e.target.value)}
                             placeholder="0"
                             style={{ ...inp(false), background: "#fff" }} />
                         </div>
-                        <div>
+                        <div style={{ flex: 1 }}>
                           <label style={lbl}>Where / what kind?</label>
                           <input value={form.expDesc}
                             onChange={e => f("expDesc", e.target.value)}
@@ -15635,7 +15635,7 @@ function AdminAdminsTab({ admin, adminList, setAdminList, clients, setClients, w
   const [inviteSent, setInviteSent]     = useState(false);
   const [invitedEmail, setInvitedEmail] = useState("");
 
-  const handleInvite = () => {
+  const handleInvite = async () => {
     const e = inviteEmail.trim().toLowerCase();
     if (!e || !e.includes("@")) { setInviteError("Enter a valid email address."); return; }
     const exists = adminList.find(a => a.email.toLowerCase() === e);
@@ -15654,12 +15654,18 @@ function AdminAdminsTab({ admin, adminList, setAdminList, clients, setClients, w
       invitedBy: admin.email,
       createdAt: new Date().toISOString(),
     };
-    setAdminList([...adminList, newAdmin]);
-    setInvitedEmail(e);
-    setInviteEmail("");
-    setInviteError("");
-    setInviteSent(true);
-    setTimeout(() => setInviteSent(false), 6000);
+    const updated = [...adminList, newAdmin];
+    try {
+      await saveAdminList(updated);
+      setAdminList(updated);
+      setInvitedEmail(e);
+      setInviteEmail("");
+      setInviteError("");
+      setInviteSent(true);
+      setTimeout(() => setInviteSent(false), 8000);
+    } catch (err) {
+      setInviteError("Failed to save invite. Check your connection and try again.");
+    }
   };
 
   const handleRemove = (targetId) => {
