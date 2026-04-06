@@ -6953,6 +6953,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 
+            <img src="/logo.png" alt="Lonestar Bark" style={{ width: "32px", height: "32px", borderRadius: "50%" }} />
             <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
               fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "1.5px" }}>
               Lonestar Bark Co.
@@ -6990,7 +6991,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             <div style={{ padding: "24px 20px 16px", borderBottom: "1px solid #1E4A32",
               display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-
+                <img src="/logo.png" alt="Lonestar Bark" style={{ width: "28px", height: "28px", borderRadius: "50%" }} />
                 <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
                   fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "1px" }}>Lonestar Bark Co.</div>
               </div>
@@ -7067,7 +7068,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           <div className="lp-fade-3" style={{ fontFamily: "'DM Sans', sans-serif",
             color: "#ffffffcc", fontSize: "clamp(14px, 2.5vw, 17px)", lineHeight: "1.75",
             marginBottom: "40px", fontWeight: 300, maxWidth: "520px", margin: "0 auto 40px" }}>
-            Dallas's most trusted dog-walking and cat-sitting service. Background-checked walkers,
+            Lake Highlands raised. Dallas proud. Background-checked walkers,
             transparent pricing, and a personal meet & greet before your first walk.
           </div>
           <div className="lp-fade-4 lp-hero-ctas">
@@ -7095,6 +7096,45 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             ))}
           </div>
 
+        </div>
+      </section>
+
+
+      {/* ── Our Story ── */}
+      <section style={{ background: "#0B1423", padding: "80px clamp(16px,5vw,40px)" }}>
+        <div style={{ maxWidth: "820px", margin: "0 auto", display: "flex", alignItems: "center",
+          gap: "clamp(32px,6vw,72px)", flexWrap: "wrap", justifyContent: "center" }}>
+          {/* Logo mark */}
+          <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: "16px" }}>
+            <img src="/logo.png" alt="Lonestar Bark" style={{ width: "120px", height: "120px", borderRadius: "50%",
+              border: "2px solid rgba(212,168,67,0.4)" }} />
+            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#D4A843",
+              fontSize: "11px", letterSpacing: "0.45em", textTransform: "uppercase" }}>
+              Lake Highlands, Dallas ★
+            </div>
+          </div>
+          {/* Story text */}
+          <div style={{ flex: 1, minWidth: "260px" }}>
+            <div style={{ width: "40px", height: "2px", background: "#D4A843",
+              borderRadius: "2px", marginBottom: "20px" }} />
+            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#D4A843",
+              fontSize: "11px", letterSpacing: "0.45em", textTransform: "uppercase",
+              marginBottom: "18px" }}>Our Story</div>
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "clamp(17px,2.5vw,21px)",
+              color: "#F0E8D5", lineHeight: "1.85", fontWeight: 300, margin: 0 }}>
+              We grew up in Lake Highlands — technically Dallas, fiercely its own. The kind of place
+              where you know your neighbors, ride your bike to the lake, and never really leave it behind.
+            </p>
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "clamp(17px,2.5vw,21px)",
+              color: "#F0E8D5cc", lineHeight: "1.85", fontWeight: 300, margin: "20px 0 0" }}>
+              Lonestar Bark carries that same spirit: local to the bone, built on these streets,
+              and showing up for your dog every single day.
+            </p>
+            <div style={{ marginTop: "28px", fontFamily: "'DM Sans', sans-serif",
+              color: "#D4A843", fontSize: "15px", fontStyle: "italic", letterSpacing: "0.05em" }}>
+              Born Here. Walk Here.
+            </div>
+          </div>
         </div>
       </section>
 
@@ -7430,9 +7470,14 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
       <footer style={{ background: "#0B1423", padding: "28px 24px", textAlign: "center" }}>
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
           fontSize: "15px", letterSpacing: "1px", marginBottom: "6px" }}>Lonestar Bark Co.</div>
-        <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff66",
-          fontSize: "16px", letterSpacing: "2px", textTransform: "uppercase" }}>
-          Professional Pet Care · Dallas, TX
+        <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#D4A843",
+          fontSize: "13px", letterSpacing: "0.4em", textTransform: "uppercase",
+          marginBottom: "6px" }}>
+          Born Here. Walk Here.
+        </div>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff44",
+          fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase" }}>
+          Lake Highlands · Dallas, TX
         </div>
       </footer>
       </>)}
