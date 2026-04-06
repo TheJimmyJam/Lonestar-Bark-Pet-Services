@@ -15285,7 +15285,9 @@ function buildDemoData() {
     };
   }
 
+  // ── Build 150 client shells (no bookings yet) ──────────────────
   const demoClients = {};
+  const clientMeta  = []; // parallel array for booking assignment
   for (let i = 0; i < 150; i++) {
     const first = FIRSTS[i % FIRSTS.length];
     const last  = LASTS[Math.floor(i / FIRSTS.length) % LASTS.length] || LASTS[i % LASTS.length];
@@ -15295,37 +15297,60 @@ function buildDemoData() {
     const streetNum = 1000 + (i * 17) % 8000;
     const address = `${streetNum} ${streetName}, Dallas, TX ${zip}`;
     const phone = `${AREA_CODES[i % 3]}-${randomInt(200,999)}-${String(randomInt(1000,9999))}`;
-
-    const petType = i % 10 < 7 ? "dog" : i % 10 < 9 ? "cat" : "both";
-    const dogs = (petType === "dog" || petType === "both") ? [DOG_NAMES[i % DOG_NAMES.length]] : [];
-    const cats = (petType === "cat" || petType === "both") ? [CAT_NAMES[i % CAT_NAMES.length]] : [];
-    const service = cats.length && !dogs.length ? "cat" : "dog";
-    const petName = dogs[0] || cats[0] || "Pet";
+    const petType  = i % 10 < 7 ? "dog" : i % 10 < 9 ? "cat" : "both";
+    const dogs     = (petType === "dog" || petType === "both") ? [DOG_NAMES[i % DOG_NAMES.length]] : [];
+    const cats     = (petType === "cat" || petType === "both") ? [CAT_NAMES[i % CAT_NAMES.length]] : [];
+    const service  = cats.length && !dogs.length ? "cat" : "dog";
+    const petName  = dogs[0] || cats[0] || "Pet";
     const walkerName = demoWalkerNames[i % demoWalkerNames.length];
     const clientId = `demo-client-${i + 1}`;
-
-    const bookings = [];
-    const numPast = randomInt(1, 3);
-    const numUpcoming = randomInt(1, 2);
-    for (let p = 0; p < numPast; p++) {
-      const daysAgo = -(randomInt(2, 28) + p * 9);
-      bookings.push(makeBooking(clientId, name, email, phone, address, petName,
-                                service, walkerName, daysAgo, true));
-    }
-    for (let u = 0; u < numUpcoming; u++) {
-      const daysAhead = randomInt(1, 21) + u * 8;
-      bookings.push(makeBooking(clientId, name, email, phone, address, petName,
-                                service, walkerName, daysAhead, false));
-    }
 
     demoClients[clientId] = {
       id: clientId, name, email, phone, address,
       addrObj: { street: `${streetNum} ${streetName}`, city: "Dallas", state: "TX", zip },
-      dogs, cats, pets: dogs, bookings,
+      dogs, cats, pets: dogs, bookings: [],
       pin: String(randomInt(1000, 9999)),
       createdAt: new Date(now.getTime() - randomInt(1, 180) * 86400000).toISOString(),
       handoffDone: true, isDemo: true,
     };
+    clientMeta.push({ clientId, name, email, phone, address, petName, service, walkerName });
+  }
+
+  // ── Generate appointments day-by-day: -14 to +14, min 15/day ──
+  // Hours spread across morning and afternoon so the schedule looks real
+  const APPT_HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+  let clientCursor = 0; // round-robin through clients
+
+  for (let dayOffset = -14; dayOffset <= 14; dayOffset++) {
+    const isCompleted = dayOffset < 0;
+    const apptCount   = randomInt(15, 22); // at least 15, up to 22
+
+    for (let a = 0; a < apptCount; a++) {
+      const meta = clientMeta[clientCursor % clientMeta.length];
+      clientCursor++;
+
+      // Spread hours evenly across the day, with slight randomisation
+      const hour = APPT_HOURS[(a + randomInt(0, 2)) % APPT_HOURS.length];
+
+      const booking = makeBooking(
+        meta.clientId, meta.name, meta.email, meta.phone,
+        meta.address, meta.petName, meta.service,
+        meta.walkerName, dayOffset, isCompleted,
+      );
+
+      // Override the hour so multiple slots exist per day
+      const d2 = new Date(booking.scheduledDateTime);
+      d2.setHours(hour, 0, 0, 0);
+      const slotTime = hour < 12
+        ? `${hour}:00 AM`
+        : hour === 12 ? "12:00 PM"
+        : `${hour - 12}:00 PM`;
+      booking.scheduledDateTime = d2.toISOString();
+      booking.slot = { ...booking.slot, time: slotTime, hour, id: `${hour}:00` };
+      booking.key  = `demo-${meta.service}-${d2.toISOString().slice(0,10)}-${hour}-${meta.clientId}-${a}`;
+
+      demoClients[meta.clientId].bookings.push(booking);
+    }
   }
 
   return { demoWalkerProfiles, demoClients };
