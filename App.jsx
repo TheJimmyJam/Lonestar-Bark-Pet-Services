@@ -7525,7 +7525,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           <div className="lp-fade-3" style={{ fontFamily: "'DM Sans', sans-serif",
             color: "#ffffffcc", fontSize: "clamp(14px, 2.5vw, 17px)", lineHeight: "1.75",
             marginBottom: "40px", fontWeight: 300, maxWidth: "520px", margin: "0 auto 40px" }}>
-            Lake Highlands raised. Dallas proud. Background-checked walkers,
+            East Dallas raised. Dallas proud. Background-checked walkers,
             transparent pricing, and a personal meet & greet before your first walk.
           </div>
           <div className="lp-fade-4 lp-hero-ctas">
@@ -7566,7 +7566,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             <LogoBadge size={120} />
             <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#D4A843",
               fontSize: "11px", letterSpacing: "0.45em", textTransform: "uppercase" }}>
-              Lake Highlands, Dallas ★
+              East Dallas, Dallas ★
             </div>
           </div>
           {/* Story text */}
@@ -7578,7 +7578,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
               marginBottom: "18px" }}>Our Story</div>
             <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "clamp(17px,2.5vw,21px)",
               color: "#F0E8D5", lineHeight: "1.85", fontWeight: 300, margin: 0 }}>
-              We grew up in Lake Highlands — technically Dallas, fiercely its own. The kind of place
+              We grew up in East Dallas — technically Dallas, fiercely its own. The kind of place
               where you know your neighbors, ride your bike to the lake, and never really leave it behind.
             </p>
             <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "clamp(17px,2.5vw,21px)",
@@ -7823,6 +7823,77 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
         </div>
       </section>
 
+      {/* ── Walk Updates ── */}
+      <section className="lp-section" style={{ background: "#fff" }}>
+        <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: "52px" }}>
+            <div className="section-divider" />
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "36px",
+              fontWeight: 600, color: "#111827", marginBottom: "12px" }}>
+              You're Always in the Loop
+            </div>
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+              color: "#6b7280", lineHeight: "1.7", maxWidth: "520px", margin: "0 auto" }}>
+              We know how hard it is to leave your pet behind. That's why we keep you connected — 
+              with real updates, real photos, and real peace of mind throughout every walk.
+            </p>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            gap: "24px", marginBottom: "48px" }}>
+            {[
+              {
+                icon: "📸",
+                title: "Photo Updates",
+                desc: "Your walker sends candid photos during the walk so you can see exactly what your pet is up to — tail wags and all.",
+              },
+              {
+                icon: "🎥",
+                title: "Video Clips",
+                desc: "Short video updates straight from the trail. Watch your pup sprint through the park or your cat enjoy their afternoon nap.",
+              },
+              {
+                icon: "📍",
+                title: "Start & End Confirmation",
+                desc: "We confirm when we arrive and when we're done, so you always know your pet is in good hands — even when you're in a meeting.",
+              },
+            ].map((item, i) => (
+              <div key={i} style={{ background: "#f9fafb", borderRadius: "16px",
+                padding: "28px 24px", border: "1.5px solid #f3f4f6" }}>
+                <div style={{ fontSize: "32px", marginBottom: "14px" }}>{item.icon}</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase",
+                  letterSpacing: "1.5px", fontWeight: 600, color: "#111827", marginBottom: "8px" }}>
+                  {item.title}
+                </div>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                  color: "#6b7280", lineHeight: "1.7", margin: 0 }}>
+                  {item.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Callout */}
+          <div style={{ background: "#FDF5EC", border: "1.5px solid #D4A87A",
+            borderRadius: "20px", padding: "32px", display: "flex",
+            gap: "20px", alignItems: "flex-start", flexWrap: "wrap" }}>
+            <div style={{ fontSize: "36px", flexShrink: 0 }}>🐾</div>
+            <div style={{ flex: 1, minWidth: "240px" }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase",
+                letterSpacing: "1.5px", fontWeight: 600, color: "#C4541A", marginBottom: "8px" }}>
+                Your Pet, Your Peace of Mind
+              </div>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                color: "#374151", lineHeight: "1.75", margin: 0 }}>
+                Every walker on our team understands that your pet isn't just an animal — they're family. 
+                We take the trust you place in us seriously, and we show it through consistent communication, 
+                thoughtful care, and the kind of updates that make you smile mid-workday.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── Team ── */}
       <section id="team" className="lp-section" style={{ background: "#f5f6f8" }}>
         <div style={{ maxWidth: "700px", margin: "0 auto", textAlign: "center" }}>
@@ -7933,7 +8004,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
         </div>
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff44",
           fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase" }}>
-          Lake Highlands · Dallas, TX
+          East Dallas · Dallas, TX
         </div>
       </footer>
       </>)}
