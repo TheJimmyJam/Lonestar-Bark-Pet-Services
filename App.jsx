@@ -9772,6 +9772,7 @@ function DayAvailSliders({ slots, onChange, color, isPast }) {
 
 function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalkerProfiles, trades, setTrades, onLogout }) {
   const [tab, setTab] = useState("dashboard");
+  const [pendingNavTab, setPendingNavTab] = useState(null);
   const [walkerMenuOpen, setWalkerMenuOpen] = useState(false);
   const [invFilter, setInvFilter] = useState("all");
   // New calendar-based availability: { "2025-04-07": ["8:00 AM", ...], ... }
@@ -10100,6 +10101,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     setAvailLoading(true);
     loadWalkerAvailability(walker.id).then(data => {
       setAvailability(data);
+      setSavedAvailability(data);
       setAvailLoading(false);
     });
   }, [tab, walker.id]);
@@ -10109,7 +10111,21 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
   const prevWeekDates  = getWeekDates(availWeekOffset - 1); // same 7-day window, one week back
   const [availSaving, setAvailSaving] = useState(false);
   const [availSaved, setAvailSaved] = useState(false);
+  const [savedAvailability, setSavedAvailability] = useState({});
   const [sameAsLastWeekFlash, setSameAsLastWeekFlash] = useState(false);
+
+  // Guarded tab navigation — prompts if leaving availability with unsaved changes
+  const changeTab = (newTab) => {
+    if (tab === "availability") {
+      const allKeys = new Set([...Object.keys(availability), ...Object.keys(savedAvailability)]);
+      const dirty = [...allKeys].some(dk =>
+        JSON.stringify(availability[dk] || []) !== JSON.stringify(savedAvailability[dk] || [])
+      );
+      if (dirty) { setPendingNavTab(newTab); return; }
+    }
+    setTab(newTab);
+    document.querySelector("[data-scroll-pane]")?.scrollTo({ top: 0, behavior: "instant" });
+  };
 
   // Toggle slot locally only — save happens on button click
   const toggleAvailabilityDate = (dateKey, slot) => {
@@ -10146,11 +10162,20 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
   const saveAllAvailability = async () => {
     setAvailSaving(true);
     try {
-      for (const date of availWeekDates) {
-        const dateKey = toDateKey(date);
-        const slots = availability[dateKey] || [];
-        await saveWalkerAvailabilityDay(walker.id, dateKey, slots);
+      // Find every date that differs from the last saved snapshot
+      const allDirtyKeys = new Set([
+        ...Object.keys(availability),
+        ...Object.keys(savedAvailability),
+      ]);
+      for (const dateKey of allDirtyKeys) {
+        const current = JSON.stringify(availability[dateKey] || []);
+        const saved   = JSON.stringify(savedAvailability[dateKey] || []);
+        if (current !== saved) {
+          await saveWalkerAvailabilityDay(walker.id, dateKey, availability[dateKey] || []);
+        }
       }
+      // Snapshot entire availability as the new saved state
+      setSavedAvailability(JSON.parse(JSON.stringify(availability)));
       setAvailSaved(true);
       setTimeout(() => setAvailSaved(false), 3000);
     } catch (e) {
@@ -10366,6 +10391,63 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#f0f2f5" }}>
       <style>{GLOBAL_STYLES}</style>
 
+      {/* Unsaved availability changes modal */}
+      {pendingNavTab && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000,
+          background: "rgba(0,0,0,0.5)", display: "flex",
+          alignItems: "center", justifyContent: "center", padding: "24px" }}>
+          <div style={{ background: "#fff", borderRadius: "18px", padding: "28px 24px",
+            maxWidth: "360px", width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+            <div style={{ fontSize: "32px", marginBottom: "12px", textAlign: "center" }}>⚠️</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
+              fontSize: "17px", color: "#111827", marginBottom: "8px", textAlign: "center" }}>
+              Unsaved Availability Changes
+            </div>
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+              color: "#6b7280", lineHeight: "1.6", marginBottom: "22px", textAlign: "center" }}>
+              You have changes that haven't been saved yet. If you leave now they'll be lost.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <button
+                onClick={async () => {
+                  await saveAllAvailability();
+                  const dest = pendingNavTab;
+                  setPendingNavTab(null);
+                  setTab(dest);
+                  document.querySelector("[data-scroll-pane]")?.scrollTo({ top: 0, behavior: "instant" });
+                }}
+                style={{ width: "100%", padding: "13px", borderRadius: "11px", border: "none",
+                  background: "#3D6B7A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "15px", fontWeight: 700, cursor: "pointer" }}>
+                💾 Save & Continue
+              </button>
+              <button
+                onClick={() => {
+                  setSavedAvailability(JSON.parse(JSON.stringify(availability)));
+                  const dest = pendingNavTab;
+                  setPendingNavTab(null);
+                  setTab(dest);
+                  document.querySelector("[data-scroll-pane]")?.scrollTo({ top: 0, behavior: "instant" });
+                }}
+                style={{ width: "100%", padding: "13px", borderRadius: "11px",
+                  border: "1.5px solid #fca5a5", background: "#fef2f2",
+                  color: "#dc2626", fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>
+                Discard Changes & Leave
+              </button>
+              <button
+                onClick={() => setPendingNavTab(null)}
+                style={{ width: "100%", padding: "11px", borderRadius: "11px",
+                  border: "1.5px solid #e4e7ec", background: "#fff",
+                  color: "#6b7280", fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "15px", cursor: "pointer" }}>
+                Stay on Availability
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header + Nav */}
       <div data-scroll-pane style={{ flex: 1, overflowY: "scroll", WebkitOverflowScrolling: "touch" }}>
       {/* Header */}
@@ -10401,11 +10483,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
         {(() => {
           const t = TABS[0];
           return (
-            <button key={t.id} onClick={() => { setTab(t.id); document.querySelector('[data-scroll-pane]')?.scrollTo({ top: 0, behavior: 'instant' }); }} style={{
-              padding: "10px 14px", border: "none", whiteSpace: "nowrap",
-              background: "transparent", flexShrink: 0,
-              borderBottom: tab === t.id ? "3px solid #3A849A" : "3px solid transparent",
-              borderRight: "1px solid #254E5E",
+            <button key={t.id} onClick={() => { changeTab(t.id); document.querySelector('[data-scroll-pane]')?.scrollTo({ top: 0, behavior: 'instant' }); }} style={{
               color: tab === t.id ? "#fff" : "#4E7A8C",
               fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
               fontWeight: tab === t.id ? 600 : 400,
@@ -10422,10 +10500,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
           {TABS.slice(1).map(t => {
             const badge = walkerNotifCounts[t.id] || 0;
             return (
-              <button key={t.id} onClick={() => { setTab(t.id); document.querySelector('[data-scroll-pane]')?.scrollTo({ top: 0, behavior: 'instant' }); }} style={{
-                padding: "10px 14px", border: "none", whiteSpace: "nowrap", background: "transparent",
-                borderBottom: tab === t.id ? "3px solid #3A849A" : "3px solid transparent",
-                color: tab === t.id ? "#fff" : "rgba(255,255,255,0.65)",
+              <button key={t.id} onClick={() => { changeTab(t.id); document.querySelector('[data-scroll-pane]')?.scrollTo({ top: 0, behavior: 'instant' }); }} style={{
                 fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                 fontWeight: tab === t.id ? 600 : 400,
                 cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
@@ -10481,7 +10556,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               {TABS.map(t => {
                 const badge = walkerNotifCounts[t.id] || 0;
                 return (
-                  <button key={t.id} onClick={() => { setTab(t.id); setWalkerMenuOpen(false); }} style={{
+                  <button key={t.id} onClick={() => { changeTab(t.id); setWalkerMenuOpen(false); }} style={{
                     width: "100%", padding: "13px 20px", border: "none", background: "transparent",
                     display: "flex", alignItems: "center", gap: "14px", cursor: "pointer",
                     borderLeft: tab === t.id ? "3px solid #3A849A" : "3px solid transparent",
@@ -11912,6 +11987,31 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               Drag the handles to set your start and end time for each day. Use <strong>All Day</strong>, <strong>AM</strong>, or <strong>PM</strong> to set quickly. Add a break by clicking <em>+ Add break / another shift</em>.
             </p>
 
+            {/* Top save button */}
+            {!availLoading && (() => {
+              const allKeys = new Set([...Object.keys(availability), ...Object.keys(savedAvailability)]);
+              const hasChanges = [...allKeys].some(dk =>
+                JSON.stringify(availability[dk] || []) !== JSON.stringify(savedAvailability[dk] || [])
+              );
+              return (
+                <button
+                  onClick={hasChanges ? saveAllAvailability : undefined}
+                  disabled={!hasChanges || availSaving}
+                  style={{
+                    width: "100%", padding: "12px", borderRadius: "12px", border: "none",
+                    background: availSaved ? "#C4541A" : hasChanges ? accentBlue : "#e4e7ec",
+                    color: hasChanges ? "#fff" : "#9ca3af",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                    fontWeight: 600,
+                    cursor: hasChanges && !availSaving ? "pointer" : "not-allowed",
+                    marginBottom: "16px", transition: "background 0.3s ease",
+                    opacity: availSaving ? 0.7 : 1,
+                  }}>
+                  {availSaved ? "✓ Availability Saved!" : availSaving ? "Saving…" : hasChanges ? "Save Availability" : "No Changes to Save"}
+                </button>
+              );
+            })()}
+
             {/* Week navigation */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
               marginBottom: "16px", background: "#fff", borderRadius: "14px",
@@ -12195,17 +12295,29 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
             )}
 
             {/* Save button */}
-            {!availLoading && (
-              <button onClick={saveAllAvailability} disabled={availSaving} style={{
-                width: "100%", padding: "15px", borderRadius: "12px", border: "none",
-                background: availSaved ? "#C4541A" : availSaving ? "#9ca3af" : accentBlue,
-                color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                fontWeight: 600, cursor: availSaving ? "default" : "pointer",
-                marginTop: "16px", transition: "background 0.3s ease",
-              }}>
-                {availSaved ? "✓ Availability Saved!" : availSaving ? "Saving..." : "Save Availability"}
-              </button>
-            )}
+            {!availLoading && (() => {
+              const allKeys = new Set([...Object.keys(availability), ...Object.keys(savedAvailability)]);
+              const hasChanges = [...allKeys].some(dk =>
+                JSON.stringify(availability[dk] || []) !== JSON.stringify(savedAvailability[dk] || [])
+              );
+              return (
+                <button
+                  onClick={hasChanges ? saveAllAvailability : undefined}
+                  disabled={!hasChanges || availSaving}
+                  style={{
+                    width: "100%", padding: "15px", borderRadius: "12px", border: "none",
+                    background: availSaved ? "#C4541A" : hasChanges ? accentBlue : "#e4e7ec",
+                    color: hasChanges ? "#fff" : "#9ca3af",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                    fontWeight: 600,
+                    cursor: hasChanges && !availSaving ? "pointer" : "not-allowed",
+                    marginTop: "16px", transition: "background 0.3s ease",
+                    opacity: availSaving ? 0.7 : 1,
+                  }}>
+                  {availSaved ? "✓ Availability Saved!" : availSaving ? "Saving…" : hasChanges ? "Save Availability" : "No Changes to Save"}
+                </button>
+              );
+            })()}
           </div>
         )}
 
@@ -20972,6 +21084,61 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                   )}
                 </div>
 
+                {/* ── Services ── */}
+                <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
+                  borderRadius: "14px", padding: "18px 20px", marginBottom: "12px" }}>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
+                    fontSize: "15px", letterSpacing: "1.5px", textTransform: "uppercase",
+                    color: "#9ca3af", marginBottom: "12px" }}>Services Offered</div>
+                  {isEditing ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {WALKER_SERVICES.map(svc => {
+                        const active = (draft.services || []).includes(svc.id);
+                        return (
+                          <button key={svc.id}
+                            onClick={() => setEditingWalker(prev => ({
+                              ...prev,
+                              services: active
+                                ? (prev.services || []).filter(s => s !== svc.id)
+                                : [...(prev.services || []), svc.id],
+                            }))}
+                            style={{ display: "flex", alignItems: "center", gap: "10px",
+                              padding: "10px 14px", borderRadius: "10px", cursor: "pointer",
+                              border: `1.5px solid ${active ? svc.border : "#e4e7ec"}`,
+                              background: active ? svc.bg : "#f9fafb",
+                              textAlign: "left" }}>
+                            <span style={{ fontSize: "20px", flexShrink: 0 }}>{svc.icon}</span>
+                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                              fontWeight: 600, color: active ? svc.color : "#6b7280", flex: 1 }}>
+                              {svc.label}
+                            </span>
+                            <span style={{ fontSize: "17px", color: active ? svc.color : "#d1d5db" }}>
+                              {active ? "✓" : "○"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                      {(prof.services || []).length === 0 ? (
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                          color: "#d1d5db", fontStyle: "italic" }}>No services assigned — click Edit to add.</div>
+                      ) : (
+                        WALKER_SERVICES.filter(s => (prof.services || []).includes(s.id)).map(svc => (
+                          <span key={svc.id} style={{ display: "inline-flex", alignItems: "center",
+                            gap: "6px", padding: "6px 12px", borderRadius: "20px",
+                            border: `1.5px solid ${svc.border}`,
+                            background: svc.bg, fontFamily: "'DM Sans', sans-serif",
+                            fontSize: "14px", fontWeight: 600, color: svc.color }}>
+                            {svc.icon} {svc.label}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* ── Delete Walker ── */}
                 {!isConfirmingDelete ? (
                   <button
@@ -22300,7 +22467,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
           <ScheduleWalkForm
             clients={clients}
             setClients={setClients}
-            onDone={() => changeTab("bookings")}
+            onDone={() => { changeTab("bookings"); document.querySelector("[data-scroll-pane]")?.scrollTo({ top: 0, behavior: "smooth" }); }}
             walkerProfiles={walkerProfiles}
             allowHistorical={true}
           />
