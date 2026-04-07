@@ -1804,6 +1804,13 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
   const [errors, setErrors]       = useState({});
   const [saved, setSaved]         = useState(false);
   const [savedInfo, setSavedInfo] = useState(null);
+  const [walkerAvailability, setWalkerAvailability] = useState({});
+
+  useEffect(() => {
+    const start = toDateKey(getWeekDates(0)[0]);
+    const end   = toDateKey(getWeekDates(16)[6]);
+    loadAllWalkersAvailability(start, end).then(setWalkerAvailability);
+  }, []);
 
   const amber = "#b45309";
   const setField = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -2023,7 +2030,7 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
         </div>
       )}
 
-      {/* Client */}
+      {/* 1. Client */}
       <ScheduleWalkSection title="Client *">
         <label style={labelStyle}>Select Client</label>
         <select value={form.clientId}
@@ -2064,60 +2071,43 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
         )}
       </ScheduleWalkSection>
 
-      {/* Pet selector — only shown when client has pets */}
-      {selectedClient && relevantPets.length > 0 && (
-        <ScheduleWalkSection title={form.service === "cat" ? "Cat *" : "Dog(s) *"}>
-          {form.service === "cat" ? (
-            /* Cat — single select */
-            <select value={form.pet} onChange={e => setField("pet", e.target.value)} style={iStyle(false)}>
-              <option value="">— Select cat —</option>
-              {clientCats.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-            </select>
-          ) : (
-            /* Dog — primary pick + additional checkboxes */
-            <>
-              <label style={labelStyle}>Primary Dog</label>
-              <select value={form.pet}
-                onChange={e => setForm(f => ({ ...f, pet: e.target.value, additionalDogs: f.additionalDogs.filter(d => d !== e.target.value) }))}
-                style={{ ...iStyle(false), marginBottom: clientDogs.length > 1 ? "14px" : 0 }}>
-                <option value="">— Select dog —</option>
-                {clientDogs.map(dog => <option key={dog} value={dog}>{dog}</option>)}
-              </select>
-              {clientDogs.length > 1 && (
-                <>
-                  <label style={labelStyle}>Additional Dogs <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#b45309" }}>+$10 each</span></label>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {clientDogs.filter(dog => dog !== form.pet).map(dog => {
-                      const checked = form.additionalDogs.includes(dog);
-                      return (
-                        <label key={dog} style={{ display: "flex", alignItems: "center", gap: "10px",
-                          padding: "10px 14px", borderRadius: "10px", cursor: "pointer",
-                          border: `1.5px solid ${checked ? amber : "#e4e7ec"}`,
-                          background: checked ? `${amber}0d` : "#fff",
-                          fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                          color: "#111827", transition: "all 0.12s" }}>
-                          <input type="checkbox" checked={checked}
-                            onChange={() => setForm(f => ({
-                              ...f,
-                              additionalDogs: checked
-                                ? f.additionalDogs.filter(d => d !== dog)
-                                : [...f.additionalDogs, dog],
-                            }))}
-                            style={{ width: "16px", height: "16px", accentColor: amber, cursor: "pointer" }} />
-                          {dog}
-                          {checked && <span style={{ marginLeft: "auto", color: amber, fontSize: "15px", fontWeight: 600 }}>+$10</span>}
-                        </label>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </>
-          )}
-        </ScheduleWalkSection>
-      )}
+      {/* 2. Walker */}
+      <ScheduleWalkSection title="Walker">
+        <label style={labelStyle}>Assign Walker</label>
+        <select value={form.walker} onChange={e => setField("walker", e.target.value)}
+          style={{ ...iStyle(false), color: form.walker ? "#111827" : "#9ca3af" }}>
+          <option value="">— Assign later —</option>
+          {getAllWalkers(walkerProfiles).map(w => {
+            const dateKey = form.date;
+            const hasAvailOnDate = dateKey
+              ? (walkerAvailability[w.id]?.[dateKey] || []).length > 0
+              : true;
+            return (
+              <option key={w.id} value={w.name}>
+                {w.avatar} {w.name}{!hasAvailOnDate && form.date ? " (no availability set)" : ""}
+              </option>
+            );
+          })}
+        </select>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+          color: "#9ca3af", marginTop: "5px" }}>
+          You can also assign a walker later from the Assign Walks tab.
+        </div>
+        {form.walker && form.date && (() => {
+          const w = getAllWalkers(walkerProfiles).find(w => w.name === form.walker);
+          const slots = w ? (walkerAvailability[w.id]?.[form.date] || []) : [];
+          if (slots.length === 0 && w) return (
+            <div style={{ marginTop: "8px", padding: "10px 14px", background: "#fff7ed",
+              border: "1.5px solid #fed7aa", borderRadius: "10px",
+              fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#b45309" }}>
+              ⚠️ {form.walker} hasn't set availability for {new Date(form.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}. Select a different date or walker, or assign later.
+            </div>
+          );
+          return null;
+        })()}
+      </ScheduleWalkSection>
 
-      {/* Service & Date */}
+      {/* 3. Service & Date */}
       <ScheduleWalkSection title="Service & Date">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
           <div>
@@ -2160,7 +2150,6 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
             style={iStyle(errors.date)} />
           {errMsg("date")}
         </div>
-        {/* Custom price — historical mode only */}
         {isHistorical && (
           <div style={{ marginTop: "14px" }}>
             <label style={labelStyle}>Price Override <span style={{ color: "#9ca3af", fontWeight: 400, fontSize: "13px", textTransform: "none", letterSpacing: 0 }}>(leave blank to use standard rate: ${price})</span></label>
@@ -2173,73 +2162,146 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
         )}
       </ScheduleWalkSection>
 
-      {/* Time */}
+      {/* 4. Animal */}
+      {selectedClient && relevantPets.length > 0 && (
+        <ScheduleWalkSection title={form.service === "cat" ? "Cat *" : "Dog(s) *"}>
+          {form.service === "cat" ? (
+            <select value={form.pet} onChange={e => setField("pet", e.target.value)} style={iStyle(false)}>
+              <option value="">— Select cat —</option>
+              {clientCats.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+          ) : (
+            <>
+              <label style={labelStyle}>Primary Dog</label>
+              <select value={form.pet}
+                onChange={e => setForm(f => ({ ...f, pet: e.target.value, additionalDogs: f.additionalDogs.filter(d => d !== e.target.value) }))}
+                style={{ ...iStyle(false), marginBottom: clientDogs.length > 1 ? "14px" : 0 }}>
+                <option value="">— Select dog —</option>
+                {clientDogs.map(dog => <option key={dog} value={dog}>{dog}</option>)}
+              </select>
+              {clientDogs.length > 1 && (
+                <>
+                  <label style={labelStyle}>Additional Dogs <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#b45309" }}>+$10 each</span></label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {clientDogs.filter(dog => dog !== form.pet).map(dog => {
+                      const checked = form.additionalDogs.includes(dog);
+                      return (
+                        <label key={dog} style={{ display: "flex", alignItems: "center", gap: "10px",
+                          padding: "10px 14px", borderRadius: "10px", cursor: "pointer",
+                          border: `1.5px solid ${checked ? amber : "#e4e7ec"}`,
+                          background: checked ? `${amber}0d` : "#fff",
+                          fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                          color: "#111827", transition: "all 0.12s" }}>
+                          <input type="checkbox" checked={checked}
+                            onChange={() => setForm(f => ({
+                              ...f,
+                              additionalDogs: checked
+                                ? f.additionalDogs.filter(d => d !== dog)
+                                : [...f.additionalDogs, dog],
+                            }))}
+                            style={{ width: "16px", height: "16px", accentColor: amber, cursor: "pointer" }} />
+                          {dog}
+                          {checked && <span style={{ marginLeft: "auto", color: amber, fontSize: "15px", fontWeight: 600 }}>+$10</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </ScheduleWalkSection>
+      )}
+
+      {/* 5. Start Time — filtered by walker availability */}
       <ScheduleWalkSection title="Start Time *">
         {errors.time && (
           <div style={{ color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
             fontSize: "15px", marginBottom: "10px" }}>{errors.time}</div>
         )}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "7px" }}>
-          {TIME_SLOTS.map(slot => {
-            const active = form.timeSlot?.id === slot.id;
-            const isToday = form.date === todayStr;
-            const now = new Date();
-            const isPast = isToday && (
-              slot.hour < now.getHours() ||
-              (slot.hour === now.getHours() && slot.minute <= now.getMinutes())
-            );
-            return (
-              <button key={slot.id}
-                disabled={isPast}
-                onClick={() => { if (!isPast) { setField("timeSlot", slot); setErrors(p => ({ ...p, time: "" })); } }}
-                style={{
-                  padding: "9px 4px", borderRadius: "9px",
-                  cursor: isPast ? "not-allowed" : "pointer",
-                  border: active ? `2px solid ${amber}` : isPast ? "1.5px solid #f3f4f6" : "1.5px solid #e4e7ec",
-                  background: active ? `${amber}12` : isPast ? "#f9fafb" : "#f9fafb",
-                  color: active ? amber : isPast ? "#d1d5db" : "#6b7280",
-                  fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                  fontWeight: active ? 700 : 400, transition: "all 0.1s", textAlign: "center",
-                  textDecoration: isPast ? "line-through" : "none",
-                  opacity: isPast ? 0.5 : 1,
-                }}>{slot.label}</button>
-            );
-          })}
-        </div>
-        {form.date === todayStr && (
-          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-            color: "#9ca3af", marginTop: "8px" }}>
-            Grayed-out times have already passed today.
-          </div>
-        )}
+        {(() => {
+          const selectedWalkerObj = getAllWalkers(walkerProfiles).find(w => w.name === form.walker);
+          const availSlotTimes = selectedWalkerObj && form.date
+            ? (walkerAvailability[selectedWalkerObj.id]?.[form.date] || null)
+            : null; // null = no walker selected, show all; [] = walker has no availability
+          return (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "7px" }}>
+                {TIME_SLOTS.map(slot => {
+                  const active = form.timeSlot?.id === slot.id;
+                  const isToday = form.date === todayStr;
+                  const now = new Date();
+                  const isPast = isToday && (
+                    slot.hour < now.getHours() ||
+                    (slot.hour === now.getHours() && slot.minute <= now.getMinutes())
+                  );
+                  const walkerUnavailable = availSlotTimes !== null && !availSlotTimes.includes(slot.label);
+                  const disabled = isPast || walkerUnavailable;
+                  return (
+                    <button key={slot.id}
+                      disabled={disabled}
+                      onClick={() => { if (!disabled) { setField("timeSlot", slot); setErrors(p => ({ ...p, time: "" })); } }}
+                      style={{
+                        padding: "9px 4px", borderRadius: "9px",
+                        cursor: disabled ? "not-allowed" : "pointer",
+                        border: active ? `2px solid ${amber}` : disabled ? "1.5px solid #f3f4f6" : "1.5px solid #e4e7ec",
+                        background: active ? `${amber}12` : disabled ? "#f9fafb" : "#f9fafb",
+                        color: active ? amber : disabled ? "#d1d5db" : "#6b7280",
+                        fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                        fontWeight: active ? 700 : 400, transition: "all 0.1s", textAlign: "center",
+                        textDecoration: isPast ? "line-through" : "none",
+                        opacity: disabled ? 0.5 : 1,
+                        position: "relative",
+                      }}>
+                      {slot.label}
+                      {walkerUnavailable && !isPast && (
+                        <div style={{ position: "absolute", inset: 0, display: "flex",
+                          alignItems: "center", justifyContent: "center",
+                          fontSize: "10px", color: "#ef4444", fontWeight: 700 }}>✕</div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {availSlotTimes !== null && availSlotTimes.length === 0 && (
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                  color: "#b45309", marginTop: "8px", padding: "8px 12px",
+                  background: "#fff7ed", borderRadius: "8px", border: "1px solid #fed7aa" }}>
+                  ⚠️ {form.walker} has no availability set for this date. All times shown but walker may be unavailable.
+                </div>
+              )}
+              {form.walker && availSlotTimes && availSlotTimes.length > 0 && (
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                  color: "#9ca3af", marginTop: "8px" }}>
+                  Showing {form.walker}'s available times. ✕ = unavailable.
+                </div>
+              )}
+              {!form.walker && (
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                  color: "#9ca3af", marginTop: "8px" }}>
+                  Select a walker above to filter by their availability.
+                </div>
+              )}
+              {form.date === todayStr && (
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                  color: "#9ca3af", marginTop: "4px" }}>
+                  Grayed-out times have already passed today.
+                </div>
+              )}
+            </>
+          );
+        })()}
       </ScheduleWalkSection>
 
-      {/* Walker & Notes */}
-      <ScheduleWalkSection title="Walker & Notes">
-        <div style={{ marginBottom: "14px" }}>
-          <label style={labelStyle}>Assign Walker</label>
-          <select value={form.walker} onChange={e => setField("walker", e.target.value)}
-            style={{ ...iStyle(false), color: form.walker ? "#111827" : "#9ca3af" }}>
-            <option value="">— Assign later —</option>
-            {getAllWalkers(walkerProfiles).map(w => (
-              <option key={w.id} value={w.name}>{w.avatar} {w.name}</option>
-            ))}
-          </select>
-          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-            color: "#9ca3af", marginTop: "5px" }}>
-            You can also assign a walker later from the Assign Walks tab.
-          </div>
-        </div>
-        <div>
-          <label style={labelStyle}>Notes</label>
-          <textarea value={form.notes} onChange={e => setField("notes", e.target.value)}
-            placeholder="Gate code, pet instructions, special requests…"
-            rows={3}
-            style={{ ...iStyle(false), resize: "vertical", lineHeight: "1.6" }} />
-        </div>
+      {/* Notes */}
+      <ScheduleWalkSection title="Notes">
+        <textarea value={form.notes} onChange={e => setField("notes", e.target.value)}
+          placeholder="Gate code, pet instructions, special requests…"
+          rows={3}
+          style={{ ...iStyle(false), resize: "vertical", lineHeight: "1.6" }} />
       </ScheduleWalkSection>
 
-      {/* Pricing Preview */}
+            {/* Pricing Preview */}
       {form.clientId && form.timeSlot && (
         <div style={{ background: `${amber}0c`, border: `1.5px solid ${amber}33`,
           borderRadius: "14px", padding: "16px 20px", marginBottom: "16px",
@@ -10535,6 +10597,39 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                 </div>
               </div>
 
+              {/* ── Walk counts KPI grid ── */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
+                {kpiCard("📅", todayWalks.length,  "Walks Today",      "#1A3A42", "#EBF4F6", "#A8D0DB", () => setTab("mywalks"))}
+                {kpiCard("📋", weekWalks.length,   "Walks This Week",  accentBlue, "#EBF4F6", "#A8D0DB", () => setTab("mywalks"))}
+                {kpiCard("📆", monthWalks.length,  "Walks This Month", accentBlue, "#EBF4F6", "#A8D0DB", () => setTab("mywalks"))}
+                {kpiCard("✅", completedWalks.length, "Completed Walks",
+                  accentBlue, "#EBF4F6", "#A8D0DB", () => setTab("completed"))}
+              </div>
+
+              {/* ── Earnings KPI grid ── */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
+                {kpiCard("💵", fmt(weekPayout, true),    "Week's Earnings",  "#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
+                {kpiCard("💰", fmt(monthPayout, true),   "Month's Earnings", "#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
+                {kpiCard("🏅", fmt(allTimePayout, true), "All-Time Earnings","#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
+                {kpiCard("🗝️", myKeyClients.length, "Key Clients",
+                  "#7A4D6E", "#F9F0F7", "#D8ABCF", () => setTab("myclients"))}
+              </div>
+
+              {/* ── Outstanding + Overdue ── */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
+                {kpiCard("🧾", outstandingAmt > 0 ? fmt(outstandingAmt, true) : "—", "Outstanding",
+                  outstandingAmt > 0 ? "#dc2626" : "#059669",
+                  outstandingAmt > 0 ? "#fef2f2" : "#f0fdf4",
+                  outstandingAmt > 0 ? "#dc2626" : "#a8d5bf",
+                  () => setTab("invoices"))}
+                {kpiCard("⚠️", overdueCount > 0 ? `${overdueCount} ($${overdueAmt})` : "None",
+                  "Overdue Invoices",
+                  overdueCount > 0 ? "#dc2626" : "#059669",
+                  overdueCount > 0 ? "#fef2f2" : "#f0fdf4",
+                  overdueCount > 0 ? "#dc2626" : "#a8d5bf",
+                  () => setTab("invoices"))}
+              </div>
+
               {/* ── Next Walk ── */}
               {nextWalk && (
                 <div onClick={() => setTab("mywalks")}
@@ -10562,39 +10657,6 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                   </div>
                 </div>
               )}
-
-              {/* ── Walk counts KPI grid ── */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
-                {kpiCard("📅", todayWalks.length,  "Walks Today",      "#1A3A42", "#EBF4F6", "#A8D0DB", () => setTab("mywalks"))}
-                {kpiCard("📋", weekWalks.length,   "Walks This Week",  accentBlue, "#EBF4F6", "#A8D0DB", () => setTab("mywalks"))}
-                {kpiCard("📆", monthWalks.length,  "Walks This Month", accentBlue, "#EBF4F6", "#A8D0DB", () => setTab("mywalks"))}
-                {kpiCard("✅", completedWalks.length, "Completed Walks",
-                  accentBlue, "#EBF4F6", "#A8D0DB", () => setTab("completed"))}
-              </div>
-
-              {/* ── Earnings KPI grid ── */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
-                {kpiCard("💵", fmt(weekPayout, true),    "Week's Earnings",  "#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
-                {kpiCard("💰", fmt(monthPayout, true),   "Month's Earnings", "#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
-                {kpiCard("🏅", fmt(allTimePayout, true), "All-Time Earnings","#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
-                {kpiCard("🗝️", myKeyClients.length, "Key Clients",
-                  "#7A4D6E", "#F9F0F7", "#D8ABCF", () => setTab("myclients"))}
-              </div>
-
-              {/* ── Outstanding + Key Clients ── */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "24px" }}>
-                {kpiCard("🧾", outstandingAmt > 0 ? fmt(outstandingAmt, true) : "—", "Outstanding",
-                  outstandingAmt > 0 ? "#dc2626" : "#059669",
-                  outstandingAmt > 0 ? "#fef2f2" : "#f0fdf4",
-                  outstandingAmt > 0 ? "#dc2626" : "#a8d5bf",
-                  () => setTab("invoices"))}
-                {kpiCard("⚠️", overdueCount > 0 ? `${overdueCount} ($${overdueAmt})` : "None",
-                  "Overdue Invoices",
-                  overdueCount > 0 ? "#dc2626" : "#059669",
-                  overdueCount > 0 ? "#fef2f2" : "#f0fdf4",
-                  overdueCount > 0 ? "#dc2626" : "#a8d5bf",
-                  () => setTab("invoices"))}
-              </div>
 
               {/* ── Upcoming schedule preview ── */}
               <div style={{ background: "#fff", borderRadius: "16px",
