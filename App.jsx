@@ -8536,6 +8536,47 @@ export default function LonestarBark() {
     // Check for email verification token in URL
     const params = new URLSearchParams(window.location.search);
     const token = params.get("verify");
+    const payment = params.get("payment");
+    const invoiceId = params.get("invoice");
+
+    // Handle Stripe payment return
+    if (payment === "success" && invoiceId) {
+      window.history.replaceState({}, "", window.location.pathname);
+      (async () => {
+        try {
+          const allClients = await loadClients();
+          let found = false;
+          const updated = { ...allClients };
+          Object.keys(updated).forEach(cid => {
+            const c = updated[cid];
+            const invoices = c.invoices || [];
+            const idx = invoices.findIndex(inv => inv.id === invoiceId);
+            if (idx !== -1 && !found) {
+              found = true;
+              const now = new Date().toISOString();
+              updated[cid] = {
+                ...c,
+                invoices: invoices.map(inv =>
+                  inv.id === invoiceId ? { ...inv, status: "paid", paidAt: now } : inv
+                ),
+              };
+            }
+          });
+          if (found) {
+            await saveClients(updated);
+            setClients(updated);
+            updateInvoiceInDB(invoiceId, { status: "paid", paidAt: new Date().toISOString() });
+          }
+          alert("✅ Payment successful! Your invoice has been marked as paid.");
+        } catch (e) {
+          console.error("Payment success handling error:", e);
+        }
+      })();
+    } else if (payment === "cancelled") {
+      window.history.replaceState({}, "", window.location.pathname);
+      alert("Payment cancelled — you can try again from your invoices page.");
+    }
+
     if (token) {
       (async () => {
         try {
@@ -14684,61 +14725,50 @@ function getAllInvoices(clients) {
 }
 
 // ─── Stripe Payment Modal (framework) ─────────────────────────────────────────
-function StripePaymentModal({ invoice, onClose, onPaid }) {
-  const [cardNum, setCardNum] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvc, setCvc] = useState("");
-  const [zip, setZip] = useState("");
-  const [name, setName] = useState("");
-  const [processing, setProcessing] = useState(false);
-  const [errors, setErrors] = useState({});
+function StripePaymentModal({ invoice, client, onClose, onPaid }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const fmtCard = v => v.replace(/\D/g, "").slice(0, 16).replace(/(.{4})/g, "$1 ").trim();
-  const fmtExpiry = v => {
-    const d = v.replace(/\D/g, "").slice(0, 4);
-    return d.length > 2 ? d.slice(0, 2) + "/" + d.slice(2) : d;
+  const handlePay = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/create-checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invoiceId: invoice.id,
+          amount: invoice.total,
+          clientName: client?.name || "Client",
+          clientEmail: client?.email || "",
+          description: `Lonestar Bark Co. — Invoice ${invoice.id}`,
+        }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setError(data.error || "Something went wrong. Please try again.");
+        setLoading(false);
+      }
+    } catch (e) {
+      setError("Connection error. Please try again.");
+      setLoading(false);
+    }
   };
-
-  const validate = () => {
-    const e = {};
-    if (cardNum.replace(/\s/g, "").length < 16) e.cardNum = "Enter a valid 16-digit card number";
-    if (expiry.length < 5) e.expiry = "Enter expiry (MM/YY)";
-    if (cvc.replace(/\D/g, "").length < 3) e.cvc = "3-digit CVC required";
-    if (!name.trim()) e.name = "Name on card required";
-    if (zip.replace(/\D/g, "").length < 5) e.zip = "5-digit ZIP required";
-    return e;
-  };
-
-  const handlePay = () => {
-    const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
-    setProcessing(true);
-    // Simulate Stripe processing — real impl replaces this with Stripe.js confirmCardPayment()
-    setTimeout(() => {
-      setProcessing(false);
-      onPaid();
-    }, 1800);
-  };
-
-  const inp = (hasErr) => ({
-    width: "100%", padding: "11px 13px", borderRadius: "9px", boxSizing: "border-box",
-    border: `1.5px solid ${hasErr ? "#ef4444" : "#e4e7ec"}`,
-    fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#111827",
-    background: "#fff", outline: "none",
-  });
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9000,
       display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
-      <div style={{ background: "#fff", borderRadius: "20px", width: "100%", maxWidth: "420px",
+      <div style={{ background: "#fff", borderRadius: "20px", width: "100%", maxWidth: "400px",
         boxShadow: "0 24px 64px rgba(0,0,0,0.22)", overflow: "hidden" }}>
 
         {/* Header */}
         <div style={{ background: "#6B3A18", padding: "20px 24px", display: "flex",
           alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-              fontWeight: 600, color: "#fff" }}>Pay Invoice</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase",
+              letterSpacing: "1.5px", fontWeight: 600, color: "#fff" }}>Pay Invoice</div>
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
               color: "#ffffff99", marginTop: "2px" }}>{invoice.id}</div>
           </div>
@@ -14746,113 +14776,37 @@ function StripePaymentModal({ invoice, onClose, onPaid }) {
             color: "#ffffff99", fontSize: "22px", cursor: "pointer", lineHeight: 1 }}>✕</button>
         </div>
 
-        {/* Amount banner */}
+        {/* Amount */}
         <div style={{ background: "#FDF5EC", borderBottom: "1.5px solid #D4A87A",
           padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#374151" }}>
-            Amount due
-          </div>
-          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-            fontWeight: 600, color: "#C4541A" }}>${invoice.total}</div>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#374151" }}>Amount due</div>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase",
+            letterSpacing: "1.5px", fontWeight: 600, color: "#C4541A" }}>${invoice.total}</div>
         </div>
 
-        {/* Stripe badge */}
-        <div style={{ padding: "12px 24px 0", display: "flex", alignItems: "center", gap: "8px" }}>
-          <div style={{ flex: 1, height: "1px", background: "#f3f4f6" }} />
-          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af",
-            fontWeight: 500, display: "flex", alignItems: "center", gap: "5px", whiteSpace: "nowrap" }}>
-            🔒 Powered by <strong style={{ color: "#635bff" }}>Stripe</strong>
-            <span style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "4px",
-              padding: "1px 6px", color: "#b45309", fontSize: "16px", fontWeight: 600,
-              marginLeft: "4px" }}>Framework Preview</span>
-          </div>
-          <div style={{ flex: 1, height: "1px", background: "#f3f4f6" }} />
-        </div>
+        <div style={{ padding: "24px" }}>
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
+            lineHeight: "1.6", marginBottom: "20px" }}>
+            You'll be redirected to Stripe's secure checkout to complete your payment. After paying you'll be brought back here automatically.
+          </p>
 
-        {/* Card form */}
-        <div style={{ padding: "16px 24px 24px", display: "flex", flexDirection: "column", gap: "12px" }}>
-          <div>
-            <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif",
-              fontSize: "15px", fontWeight: 600, color: "#6b7280",
-              textTransform: "uppercase", letterSpacing: "1px", marginBottom: "5px" }}>
-              Name on Card
-            </label>
-            <input value={name} onChange={e => setName(e.target.value)}
-              placeholder="Jane Smith" style={inp(errors.name)} />
-            {errors.name && <div style={{ color: "#ef4444", fontSize: "15px", marginTop: "3px",
-              fontFamily: "'DM Sans', sans-serif" }}>{errors.name}</div>}
-          </div>
-
-          <div>
-            <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif",
-              fontSize: "15px", fontWeight: 600, color: "#6b7280",
-              textTransform: "uppercase", letterSpacing: "1px", marginBottom: "5px" }}>
-              Card Number
-            </label>
-            <input value={cardNum} onChange={e => setCardNum(fmtCard(e.target.value))}
-              placeholder="1234 5678 9012 3456" inputMode="numeric" style={inp(errors.cardNum)} />
-            {errors.cardNum && <div style={{ color: "#ef4444", fontSize: "15px", marginTop: "3px",
-              fontFamily: "'DM Sans', sans-serif" }}>{errors.cardNum}</div>}
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
-            <div>
-              <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "15px", fontWeight: 600, color: "#6b7280",
-                textTransform: "uppercase", letterSpacing: "1px", marginBottom: "5px" }}>
-                Expiry
-              </label>
-              <input value={expiry} onChange={e => setExpiry(fmtExpiry(e.target.value))}
-                placeholder="MM/YY" inputMode="numeric" style={inp(errors.expiry)} />
-            </div>
-            <div>
-              <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "15px", fontWeight: 600, color: "#6b7280",
-                textTransform: "uppercase", letterSpacing: "1px", marginBottom: "5px" }}>
-                CVC
-              </label>
-              <input value={cvc} onChange={e => setCvc(e.target.value.replace(/\D/g,"").slice(0,4))}
-                placeholder="123" inputMode="numeric" style={inp(errors.cvc)} />
-            </div>
-            <div>
-              <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "15px", fontWeight: 600, color: "#6b7280",
-                textTransform: "uppercase", letterSpacing: "1px", marginBottom: "5px" }}>
-                ZIP
-              </label>
-              <input value={zip} onChange={e => setZip(e.target.value.replace(/\D/g,"").slice(0,5))}
-                placeholder="75201" inputMode="numeric" style={inp(errors.zip)} />
-            </div>
-          </div>
-          {(errors.expiry || errors.cvc || errors.zip) && (
-            <div style={{ color: "#ef4444", fontSize: "15px", marginTop: "-4px",
-              fontFamily: "'DM Sans', sans-serif" }}>
-              {errors.expiry || errors.cvc || errors.zip}
-            </div>
+          {error && (
+            <div style={{ background: "#fef2f2", border: "1.5px solid #fecaca", borderRadius: "10px",
+              padding: "12px 14px", marginBottom: "16px", fontFamily: "'DM Sans', sans-serif",
+              fontSize: "14px", color: "#dc2626" }}>{error}</div>
           )}
 
-          <button onClick={handlePay} disabled={processing} style={{
-            marginTop: "4px", width: "100%", padding: "14px", borderRadius: "11px", border: "none",
-            background: processing ? "#9ca3af" : "#C4541A",
-            color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-            fontWeight: 600, cursor: processing ? "default" : "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-            transition: "background 0.2s",
-          }}>
-            {processing ? (
-              <>
-                <span style={{ display: "inline-block", width: "14px", height: "14px",
-                  border: "2px solid #ffffff66", borderTop: "2px solid #fff",
-                  borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
-                Processing…
-              </>
-            ) : `Pay $${invoice.total}`}
+          <button onClick={handlePay} disabled={loading} style={{
+            width: "100%", padding: "15px", borderRadius: "12px", border: "none",
+            background: loading ? "#9ca3af" : "#635bff", color: "#fff",
+            fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+            fontWeight: 700, cursor: loading ? "default" : "pointer" }}>
+            {loading ? "Redirecting to Stripe…" : `🔒 Pay $${invoice.total} with Stripe`}
           </button>
 
-          <div style={{ textAlign: "center", fontFamily: "'DM Sans', sans-serif",
-            fontSize: "15px", color: "#9ca3af", lineHeight: "1.5" }}>
-            🔒 Your payment info is encrypted and secure.
-            <br />Stripe integration coming soon — contact us to pay by other methods.
+          <div style={{ textAlign: "center", marginTop: "12px", fontFamily: "'DM Sans', sans-serif",
+            fontSize: "13px", color: "#9ca3af" }}>
+            Powered by <strong style={{ color: "#635bff" }}>Stripe</strong> · Secured with SSL
           </div>
         </div>
       </div>
@@ -15924,6 +15878,7 @@ function ClientInvoicesPage({ client, clients, setClients }) {
       {payingInv && (
         <StripePaymentModal
           invoice={payingInv}
+          client={client}
           onClose={() => setPayingInv(null)}
           onPaid={() => handlePaymentSuccess(payingInv)}
         />
