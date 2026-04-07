@@ -88,6 +88,21 @@ const ALL_HANDOFF_SLOTS = generateHandoffSlots();
 const SUPABASE_URL = "https://mvkmxmhsudqwxrsiifms.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12a214bWhzdWRxd3hyc2lpZm1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTEyMDIsImV4cCI6MjA5MTAyNzIwMn0.dP6PunUbTuuNs3K4CFBVmP8hmV29MBFActwemoDysxk";
 
+async function notifyAdmin(type, data) {
+  try {
+    fetch(`${SUPABASE_URL}/functions/v1/notify-admin`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+      body: JSON.stringify({ type, data }),
+    });
+  } catch (e) {
+    console.error("notifyAdmin failed:", e);
+  }
+}
+
 async function sbFetch(path, options = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
@@ -1962,7 +1977,18 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
     };
     setClients(updatedClients);
     saveClients(updatedClients);
-
+    // Notify admins of new booking
+    if (!isHistorical) {
+      notifyAdmin("new_booking", {
+        clientName: client.name,
+        pet: primaryPet,
+        date: dateLabel,
+        time: form.timeSlot?.label || "—",
+        duration,
+        walker: form.walker || "Unassigned",
+        price: finalPrice,
+      });
+    }
     setSavedInfo({ clientName: client.name, pet: primaryPet, date: dateLabel,
       day: dayName, time: form.timeSlot?.label || "—", duration,
       price: finalPrice, tier, walker: form.walker, isHistorical });
@@ -3590,126 +3616,16 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
                 if (!handoffAddress.trim()) errs.address = "Required";
                 if (!handoffAddrObj?.zip || handoffAddrObj.zip.replace(/\D/g, "").length !== 5) errs.zip = "A valid 5-digit ZIP code is required";
                 if (Object.keys(errs).length) { setHandoffErrors(errs); return; }
-                sendCode(); setStage("verify");
+                sendCode(); setStage("done");
               }} style={{
                 width: "100%", padding: "16px", borderRadius: "14px", border: "none",
                 background: "#0B1423", color: "#fff",
                 fontFamily: "'DM Sans', sans-serif",
                 fontSize: "15px", fontWeight: 500, cursor: "pointer",
               }}>
-                Confirm & Verify Email →
+                Confirm Appointment →
               </button>
             )}
-          </div>
-        )}
-
-        {/* Email verification */}
-        {stage === "verify" && (
-          <div className="fade-up">
-            <div style={{ textAlign: "center", marginBottom: "28px" }}>
-              <div style={{ fontSize: "40px", marginBottom: "12px" }}>📬</div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                fontWeight: 600, color: "#111827", marginBottom: "8px" }}>
-                Check your email
-              </div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                color: "#6b7280", lineHeight: "1.6" }}>
-                We sent a 6-digit verification code to{" "}
-                <strong style={{ color: "#374151" }}>{client.email}</strong>.
-                Enter it below to confirm your meet & greet appointment.
-              </div>
-            </div>
-
-            {/* Appointment summary */}
-            <div style={{ background: "#FDF5EC", border: "1.5px solid #D4A87A", borderRadius: "14px",
-              padding: "16px 18px", marginBottom: "24px" }}>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: "15px",
-                color: "#C4541A", marginBottom: "10px" }}>
-                {addFollowOnWalk ? "Your Appointments" : "Your Meet & Greet Appointment"}
-              </div>
-              {/* Meet & Greet row */}
-              <div style={{ display: "flex", alignItems: "center", gap: "10px",
-                paddingBottom: addFollowOnWalk ? "10px" : "0",
-                borderBottom: addFollowOnWalk ? "1px solid #FDEBD4" : "none" }}>
-                <span style={{ fontSize: "18px" }}>🤝</span>
-                <div>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                    fontSize: "15px", color: "#111827" }}>Meet & Greet — 30 min</div>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#374151" }}>
-                    {FULL_DAYS[selDay]}, {dateStrFromDate(weekDates[selDay])} at {selSlot?.time}
-                  </div>
-                  {selWalker && <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                    color: "#6b7280", marginTop: "2px" }}>Walker: {selWalker}</div>}
-                </div>
-              </div>
-              {/* Contact + location */}
-              <div style={{ borderTop: "1px solid #FDEBD4", marginTop: "10px", paddingTop: "10px",
-                display: "flex", flexDirection: "column", gap: "4px" }}>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#374151" }}>
-                  📞 {handoffPhone}
-                </div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#374151" }}>
-                  📍 {handoffAddress}
-                </div>
-              </div>
-              {/* Follow-on walk row */}
-              {addFollowOnWalk && getFollowOnTime() && (
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", paddingTop: "10px" }}>
-                  <span style={{ fontSize: "18px" }}>🐕</span>
-                  <div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                      fontSize: "15px", color: "#111827" }}>First Walk — {followOnDuration}</div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#374151" }}>
-                      {FULL_DAYS[selDay]}, {dateStrFromDate(weekDates[selDay])} at {getFollowOnTime().time}
-                    </div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                      color: "#C4541A", marginTop: "2px", fontWeight: 500 }}>
-                      ${getSessionPrice(followOnDuration, 1)} · Couch Pup rate
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Demo: show the code since we can't actually send email */}
-            <div style={{ background: "#fff8e1", border: "1.5px solid #fcd34d", borderRadius: "12px",
-              padding: "12px 16px", marginBottom: "20px", fontFamily: "'DM Sans', sans-serif",
-              fontSize: "16px", color: "#92400e" }}>
-              <strong>Demo mode:</strong> In production, the code would be emailed. Your code is:{" "}
-              <strong style={{ fontSize: "15px", letterSpacing: "2px" }}>{verifyCode}</strong>
-            </div>
-
-            <div style={{ marginBottom: "14px" }}>
-              <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                fontWeight: 500, color: "#374151", marginBottom: "8px" }}>
-                Verification Code
-              </label>
-              <input type="text" placeholder="6-digit code" value={enteredCode}
-                onChange={e => { setEnteredCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setCodeError(""); }}
-                onKeyDown={e => e.key === "Enter" && handleVerify()}
-                style={{
-                  width: "100%", padding: "14px 16px", borderRadius: "12px",
-                  border: codeError ? "1.5px solid #ef4444" : "1.5px solid #d1d5db",
-                  background: "#fff", fontSize: "20px", letterSpacing: "6px",
-                  fontFamily: "'DM Sans', sans-serif", color: "#111827", textAlign: "center",
-                }} />
-              {codeError && <div style={{ color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "16px", marginTop: "6px" }}>{codeError}</div>}
-            </div>
-
-            <button onClick={handleVerify} disabled={enteredCode.length < 6} style={{
-              width: "100%", padding: "15px", borderRadius: "14px", border: "none",
-              background: enteredCode.length === 6 ? "#C4541A" : "#e4e7ec",
-              color: enteredCode.length === 6 ? "#fff" : "#9ca3af",
-              fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-              fontWeight: 500, cursor: enteredCode.length === 6 ? "pointer" : "default",
-            }}>Verify & Book →</button>
-
-            <button onClick={() => setStage("pick")} style={{ marginTop: "12px", background: "none",
-              border: "none", color: "#6b7280", fontFamily: "'DM Sans', sans-serif",
-              fontSize: "16px", cursor: "pointer", width: "100%", textAlign: "center" }}>
-              ← Change date or time
-            </button>
           </div>
         )}
 
@@ -8105,6 +8021,13 @@ function WalkerApplicationPage({ onBack }) {
         }),
       });
       if (!res.ok) throw new Error(await res.text());
+      notifyAdmin("new_applicant", {
+        name: `${form.firstName.trim()} ${form.lastName.trim()}`,
+        email: form.email.trim(),
+        phone: form.phone,
+        city: form.city,
+        hasExp: form.hasDogExp === true,
+      });
       setDone(true);
     } catch {
       setErrors({ submit: "Something went wrong. Please try again." });
@@ -8664,11 +8587,12 @@ export default function LonestarBark() {
     // Fire verification email in background
     fetch(`${SUPABASE_URL}/functions/v1/send-verification`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: newClient.email, clientName: newClient.name }),
     }).catch(e => console.error("Failed to send verification email:", e));
+    // Notify admins
+    const pets = [...(newClient.dogs || []), ...(newClient.cats || [])].join(", ");
+    notifyAdmin("new_client", { name: newClient.name, email: newClient.email, pets });
   };
 
   const handleHandoffComplete = (handoffData) => {
@@ -10572,6 +10496,11 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     const tempMsg = { id: `tmp-${Date.now()}`, from: walker.name, text, sentAt: new Date().toISOString(), time: "Just now" };
     setClientMsgsByEmail(prev => ({ ...prev, [selectedClientMsgEmail]: [...(prev[selectedClientMsgEmail] || []), tempMsg] }));
     await saveClientMessage(selectedClientMsgEmail, walker.name, walker.name, text);
+    notifyAdmin("new_client_message", {
+      clientName: Object.values(clients).find(c => c.email === selectedClientMsgEmail)?.name || selectedClientMsgEmail,
+      walkerName: walker.name,
+      message: text,
+    });
     loadClientMessages(selectedClientMsgEmail, walker.name).then(msgs =>
       setClientMsgsByEmail(prev => ({ ...prev, [selectedClientMsgEmail]: msgs }))
     );
@@ -11426,12 +11355,14 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
           const confirmAllToday = () => {
             if (!setClients) return;
             const updated = { ...clients };
+            const confirmedWalks = [];
             Object.keys(updated).forEach(cid => {
               const c = updated[cid];
               const newBookings = (c.bookings || []).map(bk => {
                 if (bk.cancelled || bk.walkerConfirmed) return bk;
                 const appt = new Date(bk.scheduledDateTime || bk.bookedAt);
                 if (appt.toDateString() === todayStr && bk.form?.walker === walker.name) {
+                  confirmedWalks.push({ clientName: c.name, pet: bk.form?.pet, time: bk.slot?.time });
                   return { ...bk, walkerConfirmed: true, walkerConfirmedAt: new Date().toISOString() };
                 }
                 return bk;
@@ -11439,6 +11370,15 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               updated[cid] = { ...c, bookings: newBookings };
             });
             setClients(updated);
+            saveClients(updated);
+            if (confirmedWalks.length > 0) {
+              notifyAdmin("walk_confirmed", {
+                walkerName: walker.name,
+                count: confirmedWalks.length,
+                walks: confirmedWalks.map(w => `${w.clientName} (${w.pet}) @ ${w.time}`).join(", "),
+                confirmedAll: true,
+              });
+            }
           };
 
           const confirmSingle = (targetBooking) => {
@@ -11447,7 +11387,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               (clients[id].bookings || []).some(bk => bk.key === targetBooking.key)
             );
             if (!cid) return;
-            setClients({
+            const updatedClients = {
               ...clients,
               [cid]: {
                 ...clients[cid],
@@ -11457,6 +11397,14 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                     : bk
                 ),
               },
+            };
+            setClients(updatedClients);
+            saveClients(updatedClients);
+            notifyAdmin("walk_confirmed", {
+              walkerName: walker.name,
+              count: 1,
+              walks: `${targetBooking.clientName} (${targetBooking.form?.pet || "Pet"}) @ ${targetBooking.slot?.time || ""}`,
+              confirmedAll: false,
             });
           };
 
@@ -12855,6 +12803,12 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
             };
             setTrades([...myTrades, newTrade]);
             saveTrades([...myTrades, newTrade]);
+            notifyAdmin("shift_trade", {
+              walkerName: walker.name,
+              action: "Offered",
+              date: newTrade.date,
+              clientName: newTrade.clientName,
+            });
             setOfferBookingKey(null);
             setOfferBonus("");
             setOfferReason("");
@@ -12888,6 +12842,12 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
             );
             setTrades(acceptedTrades);
             saveTrades(acceptedTrades);
+            notifyAdmin("shift_trade", {
+              walkerName: walker.name,
+              action: "Accepted",
+              date: trade.date,
+              clientName: trade.clientName,
+            });
           };
 
           const declineTrade = (trade) => {
@@ -17359,6 +17319,13 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     const updatedClients = { ...clients, [clientId]: updatedClientRecord };
     setClients(updatedClients);
     saveClients(updatedClients);
+    notifyAdmin("walk_completed", {
+      clientName: booking.clientName || c.name,
+      pet: booking.form?.pet || "Pet",
+      walker: booking.form?.walker || "Unknown",
+      date: booking.date,
+      price: effectivePrice(booking),
+    });
     setCompletingKey(null);
     setExpandedBooking(null);
   };
