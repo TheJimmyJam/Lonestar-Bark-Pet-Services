@@ -16662,6 +16662,8 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
   const [walkerSearch, setWalkerSearch] = useState("");
   const [appSearch,    setAppSearch]    = useState("");
   const [bookingSearch,setBookingSearch]= useState("");
+  const [assignSearch,  setAssignSearch]  = useState("");
+  const [assignDateFilter, setAssignDateFilter] = useState("");
   const [pings, setPings] = useState({}); // { [walkerId]: { at: Date, adminName: string } }
 
   // Send a ping to a walker (internal now; wire Twilio here later)
@@ -16701,6 +16703,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     setBookingsView("upcoming");
     if (newTab === "invoices") setInvoicesKey(k => k + 1);
     setClientSearch(""); setWalkerSearch(""); setAppSearch(""); setBookingSearch("");
+    setAssignSearch(""); setAssignDateFilter("");
   };
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [expandedKpi, setExpandedKpi] = useState(null);
@@ -21379,9 +21382,9 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
 
         {/* ── Applications view ── */}
         {showApplications && tab === "walkers" && (() => {
-          const statusColor = (s) => s === "approved" ? "#059669" : s === "declined" ? "#dc2626" : "#b45309";
-          const statusBg   = (s) => s === "approved" ? "#FDF5EC"  : s === "declined" ? "#fef2f2"  : "#fffbeb";
-          const statusLabel = (s) => s === "approved" ? "Approved" : s === "declined" ? "Declined" : "Pending";
+          const statusColor = (s) => s === "approved" ? "#059669" : s === "declined" ? "#dc2626" : s === "reviewed" ? "#4338ca" : "#b45309";
+          const statusBg   = (s) => s === "approved" ? "#FDF5EC"  : s === "declined" ? "#fef2f2"  : s === "reviewed" ? "#eef2ff" : "#fffbeb";
+          const statusLabel = (s) => s === "approved" ? "Approved" : s === "declined" ? "Declined" : s === "reviewed" ? "Reviewed" : "Pending";
 
           const createWalkerFromApplication = async (app) => {
             const emailKey = (app.email || "").trim().toLowerCase();
@@ -21577,29 +21580,38 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
 
                 {/* Action buttons */}
                 {a.status === "pending" && (
-                  <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
-                    <button onClick={() => updateStatus(a.id, "approved")}
-                      style={{ flex: 1, padding: "14px", borderRadius: "12px", border: "none",
-                        background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
-                        fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>
-                      ✓ Approve Application
+                  <>
+                    <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+                      <button onClick={() => updateStatus(a.id, "approved")}
+                        style={{ flex: 1, padding: "14px", borderRadius: "12px", border: "none",
+                          background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
+                          fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>
+                        ✓ Approve Application
+                      </button>
+                      <button onClick={() => updateStatus(a.id, "declined")}
+                        style={{ flex: 1, padding: "14px", borderRadius: "12px",
+                          border: "1.5px solid #fca5a5", background: "#fef2f2",
+                          color: "#dc2626", fontFamily: "'DM Sans', sans-serif",
+                          fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>
+                        ✕ Decline
+                      </button>
+                    </div>
+                    <button onClick={() => updateStatus(a.id, "reviewed")}
+                      style={{ width: "100%", padding: "12px", borderRadius: "12px",
+                        border: "1.5px solid #c7d2fe", background: "#eef2ff",
+                        color: "#4338ca", fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "15px", fontWeight: 600, cursor: "pointer", marginTop: "10px" }}>
+                      👁 Mark as Reviewed (Not Hiring)
                     </button>
-                    <button onClick={() => updateStatus(a.id, "declined")}
-                      style={{ flex: 1, padding: "14px", borderRadius: "12px",
-                        border: "1.5px solid #fca5a5", background: "#fef2f2",
-                        color: "#dc2626", fontFamily: "'DM Sans', sans-serif",
-                        fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>
-                      ✕ Decline
-                    </button>
-                  </div>
+                  </>
                 )}
                 {a.status !== "pending" && (
                   <button onClick={() => updateStatus(a.id, "pending")}
                     style={{ width: "100%", padding: "12px", borderRadius: "12px",
                       border: "1.5px solid #e4e7ec", background: "#fff",
                       color: "#6b7280", fontFamily: "'DM Sans', sans-serif",
-                      fontSize: "16px", cursor: "pointer" }}>
-                    Reset to Pending
+                      fontSize: "16px", cursor: "pointer", marginTop: "8px" }}>
+                    ↩ Reset to Pending
                   </button>
                 )}
               </div>
@@ -21659,10 +21671,11 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                     const counts = { all: applications.length,
                       pending:  applications.filter(a => a.status === "pending").length,
                       approved: applications.filter(a => a.status === "approved").length,
+                      reviewed: applications.filter(a => a.status === "reviewed").length,
                       declined: applications.filter(a => a.status === "declined").length };
                     return (
                       <div style={{ display: "flex", gap: "6px", marginBottom: "16px", flexWrap: "wrap" }}>
-                        {[["all","All"],["pending","Pending"],["approved","Approved"],["declined","Declined"]].map(([k,l]) => {
+                        {[["all","All"],["pending","Pending"],["approved","Approved"],["reviewed","Reviewed"],["declined","Declined"]].map(([k,l]) => {
                           const active = (window._appFilter || "all") === k;
                           return (
                             <button key={k} onClick={() => { window._appFilter = k; setApplications(a => [...a]); }}
@@ -21732,9 +21745,9 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
             }).catch(() => setAppsLoading(false));
           }
 
-          const statusColor = (s) => s === "approved" ? "#059669" : s === "declined" ? "#dc2626" : "#b45309";
-          const statusBg   = (s) => s === "approved" ? "#FDF5EC"  : s === "declined" ? "#fef2f2"  : "#fffbeb";
-          const statusLabel = (s) => s === "approved" ? "Approved" : s === "declined" ? "Declined" : "Pending";
+          const statusColor = (s) => s === "approved" ? "#059669" : s === "declined" ? "#dc2626" : s === "reviewed" ? "#4338ca" : "#b45309";
+          const statusBg   = (s) => s === "approved" ? "#FDF5EC"  : s === "declined" ? "#fef2f2"  : s === "reviewed" ? "#eef2ff" : "#fffbeb";
+          const statusLabel = (s) => s === "approved" ? "Approved" : s === "declined" ? "Declined" : s === "reviewed" ? "Reviewed" : "Pending";
 
           const createWalkerFromApplication = async (app) => {
             const emailKey = (app.email || "").trim().toLowerCase();
@@ -21921,21 +21934,30 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                   </Section>
                 )}
                 {a.status === "pending" && (
-                  <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
-                    <button onClick={() => updateStatus(a.id, "approved")}
-                      style={{ flex: 1, padding: "14px", borderRadius: "12px", border: "none",
-                        background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
-                        fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>
-                      ✓ Approve Application
+                  <>
+                    <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+                      <button onClick={() => updateStatus(a.id, "approved")}
+                        style={{ flex: 1, padding: "14px", borderRadius: "12px", border: "none",
+                          background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
+                          fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>
+                        ✓ Approve Application
+                      </button>
+                      <button onClick={() => updateStatus(a.id, "declined")}
+                        style={{ flex: 1, padding: "14px", borderRadius: "12px",
+                          border: "1.5px solid #fca5a5", background: "#fef2f2",
+                          color: "#dc2626", fontFamily: "'DM Sans', sans-serif",
+                          fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>
+                        ✕ Decline
+                      </button>
+                    </div>
+                    <button onClick={() => updateStatus(a.id, "reviewed")}
+                      style={{ width: "100%", padding: "12px", borderRadius: "12px",
+                        border: "1.5px solid #c7d2fe", background: "#eef2ff",
+                        color: "#4338ca", fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "15px", fontWeight: 600, cursor: "pointer", marginTop: "10px" }}>
+                      👁 Mark as Reviewed (Not Hiring)
                     </button>
-                    <button onClick={() => updateStatus(a.id, "declined")}
-                      style={{ flex: 1, padding: "14px", borderRadius: "12px",
-                        border: "1.5px solid #fca5a5", background: "#fef2f2",
-                        color: "#dc2626", fontFamily: "'DM Sans', sans-serif",
-                        fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>
-                      ✕ Decline
-                    </button>
-                  </div>
+                  </>
                 )}
                 {a.status !== "pending" && (
                   <button onClick={() => updateStatus(a.id, "pending")}
@@ -21943,7 +21965,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       border: "1.5px solid #e4e7ec", background: "#fff",
                       color: "#6b7280", fontFamily: "'DM Sans', sans-serif",
                       fontSize: "16px", cursor: "pointer", marginTop: "8px" }}>
-                    Reset to Pending
+                    ↩ Reset to Pending
                   </button>
                 )}
               </div>
@@ -21961,6 +21983,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
             : applications;
           const pending   = filteredApps.filter(a => a.status === "pending");
           const approved  = filteredApps.filter(a => a.status === "approved");
+          const reviewed  = filteredApps.filter(a => a.status === "reviewed");
           const declined  = filteredApps.filter(a => a.status === "declined");
 
           const AppCard = ({ a }) => (
@@ -22071,6 +22094,16 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       {approved.map(a => <AppCard key={a.id} a={a} />)}
                     </div>
                   )}
+                  {reviewed.length > 0 && (
+                    <div style={{ marginBottom: "24px" }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
+                        fontSize: "15px", letterSpacing: "1.5px", textTransform: "uppercase",
+                        color: "#4338ca", marginBottom: "12px" }}>
+                        👁 Reviewed — Not Hiring ({reviewed.length})
+                      </div>
+                      {reviewed.map(a => <AppCard key={a.id} a={a} />)}
+                    </div>
+                  )}
                   {declined.length > 0 && (
                     <div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
@@ -22087,90 +22120,180 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
           );
         })()}
 
-        {tab === "assign" && (
+        {tab === "assign" && (() => {
+          // Filter walks
+          const sortedWalks = [...upcoming].sort((a, b) => {
+            const aUnassigned = !a.form?.walker;
+            const bUnassigned = !b.form?.walker;
+            if (aUnassigned !== bUnassigned) return aUnassigned ? -1 : 1;
+            return new Date(a.scheduledDateTime || a.bookedAt) - new Date(b.scheduledDateTime || b.bookedAt);
+          });
+
+          const filteredWalks = sortedWalks.filter(b => {
+            // Date filter — compare yyyy-mm-dd of the walk's scheduledDateTime
+            if (assignDateFilter) {
+              const walkDate = b.scheduledDateTime
+                ? new Date(b.scheduledDateTime).toLocaleDateString("en-CA")
+                : null;
+              if (walkDate !== assignDateFilter) return false;
+            }
+            // Text search — client name, pet, walker
+            if (assignSearch) {
+              const q = assignSearch.toLowerCase();
+              const matches =
+                (b.clientName || "").toLowerCase().includes(q) ||
+                (b.form?.pet || "").toLowerCase().includes(q) ||
+                (b.form?.walker || "").toLowerCase().includes(q);
+              if (!matches) return false;
+            }
+            return true;
+          });
+
+          const unassignedCount = upcoming.filter(b => !b.form?.walker).length;
+
+          return (
           <div className="fade-up">
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
               fontWeight: 600, color: "#111827", marginBottom: "6px" }}>Assign Walks</div>
             <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
-              marginBottom: "20px" }}>
-              {unassigned.length > 0
-                ? `${unassigned.length} ${unassigned.length === 1 ? "walk still needs" : "walks still need"} a walker.`
+              marginBottom: "16px" }}>
+              {unassignedCount > 0
+                ? `${unassignedCount} ${unassignedCount === 1 ? "walk still needs" : "walks still need"} a walker.`
                 : "All walks are assigned! 🎉"}
             </p>
 
-            {[...upcoming]
-              .sort((a, b) => {
-                const aUnassigned = !a.form?.walker;
-                const bUnassigned = !b.form?.walker;
-                if (aUnassigned !== bUnassigned) return aUnassigned ? -1 : 1;
-                return new Date(a.scheduledDateTime || a.bookedAt) - new Date(b.scheduledDateTime || b.bookedAt);
-              })
-              .map((b, i) => {
-              const walkerVal = b.form?.walker || "";
-              const isUnassigned = !walkerVal;
-              return (
-                <div key={i} style={{
-                  background: isUnassigned ? "#fef2f2" : "#fff",
-                  border: `1.5px solid ${isUnassigned ? "#fecaca" : "#e4e7ec"}`,
-                  borderRadius: "14px", padding: "16px 18px", marginBottom: "10px" }}>
-                  <div style={{ display: "flex", alignItems: "flex-start",
-                    justifyContent: "space-between", gap: "12px" }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                        fontSize: "16px", color: "#111827", marginBottom: "3px" }}>
-                        {b.form?.pet || "Pet"} · {b.slot?.duration}
-                        {isUnassigned && <span style={{ marginLeft: "8px", background: "#fecaca",
-                          color: "#dc2626", fontSize: "16px", padding: "2px 7px",
-                          borderRadius: "5px", fontWeight: 600 }}>UNASSIGNED</span>}
-                        {b.isRecurring && <span style={{ marginLeft: "8px", background: "#EBF4F6",
-                          color: "#2A7A90", fontSize: "16px", padding: "2px 7px",
-                          borderRadius: "5px", fontWeight: 600 }}>🔁 RECURRING</span>}
-                      </div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                        color: "#6b7280" }}>{b.day}, {b.date} at {b.slot?.time}</div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                        color: "#9ca3af", marginTop: "2px" }}>
-                        👤 {b.clientName}
-                        {b.clientKeyholder && b.clientKeyholder === walkerVal && (
-                          <span title={`${b.clientKeyholder} holds the key`} style={{ marginLeft: "6px" }}>🗝️ keyholder</span>
-                        )}
-                      </div>
-                    </div>
-                    <select
-                      value={walkerVal}
-                      onChange={e => {
-                        const newWalker = e.target.value;
-                        const updatedClients = { ...clients };
-                        const c = updatedClients[b.clientId];
-                        if (c) {
-                          updatedClients[b.clientId] = {
-                            ...c,
-                            bookings: c.bookings.map(bk =>
-                              bk.key === b.key
-                                ? { ...bk, form: { ...bk.form, walker: newWalker } }
-                                : bk
-                            ),
-                          };
-                          setClients(updatedClients);
-                          saveClients(updatedClients);
-                        }
-                      }}
-                      style={{ padding: "8px 10px", borderRadius: "9px",
-                        border: `1.5px solid ${isUnassigned ? "#fca5a5" : "#e4e7ec"}`,
-                        background: isUnassigned ? "#fff5f5" : "#fff",
-                        fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                        color: "#111827", cursor: "pointer", flexShrink: 0 }}>
-                      <option value="">— Assign walker —</option>
-                      {getAllWalkers(walkerProfiles).map(w => (
-                        <option key={w.id} value={w.name}>{w.avatar} {w.name}</option>
-                      ))}
-                    </select>
-                  </div>
+            {/* Search + Date filter row */}
+            <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
+              {/* Search */}
+              <div style={{ position: "relative", flex: "1 1 200px" }}>
+                <span style={{ position: "absolute", left: "12px", top: "50%",
+                  transform: "translateY(-50%)", fontSize: "15px", pointerEvents: "none" }}>🔍</span>
+                <input
+                  value={assignSearch}
+                  onChange={e => setAssignSearch(e.target.value)}
+                  placeholder="Search client, pet, or walker…"
+                  style={{ width: "100%", boxSizing: "border-box",
+                    padding: "10px 34px 10px 36px", borderRadius: "10px",
+                    border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif",
+                    fontSize: "15px", color: "#111827", outline: "none", background: "#fff" }}
+                />
+                {assignSearch && (
+                  <button onClick={() => setAssignSearch("")}
+                    style={{ position: "absolute", right: "10px", top: "50%",
+                      transform: "translateY(-50%)", background: "none", border: "none",
+                      cursor: "pointer", color: "#9ca3af", fontSize: "16px", lineHeight: 1 }}>✕</button>
+                )}
+              </div>
+
+              {/* Date picker */}
+              <div style={{ position: "relative", flexShrink: 0 }}>
+                <input
+                  type="date"
+                  value={assignDateFilter}
+                  onChange={e => setAssignDateFilter(e.target.value)}
+                  style={{ padding: "10px 12px", borderRadius: "10px",
+                    border: `1.5px solid ${assignDateFilter ? "#C4541A" : "#e4e7ec"}`,
+                    background: assignDateFilter ? "#FDF5EC" : "#fff",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                    color: assignDateFilter ? "#C4541A" : "#6b7280",
+                    cursor: "pointer", outline: "none" }}
+                />
+                {assignDateFilter && (
+                  <button onClick={() => setAssignDateFilter("")}
+                    style={{ position: "absolute", right: "-28px", top: "50%",
+                      transform: "translateY(-50%)", background: "none", border: "none",
+                      cursor: "pointer", color: "#9ca3af", fontSize: "16px", lineHeight: 1 }}>✕</button>
+                )}
+              </div>
+            </div>
+
+            {/* Active filter label */}
+            {assignDateFilter && (
+              <div style={{ marginBottom: "14px", fontFamily: "'DM Sans', sans-serif",
+                fontSize: "15px", color: "#C4541A", fontWeight: 600 }}>
+                📅 {new Date(assignDateFilter + "T12:00:00").toLocaleDateString("en-US",
+                  { weekday: "long", month: "long", day: "numeric" })}
+                {" "}· {filteredWalks.length} walk{filteredWalks.length !== 1 ? "s" : ""}
+              </div>
+            )}
+
+            {filteredWalks.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "48px 24px", background: "#fff",
+                borderRadius: "16px", border: "1.5px solid #e4e7ec" }}>
+                <div style={{ fontSize: "36px", marginBottom: "12px" }}>🔍</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#9ca3af" }}>
+                  No walks match your filters.
                 </div>
-              );
-            })}
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                {filteredWalks.map((b, i) => {
+                  const walkerVal = b.form?.walker || "";
+                  const isUnassigned = !walkerVal;
+                  return (
+                    <div key={i} style={{
+                      background: isUnassigned ? "#fef2f2" : "#fff",
+                      border: `1.5px solid ${isUnassigned ? "#fecaca" : "#e4e7ec"}`,
+                      borderRadius: "14px", padding: "14px 16px",
+                      display: "flex", flexDirection: "column", gap: "10px" }}>
+                      <div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                          fontSize: "15px", color: "#111827", marginBottom: "3px", display: "flex", flexWrap: "wrap", gap: "5px", alignItems: "center" }}>
+                          {b.form?.pet || "Pet"} · {b.slot?.duration}
+                          {isUnassigned && <span style={{ background: "#fecaca",
+                            color: "#dc2626", fontSize: "13px", padding: "1px 6px",
+                            borderRadius: "5px", fontWeight: 600 }}>UNASSIGNED</span>}
+                          {b.isRecurring && <span style={{ background: "#EBF4F6",
+                            color: "#2A7A90", fontSize: "13px", padding: "1px 6px",
+                            borderRadius: "5px", fontWeight: 600 }}>🔁</span>}
+                        </div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                          color: "#6b7280" }}>{b.day}, {b.date} at {b.slot?.time}</div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                          color: "#9ca3af", marginTop: "2px" }}>
+                          👤 {b.clientName}
+                          {b.clientKeyholder && b.clientKeyholder === walkerVal && (
+                            <span title={`${b.clientKeyholder} holds the key`} style={{ marginLeft: "5px" }}>🗝️</span>
+                          )}
+                        </div>
+                      </div>
+                      <select
+                        value={walkerVal}
+                        onChange={e => {
+                          const newWalker = e.target.value;
+                          const updatedClients = { ...clients };
+                          const c = updatedClients[b.clientId];
+                          if (c) {
+                            updatedClients[b.clientId] = {
+                              ...c,
+                              bookings: c.bookings.map(bk =>
+                                bk.key === b.key
+                                  ? { ...bk, form: { ...bk.form, walker: newWalker } }
+                                  : bk
+                              ),
+                            };
+                            setClients(updatedClients);
+                            saveClients(updatedClients);
+                          }
+                        }}
+                        style={{ width: "100%", padding: "7px 8px", borderRadius: "9px",
+                          border: `1.5px solid ${isUnassigned ? "#fca5a5" : "#e4e7ec"}`,
+                          background: isUnassigned ? "#fff5f5" : "#fff",
+                          fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                          color: "#111827", cursor: "pointer" }}>
+                        <option value="">— Assign walker —</option>
+                        {getAllWalkers(walkerProfiles).map(w => (
+                          <option key={w.id} value={w.name}>{w.avatar} {w.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
+          );
+        })()}
 
         {/* ── Schedule Walk ── */}
         {tab === "schedulewalk" && (
