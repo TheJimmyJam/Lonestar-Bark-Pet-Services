@@ -1819,9 +1819,10 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
   const clientDogs = selectedClient ? (selectedClient.dogs || selectedClient.pets || []) : [];
   const clientCats = selectedClient ? (selectedClient.cats || []) : [];
   const clientPets = [...clientDogs, ...clientCats];
-  const relevantPets = form.service === "cat" ? clientCats : clientDogs;
+  const relevantPets = form.service === "cat" ? clientCats : form.service === "overnight" ? clientPets : clientDogs;
 
   const calcPrice = () => {
+    if (form.service === "overnight") return { price: 150, tier: "Overnight Stay", extraDogCharge: 0 };
     if (!selectedClient || !form.date) return { price: 40, tier: "Couch Pup", extraDogCharge: 0 };
     const apptDate = parseDateLocal(form.date);
     const dayOfWeek = apptDate.getDay();
@@ -1849,7 +1850,7 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
     const e = {};
     if (!form.clientId)  e.client = "Select a client";
     if (!form.date)      e.date   = "Required";
-    if (!form.timeSlot)  e.time   = "Select a time";
+    if (!form.timeSlot && form.service !== "overnight") e.time = "Select a time";
     return e;
   };
 
@@ -1859,16 +1860,19 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
 
     const client = clients[form.clientId];
     const apptDate = parseDateLocal(form.date);
-    apptDate.setHours(form.timeSlot.hour, form.timeSlot.minute, 0, 0);
+    const slotHour   = form.timeSlot?.hour   ?? 20;
+    const slotMinute = form.timeSlot?.minute ?? 0;
+    apptDate.setHours(slotHour, slotMinute, 0, 0);
 
     const dateLabel = apptDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    const dayIndex  = apptDate.getDay(); // 0=Sun
+    const dayIndex  = apptDate.getDay();
     const dayName   = FULL_DAYS[dayIndex === 0 ? 6 : dayIndex - 1];
     const allPets   = [...(client.dogs || client.pets || []), ...(client.cats || [])];
     const primaryPet = form.pet || allPets[0] || "";
     const additionalDogs = form.additionalDogs.filter(d => d && d !== primaryPet);
+    const duration = form.service === "overnight" ? "1 Night" : form.duration;
 
-    const bookingKey = `admin-${form.service}-${form.date}-${form.timeSlot.id}-${Date.now()}`;
+    const bookingKey = `admin-${form.service}-${form.date}-${form.timeSlot?.id || "overnight"}-${Date.now()}`;
     const finalPrice = isHistorical && customPrice !== "" ? parseFloat(customPrice) || price : price;
     const scheduledISO = apptDate.toISOString();
 
@@ -1878,11 +1882,11 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
       day: dayName,
       date: dateLabel,
       slot: {
-        id: form.timeSlot.id,
-        time: form.timeSlot.label,
-        duration: form.duration,
-        hour: form.timeSlot.hour,
-        minute: form.timeSlot.minute,
+        id: form.timeSlot?.id || "overnight",
+        time: form.timeSlot?.label || "—",
+        duration,
+        hour: slotHour,
+        minute: slotMinute,
       },
       form: {
         name: client.name || "",
@@ -1922,7 +1926,7 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
     saveClients(updatedClients);
 
     setSavedInfo({ clientName: client.name, pet: primaryPet, date: dateLabel,
-      day: dayName, time: form.timeSlot.label, duration: form.duration,
+      day: dayName, time: form.timeSlot?.label || "—", duration,
       price: finalPrice, tier, walker: form.walker, isHistorical });
     setSaved(true);
     setForm(blankForm);
@@ -2109,21 +2113,39 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
 
       {/* 3. Service & Date */}
       <ScheduleWalkSection title="Service & Date">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
-          <div>
-            <label style={labelStyle}>Service</label>
-            <select value={form.service} onChange={e => {
-                const svc = e.target.value;
-                const dogs = selectedClient ? (selectedClient.dogs || selectedClient.pets || []) : [];
-                const cats = selectedClient ? (selectedClient.cats || []) : [];
-                setForm(f => ({ ...f, service: svc, pet: svc === "cat" ? (cats[0] || "") : (dogs[0] || ""), additionalDogs: [] }));
-              }}
-              style={iStyle(false)}>
-              <option value="dog">🐕 Dog-walking</option>
-              <option value="cat">🐈 Cat-sitting</option>
-            </select>
-          </div>
-          <div>
+        {/* Service tiles */}
+        <label style={labelStyle}>Service</label>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginBottom: "14px" }}>
+          {[
+            { id: "dog",       label: "Dog-walking",    icon: "🐕", color: "#C4541A", bg: "#FDF5EC", border: "#D4A843" },
+            { id: "cat",       label: "Cat-sitting",    icon: "🐈", color: "#3D6B7A", bg: "#EBF4F6", border: "#8ECAD4" },
+            { id: "overnight", label: "Overnight Stay", icon: "🌙", color: "#7A4D6E", bg: "#F7F0F5", border: "#E8D0E0" },
+          ].map(svc => {
+            const active = form.service === svc.id;
+            const dogs = selectedClient ? (selectedClient.dogs || selectedClient.pets || []) : [];
+            const cats = selectedClient ? (selectedClient.cats || []) : [];
+            return (
+              <button key={svc.id} onClick={() => setForm(f => ({
+                ...f, service: svc.id,
+                pet: svc.id === "cat" ? (cats[0] || "") : (dogs[0] || ""),
+                additionalDogs: [],
+                duration: svc.id === "overnight" ? "1 Night" : (f.duration === "1 Night" ? "30 min" : f.duration),
+              }))} style={{
+                padding: "12px 8px", borderRadius: "10px", cursor: "pointer",
+                textAlign: "center", border: `1.5px solid ${active ? svc.border : "#e4e7ec"}`,
+                background: active ? svc.bg : "#f9fafb", transition: "all 0.12s",
+              }}>
+                <div style={{ fontSize: "22px", marginBottom: "4px" }}>{svc.icon}</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                  fontWeight: 600, color: active ? svc.color : "#6b7280" }}>{svc.label}</div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Duration — hidden for overnight */}
+        {form.service !== "overnight" && (
+          <div style={{ marginBottom: "14px" }}>
             <label style={labelStyle}>Duration</label>
             <select value={form.duration} onChange={e => setField("duration", e.target.value)}
               style={iStyle(false)}>
@@ -2131,7 +2153,15 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
               <option value="60 min">60 min</option>
             </select>
           </div>
-        </div>
+        )}
+        {form.service === "overnight" && (
+          <div style={{ marginBottom: "14px", padding: "10px 14px", background: "#F7F0F5",
+            borderRadius: "10px", border: "1.5px solid #E8D0E0",
+            fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#7A4D6E", fontWeight: 600 }}>
+            🌙 Overnight Stay · $150/night · flat rate
+          </div>
+        )}
+
         <div>
           <label style={labelStyle}>Date *{isHistorical && <span style={{ color: "#b45309", fontWeight: 400, fontSize: "13px", textTransform: "none", letterSpacing: 0, marginLeft: "8px" }}>— any past date</span>}</label>
           <input type="date" value={form.date}
@@ -2164,11 +2194,16 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
 
       {/* 4. Animal */}
       {selectedClient && relevantPets.length > 0 && (
-        <ScheduleWalkSection title={form.service === "cat" ? "Cat *" : "Dog(s) *"}>
+        <ScheduleWalkSection title={form.service === "cat" ? "Cat *" : form.service === "overnight" ? "Pet(s)" : "Dog(s) *"}>
           {form.service === "cat" ? (
             <select value={form.pet} onChange={e => setField("pet", e.target.value)} style={iStyle(false)}>
               <option value="">— Select cat —</option>
               {clientCats.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+          ) : form.service === "overnight" ? (
+            <select value={form.pet} onChange={e => setField("pet", e.target.value)} style={iStyle(false)}>
+              <option value="">— Select pet —</option>
+              {clientPets.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           ) : (
             <>
@@ -2213,79 +2248,56 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
         </ScheduleWalkSection>
       )}
 
-      {/* 5. Start Time — filtered by walker availability */}
-      <ScheduleWalkSection title="Start Time *">
+      {/* 5. Start Time */}
+      <ScheduleWalkSection title={form.service === "overnight" ? "Check-in Time" : "Start Time *"}>
         {errors.time && (
           <div style={{ color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
-            fontSize: "15px", marginBottom: "10px" }}>{errors.time}</div>
+            fontSize: "15px", marginBottom: "8px" }}>{errors.time}</div>
         )}
         {(() => {
           const selectedWalkerObj = getAllWalkers(walkerProfiles).find(w => w.name === form.walker);
           const availSlotTimes = selectedWalkerObj && form.date
             ? (walkerAvailability[selectedWalkerObj.id]?.[form.date] || null)
-            : null; // null = no walker selected, show all; [] = walker has no availability
+            : null;
+          const now = new Date();
+          const visibleSlots = TIME_SLOTS.filter(slot => {
+            if (!isHistorical && form.date === todayStr) {
+              return !(slot.hour < now.getHours() ||
+                (slot.hour === now.getHours() && slot.minute <= now.getMinutes()));
+            }
+            return true;
+          });
           return (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "7px" }}>
-                {TIME_SLOTS.map(slot => {
-                  const active = form.timeSlot?.id === slot.id;
-                  const isToday = form.date === todayStr;
-                  const now = new Date();
-                  const isPast = isToday && (
-                    slot.hour < now.getHours() ||
-                    (slot.hour === now.getHours() && slot.minute <= now.getMinutes())
-                  );
+              <select
+                value={form.timeSlot?.id || ""}
+                onChange={e => {
+                  const slot = TIME_SLOTS.find(s => s.id === e.target.value);
+                  setField("timeSlot", slot || null);
+                  if (slot) setErrors(p => ({ ...p, time: "" }));
+                }}
+                style={{ ...iStyle(errors.time), color: form.timeSlot ? "#111827" : "#9ca3af" }}>
+                <option value="">{form.service === "overnight" ? "— Select check-in time (optional) —" : "— Select a time —"}</option>
+                {visibleSlots.map(slot => {
                   const walkerUnavailable = availSlotTimes !== null && !availSlotTimes.includes(slot.label);
-                  const disabled = isPast || walkerUnavailable;
                   return (
-                    <button key={slot.id}
-                      disabled={disabled}
-                      onClick={() => { if (!disabled) { setField("timeSlot", slot); setErrors(p => ({ ...p, time: "" })); } }}
-                      style={{
-                        padding: "9px 4px", borderRadius: "9px",
-                        cursor: disabled ? "not-allowed" : "pointer",
-                        border: active ? `2px solid ${amber}` : disabled ? "1.5px solid #f3f4f6" : "1.5px solid #e4e7ec",
-                        background: active ? `${amber}12` : disabled ? "#f9fafb" : "#f9fafb",
-                        color: active ? amber : disabled ? "#d1d5db" : "#6b7280",
-                        fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                        fontWeight: active ? 700 : 400, transition: "all 0.1s", textAlign: "center",
-                        textDecoration: isPast ? "line-through" : "none",
-                        opacity: disabled ? 0.5 : 1,
-                        position: "relative",
-                      }}>
-                      {slot.label}
-                      {walkerUnavailable && !isPast && (
-                        <div style={{ position: "absolute", inset: 0, display: "flex",
-                          alignItems: "center", justifyContent: "center",
-                          fontSize: "10px", color: "#ef4444", fontWeight: 700 }}>✕</div>
-                      )}
-                    </button>
+                    <option key={slot.id} value={slot.id} disabled={walkerUnavailable}>
+                      {slot.label}{walkerUnavailable ? "  (walker unavailable)" : ""}
+                    </option>
                   );
                 })}
-              </div>
+              </select>
               {availSlotTimes !== null && availSlotTimes.length === 0 && (
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
                   color: "#b45309", marginTop: "8px", padding: "8px 12px",
                   background: "#fff7ed", borderRadius: "8px", border: "1px solid #fed7aa" }}>
-                  ⚠️ {form.walker} has no availability set for this date. All times shown but walker may be unavailable.
+                  ⚠️ {form.walker} has no availability set for this date.
                 </div>
               )}
-              {form.walker && availSlotTimes && availSlotTimes.length > 0 && (
+              {form.date === todayStr && !isHistorical && (
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-                  color: "#9ca3af", marginTop: "8px" }}>
-                  Showing {form.walker}'s available times. ✕ = unavailable.
-                </div>
-              )}
-              {!form.walker && (
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-                  color: "#9ca3af", marginTop: "8px" }}>
-                  Select a walker above to filter by their availability.
-                </div>
-              )}
-              {form.date === todayStr && (
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-                  color: "#9ca3af", marginTop: "4px" }}>
-                  Grayed-out times have already passed today.
+                  color: "#9ca3af", marginTop: "5px" }}>
+                  Past times for today are hidden.
                 </div>
               )}
             </>
@@ -10484,6 +10496,10 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
           const t = TABS[0];
           return (
             <button key={t.id} onClick={() => { changeTab(t.id); document.querySelector('[data-scroll-pane]')?.scrollTo({ top: 0, behavior: 'instant' }); }} style={{
+              padding: "10px 14px", border: "none", whiteSpace: "nowrap",
+              background: "transparent", flexShrink: 0,
+              borderBottom: tab === t.id ? "3px solid #3A849A" : "3px solid transparent",
+              borderRight: "1px solid #254E5E",
               color: tab === t.id ? "#fff" : "#4E7A8C",
               fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
               fontWeight: tab === t.id ? 600 : 400,
@@ -10501,6 +10517,9 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
             const badge = walkerNotifCounts[t.id] || 0;
             return (
               <button key={t.id} onClick={() => { changeTab(t.id); document.querySelector('[data-scroll-pane]')?.scrollTo({ top: 0, behavior: 'instant' }); }} style={{
+                padding: "10px 14px", border: "none", whiteSpace: "nowrap", background: "transparent",
+                borderBottom: tab === t.id ? "3px solid #3A849A" : "3px solid transparent",
+                color: tab === t.id ? "#fff" : "rgba(255,255,255,0.65)",
                 fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                 fontWeight: tab === t.id ? 600 : 400,
                 cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
