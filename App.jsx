@@ -8659,21 +8659,17 @@ export default function LonestarBark() {
     const updated = { ...clients, [newClient.id]: newClient };
     setClients(updated);
     saveClients(updated);
-    // Call Edge Function to send verification email
-    try {
-      await fetch(`${SUPABASE_URL}/functions/v1/send-verification`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ email: newClient.email, clientName: newClient.name }),
-      });
-    } catch (e) {
-      console.error("Failed to send verification email:", e);
-    }
-    // Show "check your email" screen instead of logging in
+    // Show "check your email" screen immediately — don't wait for the email to send
     setPendingVerification({ name: newClient.name, email: newClient.email });
+    // Fire verification email in background
+    fetch(`${SUPABASE_URL}/functions/v1/send-verification`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ email: newClient.email, clientName: newClient.name }),
+    }).catch(e => console.error("Failed to send verification email:", e));
   };
 
   const handleHandoffComplete = (handoffData) => {
