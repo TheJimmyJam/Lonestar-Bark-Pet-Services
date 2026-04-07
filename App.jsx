@@ -12329,35 +12329,78 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                 </div>
               ) : completedWalks.slice().sort((a, b) =>
                 new Date(b.completedAt || b.scheduledDateTime || b.bookedAt) - new Date(a.completedAt || a.scheduledDateTime || a.bookedAt)
-              ).map((b, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between",
-                  alignItems: "center", padding: "11px 0",
-                  borderBottom: i < completedWalks.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                  <div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                      fontWeight: 500, color: "#111827" }}>
-                      {b.clientName} — {b.form?.pet || "Walk"} · {b.slot?.duration}
-                    </div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                      color: "#9ca3af", marginTop: "1px" }}>
-                      {b.day}, {b.date}
-                      {b.walkerMarkedComplete && (
-                        <span style={{ marginLeft: "6px", color: "#059669", fontWeight: 600 }}>· ✓ marked by you</span>
-                      )}
-                    </div>
+              ).map((b, i) => {
+                const isOpen = expandedWalkKey === `pay_${b.key || i}`;
+                const payout = Math.round(effectivePrice(b) * 0.6);
+                return (
+                  <div key={b.key || i} style={{
+                    borderBottom: i < completedWalks.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                    <button onClick={() => setExpandedWalkKey(isOpen ? null : `pay_${b.key || i}`)}
+                      style={{ width: "100%", background: "none", border: "none", cursor: "pointer",
+                        textAlign: "left", padding: "11px 0",
+                        display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                          fontWeight: 500, color: "#111827" }}>
+                          {b.clientName} — {b.form?.pet || "Walk"} · {b.slot?.duration}
+                        </div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                          color: "#9ca3af", marginTop: "1px" }}>
+                          {b.day}, {b.date}
+                          {b.walkerMarkedComplete && (
+                            <span style={{ marginLeft: "6px", color: "#059669", fontWeight: 600 }}>· ✓ marked by you</span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                            fontWeight: 600, color: "#C4541A" }}>+${payout}</div>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                            color: "#9ca3af" }}>of ${effectivePrice(b)}</div>
+                        </div>
+                        <span style={{ color: "#9ca3af", fontSize: "13px",
+                          transform: isOpen ? "rotate(180deg)" : "none",
+                          display: "inline-block", transition: "transform 0.15s" }}>▾</span>
+                      </div>
+                    </button>
+                    {isOpen && (
+                      <div className="fade-up" style={{ background: "#f9fafb",
+                        borderRadius: "12px", padding: "12px 14px", marginBottom: "10px",
+                        border: "1.5px solid #e4e7ec" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px",
+                          fontFamily: "'DM Sans', sans-serif" }}>
+                          {[
+                            ["Client", b.clientName],
+                            ["Pet", b.form?.pet || "—"],
+                            ["Service", b.service === "cat" ? "Cat-sitting" : b.isOvernight ? "Overnight" : "Dog walk"],
+                            ["Duration", b.slot?.duration || "30 min"],
+                            ["Date", `${b.day}, ${b.date}`],
+                            ["Time", b.slot?.time || "—"],
+                            ["Session Rate", `$${effectivePrice(b)}`],
+                            ["Your Payout (60%)", `$${payout}`],
+                          ].map(([label, val]) => (
+                            <div key={label}>
+                              <div style={{ fontSize: "11px", fontWeight: 600, color: "#9ca3af",
+                                textTransform: "uppercase", letterSpacing: "0.8px" }}>{label}</div>
+                              <div style={{ fontSize: "14px", color: "#111827",
+                                fontWeight: 500, marginTop: "2px" }}>{val}</div>
+                            </div>
+                          ))}
+                        </div>
+                        {b.form?.notes && (
+                          <div style={{ marginTop: "10px", paddingTop: "10px",
+                            borderTop: "1px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif" }}>
+                            <div style={{ fontSize: "11px", fontWeight: 600, color: "#9ca3af",
+                              textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "3px" }}>Notes</div>
+                            <div style={{ fontSize: "14px", color: "#374151" }}>{b.form.notes}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                      fontWeight: 600, color: "#C4541A" }}>
-                      +${Math.round(effectivePrice(b) * 0.6)}
-                    </div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                      color: "#9ca3af", marginTop: "1px" }}>
-                      of ${effectivePrice(b)} total
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div style={{ background: `${accentBlue}10`, border: `1.5px solid ${accentBlue}33`,
@@ -13590,56 +13633,99 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                   {filtered.map(inv => {
                     const meta = invoiceStatusMeta(inv.status, inv.dueDate);
+                    const isOpen = expandedWalkKey === `inv_${inv.id}`;
                     return (
                       <div key={inv.id} style={{ background: "#fff",
-                        border: "1.5px solid #e4e7ec", borderRadius: "14px",
-                        padding: "16px 18px" }}>
-                        <div style={{ display: "flex", alignItems: "flex-start",
-                          justifyContent: "space-between", gap: "12px" }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: "flex", alignItems: "center",
-                              gap: "8px", flexWrap: "wrap", marginBottom: "6px" }}>
-                              <span style={{ fontFamily: "'DM Sans', sans-serif",
-                                fontWeight: 700, fontSize: "15px", color: "#111827" }}>
-                                {inv.clientName}
-                              </span>
-                              <span style={{ fontFamily: "'DM Sans', sans-serif",
-                                fontSize: "12px", fontWeight: 700, color: meta.color,
-                                background: meta.bg, border: `1px solid ${meta.border}`,
-                                borderRadius: "5px", padding: "1px 8px" }}>
-                                {meta.label}
-                              </span>
-                              {inv.autoGenerated && (
+                        border: isOpen ? `2px solid ${accentBlue}` : "1.5px solid #e4e7ec",
+                        borderRadius: "14px", overflow: "hidden",
+                        boxShadow: isOpen ? `0 4px 16px ${accentBlue}14` : "none",
+                        transition: "all 0.15s" }}>
+                        {/* Header row — tap to expand */}
+                        <button onClick={() => setExpandedWalkKey(isOpen ? null : `inv_${inv.id}`)}
+                          style={{ width: "100%", background: "none", border: "none",
+                            cursor: "pointer", padding: "16px 18px", textAlign: "left" }}>
+                          <div style={{ display: "flex", alignItems: "flex-start",
+                            justifyContent: "space-between", gap: "12px" }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center",
+                                gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
                                 <span style={{ fontFamily: "'DM Sans', sans-serif",
-                                  fontSize: "12px", color: "#9ca3af", background: "#f3f4f6",
-                                  borderRadius: "5px", padding: "1px 7px" }}>Auto</span>
-                              )}
+                                  fontWeight: 700, fontSize: "15px", color: "#111827" }}>
+                                  {inv.clientName}
+                                </span>
+                                <span style={{ fontFamily: "'DM Sans', sans-serif",
+                                  fontSize: "12px", fontWeight: 700, color: meta.color,
+                                  background: meta.bg, border: `1px solid ${meta.border}`,
+                                  borderRadius: "5px", padding: "1px 8px" }}>
+                                  {meta.label}
+                                </span>
+                                {inv.autoGenerated && (
+                                  <span style={{ fontFamily: "'DM Sans', sans-serif",
+                                    fontSize: "12px", color: "#9ca3af", background: "#f3f4f6",
+                                    borderRadius: "5px", padding: "1px 7px" }}>Auto</span>
+                                )}
+                              </div>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif",
+                                fontSize: "13px", color: "#9ca3af" }}>
+                                {inv.items?.length || 0} walk{(inv.items?.length || 0) !== 1 ? "s" : ""}
+                                {inv.dueDate && inv.status === "sent"
+                                  ? ` · Due ${new Date(inv.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+                                  : ""}
+                                {inv.paidAt
+                                  ? ` · Paid ${new Date(inv.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+                                  : ""}
+                              </div>
                             </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif",
+                                fontSize: "18px", fontWeight: 700,
+                                color: meta.effectiveStatus === "paid" ? "#059669" : "#111827" }}>
+                                ${inv.total}
+                              </div>
+                              <span style={{ color: "#9ca3af", fontSize: "13px",
+                                transform: isOpen ? "rotate(180deg)" : "none",
+                                display: "inline-block", transition: "transform 0.15s" }}>▾</span>
+                            </div>
+                          </div>
+                        </button>
+                        {/* Expanded detail */}
+                        {isOpen && (
+                          <div style={{ borderTop: `1px solid ${accentBlue}22`,
+                            padding: "14px 18px", background: `${accentBlue}06` }}>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                              fontWeight: 700, color: "#9ca3af", textTransform: "uppercase",
+                              letterSpacing: "0.8px", marginBottom: "8px" }}>Walk Items</div>
                             {(inv.items || []).map((it, i) => (
-                              <div key={i} style={{ fontFamily: "'DM Sans', sans-serif",
-                                fontSize: "14px", color: "#6b7280", marginBottom: "2px" }}>
-                                {it.description}
+                              <div key={i} style={{ display: "flex", justifyContent: "space-between",
+                                alignItems: "center", padding: "7px 0",
+                                borderBottom: i < (inv.items.length - 1) ? "1px solid #f3f4f6" : "none",
+                                fontFamily: "'DM Sans', sans-serif" }}>
+                                <div style={{ fontSize: "14px", color: "#374151", flex: 1, minWidth: 0 }}>
+                                  {it.description}
+                                </div>
+                                {it.amount != null && (
+                                  <div style={{ fontSize: "14px", fontWeight: 600,
+                                    color: "#111827", flexShrink: 0, marginLeft: "12px" }}>
+                                    ${it.amount}
+                                  </div>
+                                )}
                               </div>
                             ))}
+                            <div style={{ display: "flex", justifyContent: "space-between",
+                              paddingTop: "10px", marginTop: "4px",
+                              borderTop: "2px solid #e4e7ec",
+                              fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 700 }}>
+                              <span style={{ color: "#9ca3af" }}>Total</span>
+                              <span style={{ color: meta.effectiveStatus === "paid" ? "#059669" : "#111827" }}>
+                                ${inv.total}
+                              </span>
+                            </div>
                             <div style={{ fontFamily: "'DM Sans', sans-serif",
-                              fontSize: "13px", color: "#9ca3af", marginTop: "6px" }}>
+                              fontSize: "12px", color: "#9ca3af", marginTop: "8px" }}>
                               {inv.id}
-                              {inv.dueDate && inv.status === "sent"
-                                ? ` · Due ${new Date(inv.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
-                                : ""}
-                              {inv.paidAt
-                                ? ` · Paid ${new Date(inv.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
-                                : ""}
                             </div>
                           </div>
-                          <div style={{ flexShrink: 0, textAlign: "right" }}>
-                            <div style={{ fontFamily: "'DM Sans', sans-serif",
-                              fontSize: "20px", fontWeight: 700,
-                              color: meta.effectiveStatus === "paid" ? "#059669" : "#111827" }}>
-                              ${inv.total}
-                            </div>
-                          </div>
-                        </div>
+                        )}
                       </div>
                     );
                   })}
@@ -17108,7 +17194,8 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 if (id === "clients") return (
                   <div>
                     {clientList.length === 0 ? <div style={emptyStyle}>No clients yet.</div> : clientList.map((c, i) => (
-                      <div key={i} style={{ ...rowStyle, display: "flex", alignItems: "center", gap: "10px" }}>
+                      <div key={i} onClick={() => { changeTab("clients"); setSelectedClientId(c.id); setExpandedKpi(null); }}
+                        style={{ ...rowStyle, display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
                         <div style={{ width: "32px", height: "32px", borderRadius: "50%",
                           background: "#8B5E3C18", display: "flex", alignItems: "center",
                           justifyContent: "center", fontSize: "16px", flexShrink: 0 }}>🐾</div>
@@ -17121,7 +17208,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                         <div style={{ textAlign: "right", flexShrink: 0 }}>
                           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                             fontWeight: 600, color: "#C4541A" }}>${c.spent}</div>
-                          <div style={{ fontSize: "16px", color: "#9ca3af" }}>lifetime</div>
+                          <div style={{ fontSize: "14px", color: "#C4541A" }}>→ account</div>
                         </div>
                       </div>
                     ))}
@@ -17135,28 +17222,64 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       textTransform: "uppercase", letterSpacing: "0.8px" }}>Today's Bookings</div>
                     {todayBookings.length === 0
                       ? <div style={emptyStyle}>No bookings scheduled for today.</div>
-                      : todayBookings.map((b, i) => (
-                      <div key={i} style={{ ...rowStyle, display: "flex", alignItems: "center", gap: "10px" }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 600, color: "#111827", fontSize: "15px" }}>
-                            {b.clientName} · {b.form?.pet || "Pet"}
-                          </div>
-                          <div style={{ fontSize: "15px", color: "#9ca3af", marginTop: "1px" }}>
-                            {new Date(b.scheduledDateTime || b.bookedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                            {b.form?.walker ? ` · ${b.form.walker}` : " · Unassigned"}
-                            {" · "}{b.slot?.duration || "30 min"}
-                          </div>
-                        </div>
-                        <div style={{ flexShrink: 0 }}>
-                          {b.walkerConfirmed
-                            ? <span style={{ fontSize: "16px", background: "#FDF5EC", color: "#059669",
-                                border: "1px solid #EDD5A8", borderRadius: "4px", padding: "2px 7px", fontWeight: 600 }}>✓ Confirmed</span>
-                            : <span style={{ fontSize: "16px", background: "#fffbeb", color: "#92400e",
-                                border: "1px solid #fde68a", borderRadius: "4px", padding: "2px 7px", fontWeight: 600 }}>Pending</span>
-                          }
-                        </div>
-                      </div>
-                    ))}
+                      : todayBookings.map((b, i) => {
+                          const isDetailOpen = kpiWalkDetail?.key === b.key;
+                          return (
+                            <div key={i}>
+                              <div onClick={() => setKpiWalkDetail(isDetailOpen ? null : b)}
+                                style={{ ...rowStyle, display: "flex", alignItems: "center", gap: "10px",
+                                  cursor: "pointer", background: isDetailOpen ? "#f0fdf4" : "transparent",
+                                  margin: "0 -16px", padding: "10px 16px", transition: "background 0.15s" }}>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontWeight: 600, color: "#111827", fontSize: "15px" }}>
+                                    {b.clientName} · {b.form?.pet || "Pet"}
+                                  </div>
+                                  <div style={{ fontSize: "14px", color: "#9ca3af", marginTop: "1px" }}>
+                                    {new Date(b.scheduledDateTime || b.bookedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                                    {b.form?.walker ? ` · ${b.form.walker}` : " · Unassigned"}
+                                    {" · "}{b.slot?.duration || "30 min"}
+                                  </div>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                                  {b.walkerConfirmed
+                                    ? <span style={{ fontSize: "13px", background: "#FDF5EC", color: "#059669",
+                                        border: "1px solid #EDD5A8", borderRadius: "4px", padding: "2px 6px", fontWeight: 600 }}>✓</span>
+                                    : <span style={{ fontSize: "13px", background: "#fffbeb", color: "#92400e",
+                                        border: "1px solid #fde68a", borderRadius: "4px", padding: "2px 6px", fontWeight: 600 }}>Pending</span>
+                                  }
+                                  <span style={{ color: "#d1d5db", fontSize: "12px" }}>{isDetailOpen ? "▲" : "▾"}</span>
+                                </div>
+                              </div>
+                              {isDetailOpen && (
+                                <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0",
+                                  borderRadius: "10px", padding: "12px 14px", margin: "0 0 8px",
+                                  fontFamily: "'DM Sans', sans-serif", fontSize: "14px" }}>
+                                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" }}>
+                                    {[
+                                      ["Client", b.clientName],
+                                      ["Pet", b.form?.pet || "—"],
+                                      ["Walker", b.form?.walker || "Unassigned"],
+                                      ["Time", b.slot?.time || new Date(b.scheduledDateTime || b.bookedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })],
+                                      ["Duration", b.slot?.duration || "30 min"],
+                                      ["Status", b.walkerConfirmed ? "Confirmed" : "Pending"],
+                                    ].map(([label, val]) => (
+                                      <div key={label}>
+                                        <div style={{ color: "#9ca3af", fontSize: "11px", fontWeight: 600,
+                                          textTransform: "uppercase", letterSpacing: "0.8px" }}>{label}</div>
+                                        <div style={{ color: "#111827", fontWeight: 500, marginTop: "2px" }}>{val}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <button onClick={e => { e.stopPropagation(); changeTab("clients"); setSelectedClientId(b.clientId); setExpandedKpi(null); }}
+                                    style={{ fontSize: "13px", color: "#059669", background: "none", border: "none",
+                                      cursor: "pointer", padding: 0, fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>
+                                    → Open client account
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                   </div>
                 );
 
@@ -17246,10 +17369,14 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       {topClients.length === 0
                         ? <div style={emptyStyle}>No completed walks yet.</div>
                         : topClients.map((c, i) => (
-                        <div key={i} style={{ ...rowStyle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div key={i} onClick={() => { changeTab("clients"); setSelectedClientId(c.id); setExpandedKpi(null); }}
+                          style={{ ...rowStyle, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
                           <div style={{ fontWeight: 500, color: "#111827" }}>{c.name}</div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                            fontWeight: 600, color: "#7A4D6E" }}>${c.spent}</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                              fontWeight: 600, color: "#7A4D6E" }}>${c.spent}</div>
+                            <span style={{ fontSize: "12px", color: "#7A4D6E" }}>→</span>
+                          </div>
                         </div>
                       ))}
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af",
@@ -17356,13 +17483,18 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                           {walkerRows.map(([name, d], i) => {
                             const pct = Math.round((d.confirmed / d.total) * 100);
                             return (
-                              <div key={name} style={{ ...rowStyle, display: "flex",
-                                alignItems: "center", gap: "10px" }}>
+                              <div key={name} onClick={() => { if (d.walker) { changeTab("walkers"); setSelectedWalkerId(d.walker.id); setExpandedKpi(null); } }}
+                                style={{ ...rowStyle, display: "flex",
+                                  alignItems: "center", gap: "10px",
+                                  cursor: d.walker ? "pointer" : "default" }}>
                                 <div style={{ fontSize: "18px", flexShrink: 0 }}>
                                   {d.walker?.avatar || "🐾"}
                                 </div>
                                 <div style={{ flex: 1 }}>
-                                  <div style={{ fontWeight: 600, color: "#111827", fontSize: "15px" }}>{name}</div>
+                                  <div style={{ fontWeight: 600, color: "#111827", fontSize: "15px" }}>
+                                    {name}
+                                    {d.walker && <span style={{ fontSize: "12px", color: "#3D6B7A", marginLeft: "6px" }}>→ profile</span>}
+                                  </div>
                                   <div style={{ fontSize: "13px", color: "#9ca3af" }}>
                                     {d.confirmed}/{d.total} confirmed
                                   </div>
@@ -17791,14 +17923,18 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       {uninvoicedByClient.length === 0
                         ? <div style={emptyStyle}>All completed walks have been invoiced.</div>
                         : uninvoicedByClient.map(({ c, walks }) => (
-                          <div key={c.id} style={{ ...rowStyle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div key={c.id} onClick={() => { changeTab("clients"); setSelectedClientId(c.id); setExpandedKpi(null); }}
+                            style={{ ...rowStyle, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
                             <div>
                               <div style={{ fontWeight: 600, color: "#111827", fontSize: "15px" }}>{c.name}</div>
-                              <div style={{ fontSize: "14px", color: "#9ca3af" }}>{walks.length} walk{walks.length !== 1 ? "s" : ""}</div>
+                              <div style={{ fontSize: "14px", color: "#9ca3af" }}>{walks.length} walk{walks.length !== 1 ? "s" : ""} uninvoiced</div>
                             </div>
-                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                              fontWeight: 600, color: "#3D6B7A" }}>
-                              ${walks.reduce((s, b) => s + effectivePrice(b), 0)}
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                                fontWeight: 600, color: "#3D6B7A" }}>
+                                ${walks.reduce((s, b) => s + effectivePrice(b), 0)}
+                              </div>
+                              <span style={{ fontSize: "12px", color: "#3D6B7A" }}>→</span>
                             </div>
                           </div>
                         ))
@@ -17849,10 +17985,13 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       {walkerBreakdown.length === 0
                         ? <div style={emptyStyle}>No upcoming walks.</div>
                         : walkerBreakdown.map((r, i) => (
-                        <div key={i} style={{ ...rowStyle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div key={i} onClick={() => { if (r.walker) { changeTab("walkers"); setSelectedWalkerId(r.walker.id); setExpandedKpi(null); } }}
+                          style={{ ...rowStyle, display: "flex", justifyContent: "space-between", alignItems: "center",
+                            cursor: r.walker ? "pointer" : "default" }}>
                           <div>
                             <div style={{ fontWeight: 600, color: "#111827", fontSize: "15px" }}>
                               {r.walker?.avatar || "🐾"} {r.name}
+                              {r.walker && <span style={{ fontSize: "12px", color: "#7A4D6E", marginLeft: "6px" }}>→ profile</span>}
                             </div>
                             <div style={{ fontSize: "15px", color: "#9ca3af" }}>
                               {r.count} walk{r.count !== 1 ? "s" : ""} · est. payout ${r.payout}
