@@ -4306,6 +4306,15 @@ function QuickRebookBanner({ client, service, myBookings, clients, setClients, o
 function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {} }) {
   const [page, setPage] = useState("overview");
   const [service, setService] = useState("dog");
+  const [paymentBanner, setPaymentBanner] = useState(() => {
+    try {
+      const success = localStorage.getItem("dwi_payment_success");
+      const cancelled = localStorage.getItem("dwi_payment_cancelled");
+      if (success) { localStorage.removeItem("dwi_payment_success"); return { type: "success", invoiceId: success }; }
+      if (cancelled) { localStorage.removeItem("dwi_payment_cancelled"); return { type: "cancelled" }; }
+    } catch {}
+    return null;
+  });
 
   // ── Client ↔ Walker messaging state ──
   const [clientMsgs, setClientMsgs]       = useState([]);
@@ -4692,6 +4701,29 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       <div style={{ flex: 1, overflowY: "scroll", WebkitOverflowScrolling: "touch" }}>
       <Header client={client} onLogout={onLogout} />
       <ClientNav client={client} onLogout={onLogout} page={page} setPage={setPage} notifCounts={clientNotifCountsFull} sticky />
+
+      {/* Payment result banner */}
+      {paymentBanner && (
+        <div style={{
+          background: paymentBanner.type === "success" ? "#FDF5EC" : "#fef2f2",
+          border: `1.5px solid ${paymentBanner.type === "success" ? "#D4A87A" : "#fecaca"}`,
+          borderRadius: "12px", margin: "16px 16px 0",
+          padding: "14px 18px", display: "flex", alignItems: "center",
+          justifyContent: "space-between", gap: "12px",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "20px" }}>{paymentBanner.type === "success" ? "✅" : "❌"}</span>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+              color: paymentBanner.type === "success" ? "#C4541A" : "#dc2626", fontWeight: 600 }}>
+              {paymentBanner.type === "success"
+                ? "Payment successful! Your invoice has been marked as paid."
+                : "Payment cancelled — you can try again from your invoices page."}
+            </div>
+          </div>
+          <button onClick={() => setPaymentBanner(null)} style={{ background: "none", border: "none",
+            cursor: "pointer", color: "#9ca3af", fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>✕</button>
+        </div>
+      )}
       {/* PRICING PAGE */}
       {/* ── OVERVIEW PAGE ── */}
       {page === "overview" && (() => {
@@ -8542,39 +8574,14 @@ export default function LonestarBark() {
     // Handle Stripe payment return
     if (payment === "success" && invoiceId) {
       window.history.replaceState({}, "", window.location.pathname);
-      (async () => {
-        try {
-          const allClients = await loadClients();
-          let found = false;
-          const updated = { ...allClients };
-          Object.keys(updated).forEach(cid => {
-            const c = updated[cid];
-            const invoices = c.invoices || [];
-            const idx = invoices.findIndex(inv => inv.id === invoiceId);
-            if (idx !== -1 && !found) {
-              found = true;
-              const now = new Date().toISOString();
-              updated[cid] = {
-                ...c,
-                invoices: invoices.map(inv =>
-                  inv.id === invoiceId ? { ...inv, status: "paid", paidAt: now } : inv
-                ),
-              };
-            }
-          });
-          if (found) {
-            await saveClients(updated);
-            setClients(updated);
-            updateInvoiceInDB(invoiceId, { status: "paid", paidAt: new Date().toISOString() });
-          }
-          alert("✅ Payment successful! Your invoice has been marked as paid.");
-        } catch (e) {
-          console.error("Payment success handling error:", e);
-        }
-      })();
+      const now = new Date().toISOString();
+      // Update invoices table directly — mergeInvoicesIntoClients will pick it up on load
+      updateInvoiceInDB(invoiceId, { status: "paid", paidAt: now });
+      // Store in localStorage so we can show a success banner after login
+      try { localStorage.setItem("dwi_payment_success", invoiceId); } catch {}
     } else if (payment === "cancelled") {
       window.history.replaceState({}, "", window.location.pathname);
-      alert("Payment cancelled — you can try again from your invoices page.");
+      try { localStorage.setItem("dwi_payment_cancelled", "1"); } catch {}
     }
 
     if (token) {
