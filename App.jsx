@@ -873,6 +873,7 @@ const GLOBAL_STYLES = `
   .slot-btn { transition: all 0.15s ease !important; }
   .hover-card:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,0,0,0.10) !important; }
   .hover-card { transition: all 0.15s ease !important; }
+  .sticky-nav { position: -webkit-sticky; position: sticky; top: 0; z-index: 10; }
   input:focus, textarea:focus, select:focus { outline: none; }
 
   /* ── Tooltips ── */
@@ -1196,7 +1197,7 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
     <nav style={{ background: "#0B1423", borderBottom: "1px solid #8A7545",
       display: "flex", alignItems: "stretch",
       ...(sticky ? { position: "sticky", top: 0, zIndex: 10 } : { flexShrink: 0 }) }}
-      className="nav-tabs">
+      className={`nav-tabs${sticky ? " sticky-nav" : ""}`}>
       <button onClick={() => { setPage(pinned.id); scrollTop(); }} style={{
         padding: "10px 16px", border: "none", whiteSpace: "nowrap",
         background: "transparent", flexShrink: 0,
@@ -4567,7 +4568,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#f5f6f8" }}>
       <style>{GLOBAL_STYLES}</style>
-      <div style={{ flex: 1, overflowY: "auto" }}>
+      <div style={{ flex: 1, overflowY: "scroll", WebkitOverflowScrolling: "touch" }}>
       <Header client={client} onLogout={onLogout} />
       <ClientNav client={client} onLogout={onLogout} page={page} setPage={setPage} notifCounts={clientNotifCountsFull} sticky />
       {/* PRICING PAGE */}
@@ -10304,7 +10305,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
       <style>{GLOBAL_STYLES}</style>
 
       {/* Header + Nav */}
-      <div data-scroll-pane style={{ flex: 1, overflowY: "auto" }}>
+      <div data-scroll-pane style={{ flex: 1, overflowY: "scroll", WebkitOverflowScrolling: "touch" }}>
       {/* Header */}
       <header style={{ background: "#1A3A42", padding: "16px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -10333,7 +10334,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
       <nav style={{ background: "#1A3A42", borderBottom: "1px solid #254E5E",
         display: "flex", alignItems: "stretch",
         position: "sticky", top: 0, zIndex: 10 }}
-        className="nav-tabs">
+        className="nav-tabs sticky-nav">
         {/* ── Pinned: My Schedule ── */}
         {(() => {
           const t = TABS[0];
@@ -16976,7 +16977,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
         </div>
       )}
 
-      <div data-scroll-pane style={{ flex: 1, overflowY: "auto" }}>
+      <div data-scroll-pane style={{ flex: 1, overflowY: "scroll", WebkitOverflowScrolling: "touch" }}>
       {/* Header */}
       <header style={{ background: "#4D2E10", padding: "16px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -17047,7 +17048,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
       <nav style={{ background: "#4D2E10", borderBottom: "1px solid #6B4420",
         display: "flex", alignItems: "stretch",
         position: "sticky", top: 0, zIndex: 10 }}
-        className="nav-tabs">
+        className="nav-tabs sticky-nav">
         {/* ── Pinned: Overview ── */}
         {(() => {
           const t = TABS[0];
