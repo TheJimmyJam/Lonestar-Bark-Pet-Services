@@ -10512,7 +10512,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                 textTransform: "uppercase", letterSpacing: "1px",
                 fontWeight: 600, color }}>{label}</div>
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "22px",
-                fontWeight: 700, color: "#111827", lineHeight: 1,
+                fontWeight: 700, color,
                 whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
             </div>
           );
@@ -10567,7 +10567,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                 {kpiCard("📋", weekWalks.length,   "Walks This Week",  accentBlue, "#EBF4F6", "#A8D0DB", () => setTab("mywalks"))}
                 {kpiCard("📆", monthWalks.length,  "Walks This Month", accentBlue, "#EBF4F6", "#A8D0DB", () => setTab("mywalks"))}
                 {kpiCard("✅", completedWalks.length, "Completed Walks",
-                  "#059669", "#f0fdf4", "#a8d5bf", () => setTab("completed"))}
+                  accentBlue, "#EBF4F6", "#A8D0DB", () => setTab("completed"))}
               </div>
 
               {/* ── Earnings KPI grid ── */}
@@ -10575,20 +10575,23 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                 {kpiCard("💵", fmt(weekPayout, true),    "Week's Earnings",  "#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
                 {kpiCard("💰", fmt(monthPayout, true),   "Month's Earnings", "#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
                 {kpiCard("🏅", fmt(allTimePayout, true), "All-Time Earnings","#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
-                {kpiCard("⚠️", overdueCount > 0 ? `${overdueCount} ($${overdueAmt})` : "None",
-                  "Overdue Invoices",
-                  overdueCount > 0 ? "#dc2626" : "#059669",
-                  overdueCount > 0 ? "#fef2f2" : "#f0fdf4",
-                  overdueCount > 0 ? "#fecaca" : "#a8d5bf",
-                  () => setTab("invoices"))}
+                {kpiCard("🗝️", myKeyClients.length, "Key Clients",
+                  "#7A4D6E", "#F9F0F7", "#D8ABCF", () => setTab("myclients"))}
               </div>
 
               {/* ── Outstanding + Key Clients ── */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "24px" }}>
                 {kpiCard("🧾", outstandingAmt > 0 ? fmt(outstandingAmt, true) : "—", "Outstanding",
-                  "#b45309", "#fffbeb", "#fde68a", () => setTab("invoices"))}
-                {kpiCard("🗝️", myKeyClients.length, "Key Clients",
-                  "#7A4D6E", "#F9F0F7", "#D8ABCF", () => setTab("myclients"))}
+                  outstandingAmt > 0 ? "#dc2626" : "#059669",
+                  outstandingAmt > 0 ? "#fef2f2" : "#f0fdf4",
+                  outstandingAmt > 0 ? "#dc2626" : "#a8d5bf",
+                  () => setTab("invoices"))}
+                {kpiCard("⚠️", overdueCount > 0 ? `${overdueCount} ($${overdueAmt})` : "None",
+                  "Overdue Invoices",
+                  overdueCount > 0 ? "#dc2626" : "#059669",
+                  overdueCount > 0 ? "#fef2f2" : "#f0fdf4",
+                  overdueCount > 0 ? "#dc2626" : "#a8d5bf",
+                  () => setTab("invoices"))}
               </div>
 
               {/* ── Upcoming schedule preview ── */}
