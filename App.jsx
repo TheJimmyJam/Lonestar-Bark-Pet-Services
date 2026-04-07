@@ -337,17 +337,50 @@ function formatChatTime(isoStr) {
 async function loadChatMessages() {
   try {
     const rows = await sbFetch("messages?select=id,from_name,text,sent_at&order=sent_at.asc&limit=200");
+    return (rows || [])
+      .filter(r => !r.from_name?.startsWith("dm:"))
+      .map(r => ({
+        id: r.id,
+        from: r.from_name,
+        text: r.text,
+        sentAt: r.sent_at,
+        time: formatChatTime(r.sent_at),
+      }));
+  } catch (e) {
+    console.error("loadChatMessages failed:", e);
+    return [];
+  }
+}
+
+async function loadDirectMessages(nameA, nameB) {
+  try {
+    const enc = encodeURIComponent;
+    const keyAB = enc(`dm:${nameA}→${nameB}`);
+    const keyBA = enc(`dm:${nameB}→${nameA}`);
+    const rows = await sbFetch(
+      `messages?or=(from_name.eq.${keyAB},from_name.eq.${keyBA})&order=sent_at.asc&limit=200`
+    );
     return (rows || []).map(r => ({
       id: r.id,
-      from: r.from_name,
+      from: r.from_name.replace(/^dm:/, "").split("→")[0],
       text: r.text,
       sentAt: r.sent_at,
       time: formatChatTime(r.sent_at),
     }));
   } catch (e) {
-    console.error("loadChatMessages failed:", e);
+    console.error("loadDirectMessages failed:", e);
     return [];
   }
+}
+
+async function saveDirectMessage(fromName, toName, text) {
+  try {
+    await sbFetch("messages", {
+      method: "POST",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ from_name: `dm:${fromName}→${toName}`, text, sent_at: new Date().toISOString() }),
+    });
+  } catch (e) { console.error("saveDirectMessage failed:", e); }
 }
 
 async function saveChatMessage(fromName, text) {
@@ -1369,6 +1402,10 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
   const handleLoginPin = (pin) => {
     const client = Object.values(clients).find(c => c.email === email.trim().toLowerCase());
     if (client && client.pin === pin) {
+      if (client.emailVerified === false) {
+        setPinError("Please verify your email before logging in. Check your inbox for the verification link.");
+        return;
+      }
       try { localStorage.setItem("dwi_saved_email", email.trim().toLowerCase()); } catch {}
       onLogin(client);
     }
@@ -1419,6 +1456,7 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
       handoffDone: false,
       bookings: [],
       createdAt: new Date().toISOString(),
+      emailVerified: false,
     };
     onRegister(newClient);
   };
@@ -1776,7 +1814,7 @@ function ScheduleWalkSection({ title, children }) {
   );
 }
 
-function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", doneLabel = "View in Bookings →", walkerProfiles = {}, allowHistorical = false, clientFilter = null }) {
+function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", doneLabel = "View in Bookings →", walkerProfiles = {}, allowHistorical = false, clientFilter = null, hideWalker = false }) {
   const TIME_SLOTS = [];
   for (let h = 7; h <= 19; h++) {
     for (const m of [0, 30]) {
@@ -2076,6 +2114,7 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
       </ScheduleWalkSection>
 
       {/* 2. Walker */}
+      {!hideWalker && (
       <ScheduleWalkSection title="Walker">
         <label style={labelStyle}>Assign Walker</label>
         <select value={form.walker} onChange={e => setField("walker", e.target.value)}
@@ -2110,6 +2149,7 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
           return null;
         })()}
       </ScheduleWalkSection>
+      )}
 
       {/* 3. Service & Date */}
       <ScheduleWalkSection title="Service & Date">
@@ -2147,11 +2187,26 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
         {form.service !== "overnight" && (
           <div style={{ marginBottom: "14px" }}>
             <label style={labelStyle}>Duration</label>
-            <select value={form.duration} onChange={e => setField("duration", e.target.value)}
-              style={iStyle(false)}>
-              <option value="30 min">30 min</option>
-              <option value="60 min">60 min</option>
-            </select>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              {[{ value: "30 min", label: "30 min", desc: "Quick walk" },
+                { value: "60 min", label: "60 min", desc: "Full walk" }].map(opt => {
+                const active = form.duration === opt.value;
+                return (
+                  <button key={opt.value} onClick={() => setField("duration", opt.value)} style={{
+                    padding: "12px 8px", borderRadius: "10px", cursor: "pointer",
+                    textAlign: "center", transition: "all 0.12s",
+                    border: `1.5px solid ${active ? "#D4A843" : "#e4e7ec"}`,
+                    background: active ? "#FDF5EC" : "#f9fafb",
+                  }}>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                      fontWeight: 700, color: active ? "#C4541A" : "#374151",
+                      marginBottom: "2px" }}>{opt.label}</div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                      color: active ? "#b45309" : "#9ca3af" }}>{opt.desc}</div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
         {form.service === "overnight" && (
@@ -2192,63 +2247,10 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
         )}
       </ScheduleWalkSection>
 
-      {/* 4. Animal */}
-      {selectedClient && relevantPets.length > 0 && (
-        <ScheduleWalkSection title={form.service === "cat" ? "Cat *" : form.service === "overnight" ? "Pet(s)" : "Dog(s) *"}>
-          {form.service === "cat" ? (
-            <select value={form.pet} onChange={e => setField("pet", e.target.value)} style={iStyle(false)}>
-              <option value="">— Select cat —</option>
-              {clientCats.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-            </select>
-          ) : form.service === "overnight" ? (
-            <select value={form.pet} onChange={e => setField("pet", e.target.value)} style={iStyle(false)}>
-              <option value="">— Select pet —</option>
-              {clientPets.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          ) : (
-            <>
-              <label style={labelStyle}>Primary Dog</label>
-              <select value={form.pet}
-                onChange={e => setForm(f => ({ ...f, pet: e.target.value, additionalDogs: f.additionalDogs.filter(d => d !== e.target.value) }))}
-                style={{ ...iStyle(false), marginBottom: clientDogs.length > 1 ? "14px" : 0 }}>
-                <option value="">— Select dog —</option>
-                {clientDogs.map(dog => <option key={dog} value={dog}>{dog}</option>)}
-              </select>
-              {clientDogs.length > 1 && (
-                <>
-                  <label style={labelStyle}>Additional Dogs <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#b45309" }}>+$10 each</span></label>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {clientDogs.filter(dog => dog !== form.pet).map(dog => {
-                      const checked = form.additionalDogs.includes(dog);
-                      return (
-                        <label key={dog} style={{ display: "flex", alignItems: "center", gap: "10px",
-                          padding: "10px 14px", borderRadius: "10px", cursor: "pointer",
-                          border: `1.5px solid ${checked ? amber : "#e4e7ec"}`,
-                          background: checked ? `${amber}0d` : "#fff",
-                          fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                          color: "#111827", transition: "all 0.12s" }}>
-                          <input type="checkbox" checked={checked}
-                            onChange={() => setForm(f => ({
-                              ...f,
-                              additionalDogs: checked
-                                ? f.additionalDogs.filter(d => d !== dog)
-                                : [...f.additionalDogs, dog],
-                            }))}
-                            style={{ width: "16px", height: "16px", accentColor: amber, cursor: "pointer" }} />
-                          {dog}
-                          {checked && <span style={{ marginLeft: "auto", color: amber, fontSize: "15px", fontWeight: 600 }}>+$10</span>}
-                        </label>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </>
-          )}
-        </ScheduleWalkSection>
-      )}
+      {/* 4 & 5: order depends on context — walkers see Start Time before Animal */}
 
-      {/* 5. Start Time */}
+      {/* Start Time — shown 3rd for walkers */}
+      {hideWalker && (
       <ScheduleWalkSection title={form.service === "overnight" ? "Check-in Time" : "Start Time *"}>
         {errors.time && (
           <div style={{ color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
@@ -2304,6 +2306,122 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
           );
         })()}
       </ScheduleWalkSection>
+      )}
+
+      {/* Animal */}
+      {selectedClient && relevantPets.length > 0 && (
+        <ScheduleWalkSection title={form.service === "cat" ? "Cat *" : form.service === "overnight" ? "Pet(s)" : "Dog(s) *"}>
+          {form.service === "cat" ? (
+            <select value={form.pet} onChange={e => setField("pet", e.target.value)} style={iStyle(false)}>
+              <option value="">— Select cat —</option>
+              {clientCats.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+          ) : form.service === "overnight" ? (
+            <select value={form.pet} onChange={e => setField("pet", e.target.value)} style={iStyle(false)}>
+              <option value="">— Select pet —</option>
+              {clientPets.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          ) : (
+            <>
+              <label style={labelStyle}>Primary Dog</label>
+              <select value={form.pet}
+                onChange={e => setForm(f => ({ ...f, pet: e.target.value, additionalDogs: f.additionalDogs.filter(d => d !== e.target.value) }))}
+                style={{ ...iStyle(false), marginBottom: clientDogs.length > 1 ? "14px" : 0 }}>
+                <option value="">— Select dog —</option>
+                {clientDogs.map(dog => <option key={dog} value={dog}>{dog}</option>)}
+              </select>
+              {clientDogs.length > 1 && (
+                <>
+                  <label style={labelStyle}>Additional Dogs <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#b45309" }}>+$10 each</span></label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {clientDogs.filter(dog => dog !== form.pet).map(dog => {
+                      const checked = form.additionalDogs.includes(dog);
+                      return (
+                        <label key={dog} style={{ display: "flex", alignItems: "center", gap: "10px",
+                          padding: "10px 14px", borderRadius: "10px", cursor: "pointer",
+                          border: `1.5px solid ${checked ? amber : "#e4e7ec"}`,
+                          background: checked ? `${amber}0d` : "#fff",
+                          fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                          color: "#111827", transition: "all 0.12s" }}>
+                          <input type="checkbox" checked={checked}
+                            onChange={() => setForm(f => ({
+                              ...f,
+                              additionalDogs: checked
+                                ? f.additionalDogs.filter(d => d !== dog)
+                                : [...f.additionalDogs, dog],
+                            }))}
+                            style={{ width: "16px", height: "16px", accentColor: amber, cursor: "pointer" }} />
+                          {dog}
+                          {checked && <span style={{ marginLeft: "auto", color: amber, fontSize: "15px", fontWeight: 600 }}>+$10</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </ScheduleWalkSection>
+      )}
+
+      {/* Start Time — shown 5th for admins */}
+      {!hideWalker && (
+      <ScheduleWalkSection title={form.service === "overnight" ? "Check-in Time" : "Start Time *"}>
+        {errors.time && (
+          <div style={{ color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
+            fontSize: "15px", marginBottom: "8px" }}>{errors.time}</div>
+        )}
+        {(() => {
+          const selectedWalkerObj = getAllWalkers(walkerProfiles).find(w => w.name === form.walker);
+          const availSlotTimes = selectedWalkerObj && form.date
+            ? (walkerAvailability[selectedWalkerObj.id]?.[form.date] || null)
+            : null;
+          const now = new Date();
+          const visibleSlots = TIME_SLOTS.filter(slot => {
+            if (!isHistorical && form.date === todayStr) {
+              return !(slot.hour < now.getHours() ||
+                (slot.hour === now.getHours() && slot.minute <= now.getMinutes()));
+            }
+            return true;
+          });
+          return (
+            <>
+              <select
+                value={form.timeSlot?.id || ""}
+                onChange={e => {
+                  const slot = TIME_SLOTS.find(s => s.id === e.target.value);
+                  setField("timeSlot", slot || null);
+                  if (slot) setErrors(p => ({ ...p, time: "" }));
+                }}
+                style={{ ...iStyle(errors.time), color: form.timeSlot ? "#111827" : "#9ca3af" }}>
+                <option value="">{form.service === "overnight" ? "— Select check-in time (optional) —" : "— Select a time —"}</option>
+                {visibleSlots.map(slot => {
+                  const walkerUnavailable = availSlotTimes !== null && !availSlotTimes.includes(slot.label);
+                  return (
+                    <option key={slot.id} value={slot.id} disabled={walkerUnavailable}>
+                      {slot.label}{walkerUnavailable ? "  (walker unavailable)" : ""}
+                    </option>
+                  );
+                })}
+              </select>
+              {availSlotTimes !== null && availSlotTimes.length === 0 && (
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                  color: "#b45309", marginTop: "8px", padding: "8px 12px",
+                  background: "#fff7ed", borderRadius: "8px", border: "1px solid #fed7aa" }}>
+                  ⚠️ {form.walker} has no availability set for this date.
+                </div>
+              )}
+              {form.date === todayStr && !isHistorical && (
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                  color: "#9ca3af", marginTop: "5px" }}>
+                  Past times for today are hidden.
+                </div>
+              )}
+            </>
+          );
+        })()}
+      </ScheduleWalkSection>
+      )}
 
       {/* Notes */}
       <ScheduleWalkSection title="Notes">
@@ -8477,6 +8595,45 @@ export default function LonestarBark() {
   };
 
   useEffect(() => {
+    // Check for email verification token in URL
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("verify");
+    if (token) {
+      (async () => {
+        try {
+          const rows = await sbFetch(
+            `verification_tokens?token=eq.${encodeURIComponent(token)}&select=email,expires_at`
+          );
+          if (!rows || rows.length === 0) {
+            alert("This verification link is invalid or has already been used.");
+          } else {
+            const { email, expires_at } = rows[0];
+            if (new Date(expires_at) < new Date()) {
+              alert("This verification link has expired. Please sign up again to get a new one.");
+            } else {
+              // Mark client as verified in Supabase
+              const allClients = await loadClients();
+              const match = Object.values(allClients).find(c => c.email === email);
+              if (match) {
+                const updated = { ...allClients, [match.id]: { ...match, emailVerified: true } };
+                await saveClients(updated);
+                setClients(updated);
+              }
+              // Delete the used token
+              await sbFetch(`verification_tokens?token=eq.${encodeURIComponent(token)}`, {
+                method: "DELETE", headers: { "Prefer": "" },
+              });
+              // Clean URL and show success
+              window.history.replaceState({}, "", window.location.pathname);
+              alert("✅ Your email has been verified! You can now log in.");
+            }
+          }
+        } catch (e) {
+          console.error("Verification error:", e);
+        }
+      })();
+    }
+
     Promise.all([loadClients(), loadWalkerProfiles(), loadTrades(), loadInvoicesFromDB(), loadAdminList()]).then(([c, wp, tr, invRows, admins]) => {
       // Inject any admin-created walkers into runtime registries
       injectCustomWalkers(wp);
@@ -8493,14 +8650,30 @@ export default function LonestarBark() {
     });
   }, []);
 
+  const [pendingVerification, setPendingVerification] = useState(null); // { name, email } while awaiting verification
+
   // ── Customer handlers (unchanged from original) ──────────────────────────
   const handleCustomerLogin = (c) => handleLogin(c);
 
-  const handleRegister = (newClient) => {
+  const handleRegister = async (newClient) => {
     const updated = { ...clients, [newClient.id]: newClient };
     setClients(updated);
     saveClients(updated);
-    handleLogin(newClient);
+    // Call Edge Function to send verification email
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/send-verification`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ email: newClient.email, clientName: newClient.name }),
+      });
+    } catch (e) {
+      console.error("Failed to send verification email:", e);
+    }
+    // Show "check your email" screen instead of logging in
+    setPendingVerification({ name: newClient.name, email: newClient.email });
   };
 
   const handleHandoffComplete = (handoffData) => {
@@ -8567,6 +8740,38 @@ export default function LonestarBark() {
       alignItems: "center", justifyContent: "center" }}>
       <style>{GLOBAL_STYLES}</style>
       <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa", fontSize: "16px" }}>Loading…</div>
+    </div>
+  );
+
+  // ── Email verification pending screen ─────────────────────────────────────
+  if (pendingVerification) return (
+    <div style={{ minHeight: "100vh", background: "#0B1423", display: "flex",
+      alignItems: "center", justifyContent: "center", padding: "24px" }}>
+      <style>{GLOBAL_STYLES}</style>
+      <div style={{ background: "#111827", borderRadius: "20px", padding: "40px 32px",
+        maxWidth: "420px", width: "100%", textAlign: "center",
+        border: "1.5px solid #1f2937", boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}>
+        <div style={{ fontSize: "48px", marginBottom: "16px" }}>📬</div>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
+          fontSize: "22px", color: "#fff", marginBottom: "12px" }}>
+          Check your email
+        </div>
+        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+          color: "#9ca3af", lineHeight: "1.7", marginBottom: "24px" }}>
+          We sent a verification link to <strong style={{ color: "#fff" }}>{pendingVerification.email}</strong>.
+          Click the link in that email to activate your account.
+        </p>
+        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+          color: "#6b7280", marginBottom: "24px" }}>
+          The link expires in 24 hours. Check your spam folder if you don't see it.
+        </p>
+        <button onClick={() => setPendingVerification(null)}
+          style={{ width: "100%", padding: "13px", borderRadius: "10px", border: "none",
+            background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
+            fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>
+          Back to Login
+        </button>
+      </div>
     </div>
   );
 
@@ -9804,6 +10009,19 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
   const chatContainerRef = useRef(null);
   const [chatInput, setChatInput] = useState("");
 
+  // ── Walker ↔ Walker DM state ──
+  const [msgSubTab, setMsgSubTab] = useState("team");
+  const [dmThread, setDmThread] = useState(null); // name of walker we're DMing
+  const [dmMessages, setDmMessages] = useState([]);
+  const [dmInput, setDmInput] = useState("");
+  const [dmLoading, setDmLoading] = useState(false);
+  const dmPollRef = useRef(null);
+  const dmBottomRef = useRef(null);
+  const dmContainerRef = useRef(null);
+  const [dmSeenMap, setDmSeenMap] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(`dwi_dm_seen_${walker?.id || 0}`) || "{}"); } catch { return {}; }
+  });
+
   // ── Walker ↔ Client direct messaging state ──
   const [selectedClientMsgEmail, setSelectedClientMsgEmail] = useState(null);
   const [clientMsgsByEmail, setClientMsgsByEmail]           = useState({});
@@ -10237,6 +10455,48 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     }
   }, [chatMessages]);
 
+  // DM thread polling — runs while a thread is open on the chat tab
+  useEffect(() => {
+    if (tab === "chat" && msgSubTab === "direct" && dmThread) {
+      setDmLoading(true);
+      loadDirectMessages(walker.name, dmThread).then(msgs => {
+        setDmMessages(msgs);
+        setDmLoading(false);
+        // Mark this thread as seen
+        const now = new Date().toISOString();
+        setDmSeenMap(prev => {
+          const next = { ...prev, [dmThread]: now };
+          try { localStorage.setItem(`dwi_dm_seen_${walker?.id || 0}`, JSON.stringify(next)); } catch {}
+          return next;
+        });
+      });
+      dmPollRef.current = setInterval(() => {
+        loadDirectMessages(walker.name, dmThread).then(setDmMessages);
+      }, 8000);
+    } else {
+      if (dmPollRef.current) { clearInterval(dmPollRef.current); dmPollRef.current = null; }
+    }
+    return () => { if (dmPollRef.current) { clearInterval(dmPollRef.current); dmPollRef.current = null; } };
+  }, [tab, msgSubTab, dmThread]);
+
+  // Auto-scroll DM thread
+  useEffect(() => {
+    const el = dmContainerRef.current;
+    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 100) {
+      dmBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [dmMessages]);
+
+  const sendDm = async () => {
+    if (!dmInput.trim() || !dmThread) return;
+    const text = dmInput.trim();
+    setDmInput("");
+    const tempMsg = { id: `tmp-${Date.now()}`, from: walker.name, text, sentAt: new Date().toISOString(), time: "Just now" };
+    setDmMessages(m => [...m, tempMsg]);
+    await saveDirectMessage(walker.name, dmThread, text);
+    loadDirectMessages(walker.name, dmThread).then(setDmMessages);
+  };
+
   const sendChat = async () => {
     if (!chatInput.trim()) return;
     const text = chatInput.trim();
@@ -10274,14 +10534,14 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     if (myKeyClients.length === 0) return;
     loadAllClientMsgs();
     clientMsgBgPollRef.current = setInterval(() => {
-      if (tab !== "clientmsgs") loadAllClientMsgs();
+      if (tab !== "chat" || msgSubTab !== "clients") loadAllClientMsgs();
     }, 30000);
     return () => { if (clientMsgBgPollRef.current) clearInterval(clientMsgBgPollRef.current); };
   }, []);
 
-  // Active poll: fast refresh only while on the clientmsgs tab
+  // Active poll: fast refresh only while on the clients sub-tab
   useEffect(() => {
-    if (tab === "clientmsgs") {
+    if (tab === "chat" && msgSubTab === "clients") {
       setClientMsgLoading(true);
       loadAllClientMsgs().then(() => setClientMsgLoading(false));
       clientMsgPollRef.current = setInterval(loadAllClientMsgs, 8000);
@@ -10289,7 +10549,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
       if (clientMsgPollRef.current) { clearInterval(clientMsgPollRef.current); clientMsgPollRef.current = null; }
     }
     return () => { if (clientMsgPollRef.current) { clearInterval(clientMsgPollRef.current); clientMsgPollRef.current = null; } };
-  }, [tab]);
+  }, [tab, msgSubTab]);
 
   // Mark conversation as seen when walker opens it
   const markClientMsgSeen = (clientEmail) => {
@@ -10379,8 +10639,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     available:  newAvailableBadge,
     payouts:    newPayoutsBadge,
     trades:     newTradesBadge,
-    chat:       unreadChatCount,
-    clientmsgs: unreadClientMsgCount,
+    chat:       unreadChatCount + unreadClientMsgCount,
   };
 
   const TABS = [
@@ -10390,12 +10649,11 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     { id: "completed",   label: "Completed Walks", icon: "✅" },
     { id: "availability",label: "Availability",    icon: "🗓" },
     { id: "myclients",   label: "My Clients",      icon: "🗝️" },
-    { id: "clientmsgs",  label: "Client Messages", icon: "💬" },
     { id: "payouts",     label: "Payouts",         icon: "💵" },
     { id: "invoices",    label: "Client Invoices", icon: "🧾" },
     { id: "trades",      label: "Shift Trades",    icon: "🔄" },
     { id: "schedulewalk",label: "Schedule Walk",   icon: "📆" },
-    { id: "chat",        label: "Team Chat",       icon: "💬" },
+    { id: "chat",        label: "Messages",        icon: "💬" },
     { id: "myinfo",      label: "My Info",         icon: "👤" },
   ];
 
@@ -10824,10 +11082,10 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                     unreadClientMsgCount > 0 && {
                       icon: "💬", color: "#7A4D6E", bg: "#F9F0F7", border: "#D8ABCF",
                       text: `${unreadClientMsgCount} unread client message${unreadClientMsgCount !== 1 ? "s" : ""}`,
-                      tab: "clientmsgs",
+                      tab: "chat", onNav: () => setMsgSubTab("clients"),
                     },
                   ].filter(Boolean).map((alert, i) => (
-                    <div key={i} onClick={() => changeTab(alert.tab)}
+                    <div key={i} onClick={() => { changeTab(alert.tab); if (alert.onNav) alert.onNav(); }}
                       style={{ display: "flex", alignItems: "center", gap: "12px",
                         padding: "11px 14px", borderRadius: "10px",
                         background: alert.bg, border: `1.5px solid ${alert.border}`,
@@ -12340,152 +12598,6 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
           </div>
         )}
 
-        {/* ── Client Messages ── */}
-        {tab === "clientmsgs" && (() => {
-          const accentGreen = "#C4541A";
-          const msgs = selectedClientMsgEmail ? (clientMsgsByEmail[selectedClientMsgEmail] || []) : [];
-          const selectedClientObj = selectedClientMsgEmail ? Object.values(clients).find(c => c.email === selectedClientMsgEmail) : null;
-
-          return (
-            <div className="fade-up">
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                fontWeight: 600, color: "#111827", marginBottom: "4px" }}>Client Messages</div>
-              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
-                marginBottom: "16px" }}>
-                Direct messages from your clients. Select a client to view the conversation.
-              </p>
-
-              {myKeyClients.length === 0 ? (
-                <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "16px",
-                  padding: "40px", textAlign: "center" }}>
-                  <div style={{ fontSize: "32px", marginBottom: "10px" }}>💬</div>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#9ca3af", fontSize: "15px" }}>
-                    You don't have any key clients yet.
-                  </div>
-                </div>
-              ) : !selectedClientMsgEmail ? (
-                /* ── Conversation list ── */
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {myKeyClients.map(c => {
-                    const convoMsgs = clientMsgsByEmail[c.email] || [];
-                    const lastMsg   = convoMsgs[convoMsgs.length - 1];
-                    const lastSeen  = clientMsgSeenMap[c.email] ? new Date(clientMsgSeenMap[c.email]) : null;
-                    const unread    = convoMsgs.filter(m => m.from !== walker.name && m.sentAt && (!lastSeen || new Date(m.sentAt) > lastSeen)).length;
-                    return (
-                      <button key={c.email} onClick={() => setSelectedClientMsgEmail(c.email)}
-                        className="hover-card"
-                        style={{ width: "100%", background: "#fff",
-                          border: unread > 0 ? "1.5px solid #8B5E3C" : "1.5px solid #e4e7ec",
-                          borderRadius: "14px", padding: "14px 16px", cursor: "pointer",
-                          textAlign: "left", display: "flex", alignItems: "center", gap: "14px" }}>
-                        <div style={{ width: "44px", height: "44px", borderRadius: "50%",
-                          background: unread > 0 ? "#C4541A" : "#f3f4f6",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: "20px", flexShrink: 0 }}>🐾</div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                            fontSize: "16px", color: "#111827", marginBottom: "2px" }}>{c.name}</div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                            color: "#9ca3af", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {lastMsg ? `${lastMsg.from === walker.name ? "You: " : ""}${lastMsg.text}` : "No messages yet"}
-                          </div>
-                        </div>
-                        <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
-                          {unread > 0 && (
-                            <span style={{ background: "#ef4444", color: "#fff", borderRadius: "10px",
-                              fontSize: "16px", fontWeight: 700, padding: "1px 7px", lineHeight: "16px",
-                              minWidth: "16px", textAlign: "center" }}>{unread}</span>
-                          )}
-                          {lastMsg && (
-                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                              color: "#d1d5db" }}>{lastMsg.time}</div>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                /* ── Individual conversation ── */
-                <div>
-                  <button onClick={() => setSelectedClientMsgEmail(null)} style={{
-                    background: "none", border: "none", color: "#6b7280", cursor: "pointer",
-                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px", marginBottom: "12px",
-                    display: "flex", alignItems: "center", gap: "6px", padding: 0 }}>
-                    ← Back to Messages
-                  </button>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                    fontSize: "15px", color: "#111827", marginBottom: "12px" }}>
-                    {selectedClientObj?.name || selectedClientMsgEmail}
-                  </div>
-                  <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
-                    borderRadius: "16px", overflow: "hidden" }}>
-                    <div ref={clientMsgContainerRef}
-                      style={{ padding: "16px 18px", height: "420px", overflowY: "auto",
-                        display: "flex", flexDirection: "column", gap: "14px" }}>
-                      {clientMsgLoading && msgs.length === 0 ? (
-                        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-                          fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
-                          Loading messages…
-                        </div>
-                      ) : msgs.length === 0 ? (
-                        <div style={{ flex: 1, display: "flex", flexDirection: "column",
-                          alignItems: "center", justifyContent: "center", gap: "8px" }}>
-                          <span style={{ fontSize: "32px" }}>💬</span>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                            color: "#9ca3af", textAlign: "center" }}>
-                            No messages yet. Say hello to {selectedClientObj?.name}!
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          {msgs.map(msg => {
-                            const isMine = msg.from === walker.name;
-                            return (
-                              <div key={msg.id} style={{ display: "flex", flexDirection: "column",
-                                alignItems: isMine ? "flex-end" : "flex-start" }}>
-                                {!isMine && (
-                                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                                    color: "#9ca3af", marginBottom: "4px", fontWeight: 600 }}>{msg.from}</div>
-                                )}
-                                <div style={{ padding: "10px 14px",
-                                  borderRadius: isMine ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
-                                  background: isMine ? accentBlue : "#f3f4f6",
-                                  color: isMine ? "#fff" : "#111827",
-                                  fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                                  maxWidth: "80%", lineHeight: "1.5" }}>
-                                  {msg.text}
-                                </div>
-                                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                                  color: "#d1d5db", marginTop: "3px" }}>{msg.time}</div>
-                              </div>
-                            );
-                          })}
-                          <div ref={clientMsgBottomRef} />
-                        </>
-                      )}
-                    </div>
-                    <div style={{ padding: "12px 16px", borderTop: "1px solid #f3f4f6",
-                      display: "flex", gap: "8px" }}>
-                      <input value={clientMsgInput} onChange={e => setClientMsgInput(e.target.value)}
-                        onKeyDown={e => e.key === "Enter" && sendWalkerMsg()}
-                        placeholder={`Message ${selectedClientObj?.name || "client"}…`}
-                        style={{ flex: 1, padding: "10px 14px", borderRadius: "10px",
-                          border: "1.5px solid #e4e7ec", background: "#fff",
-                          fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                          color: "#111827", outline: "none" }} />
-                      <button onClick={sendWalkerMsg} style={{
-                        padding: "10px 18px", borderRadius: "10px", border: "none",
-                        background: accentBlue, color: "#fff", fontFamily: "'DM Sans', sans-serif",
-                        fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>Send</button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })()}
-
         {/* ── Payouts ── */}
         {tab === "payouts" && (
           <div className="fade-up">
@@ -12946,7 +13058,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
                                   fontSize: "15px", color: offerKeySwap ? "#92400e" : "#374151" }}>
-                                  Include key meet & greet
+                                  Include key handoff
                                 </div>
                                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                                   color: "#9ca3af", marginTop: "1px" }}>
@@ -13128,6 +13240,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
             onDone={() => setTab("mywalks")}
             walkerProfiles={walkerProfiles}
             clientFilter={c => c.keyholder === walker.name}
+            hideWalker
           />
         )}
 
@@ -13135,70 +13248,295 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
         {tab === "chat" && (
           <div className="fade-up">
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-              fontWeight: 600, color: "#111827", marginBottom: "6px" }}>Walker Group Chat</div>
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
-              marginBottom: "16px" }}>Messages are saved and visible to the whole team.</p>
+              fontWeight: 600, color: "#111827", marginBottom: "14px" }}>Messages</div>
 
-            <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
-              borderRadius: "16px", overflow: "hidden" }}>
-              <div ref={chatContainerRef} style={{ padding: "16px 18px", height: "420px", overflowY: "auto",
-                display: "flex", flexDirection: "column", gap: "14px" }}>
-                {chatLoading && chatMessages.length === 0 ? (
-                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
-                    Loading messages…
-                  </div>
-                ) : chatMessages.length === 0 ? (
-                  <div style={{ flex: 1, display: "flex", flexDirection: "column",
-                    alignItems: "center", justifyContent: "center", gap: "8px" }}>
-                    <span style={{ fontSize: "32px" }}>💬</span>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
-                      No messages yet. Say hello!
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {chatMessages.map(msg => {
-                      const isMine = msg.from === walker.name;
-                      return (
-                        <div key={msg.id} style={{ display: "flex", flexDirection: "column",
-                          alignItems: isMine ? "flex-end" : "flex-start" }}>
-                          {!isMine && (
-                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                              color: "#9ca3af", marginBottom: "4px", fontWeight: 600 }}>{msg.from}</div>
-                          )}
-                          <div style={{
-                            padding: "10px 14px", borderRadius: isMine ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
-                            background: isMine ? accentBlue : "#f3f4f6",
-                            color: isMine ? "#fff" : "#111827",
-                            fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                            maxWidth: "80%", lineHeight: "1.5",
-                          }}>{msg.text}</div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                            color: "#d1d5db", marginTop: "3px" }}>{msg.time}</div>
-                        </div>
-                      );
-                    })}
-                    <div ref={chatBottomRef} />
-                  </>
-                )}
-              </div>
-              <div style={{ padding: "12px 16px", borderTop: "1px solid #f3f4f6",
-                display: "flex", gap: "8px" }}>
-                <input value={chatInput} onChange={e => setChatInput(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && sendChat()}
-                  placeholder="Type a message…"
-                  style={{ ...inputStyle, flex: 1 }} />
-                <button onClick={sendChat} style={{
-                  padding: "10px 18px", borderRadius: "10px", border: "none",
-                  background: accentBlue, color: "#fff", fontFamily: "'DM Sans', sans-serif",
-                  fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>Send</button>
-              </div>
+            {/* Sub-tab pills */}
+            <div style={{ display: "flex", gap: "8px", marginBottom: "18px" }}>
+              {[{ id: "team", label: "Team" }, { id: "direct", label: "Direct" }, { id: "clients", label: "Clients" }].map(st => {
+                const badge = st.id === "clients" ? unreadClientMsgCount : 0;
+                return (
+                  <button key={st.id} onClick={() => { setMsgSubTab(st.id); if (st.id === "team") setDmThread(null); }}
+                    style={{ padding: "8px 18px", borderRadius: "20px", cursor: "pointer",
+                      fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: msgSubTab === st.id ? 700 : 400,
+                      border: `1.5px solid ${msgSubTab === st.id ? accentBlue : "#e4e7ec"}`,
+                      background: msgSubTab === st.id ? accentBlue : "#fff",
+                      color: msgSubTab === st.id ? "#fff" : "#6b7280", transition: "all 0.12s",
+                      display: "flex", alignItems: "center", gap: "6px" }}>
+                    {st.label}
+                    {badge > 0 && (
+                      <span style={{ background: "#ef4444", color: "#fff", borderRadius: "10px",
+                        fontSize: "13px", fontWeight: 700, padding: "1px 6px", lineHeight: "16px" }}>{badge}</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
+
+            {/* ── Team Messages ── */}
+            {msgSubTab === "team" && (
+              <>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280", marginBottom: "14px" }}>
+                  Visible to the whole team.
+                </p>
+                <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "16px", overflow: "hidden" }}>
+                  <div ref={chatContainerRef} style={{ padding: "16px 18px", height: "420px", overflowY: "auto",
+                    display: "flex", flexDirection: "column", gap: "14px" }}>
+                    {chatLoading && chatMessages.length === 0 ? (
+                      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                        fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>Loading messages…</div>
+                    ) : chatMessages.length === 0 ? (
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                        <span style={{ fontSize: "32px" }}>💬</span>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>No messages yet. Say hello!</div>
+                      </div>
+                    ) : (
+                      <>
+                        {chatMessages.map(msg => {
+                          const isMine = msg.from === walker.name;
+                          return (
+                            <div key={msg.id} style={{ display: "flex", flexDirection: "column", alignItems: isMine ? "flex-end" : "flex-start" }}>
+                              {!isMine && <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af", marginBottom: "4px", fontWeight: 600 }}>{msg.from}</div>}
+                              <div style={{ padding: "10px 14px", borderRadius: isMine ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                                background: isMine ? accentBlue : "#f3f4f6", color: isMine ? "#fff" : "#111827",
+                                fontFamily: "'DM Sans', sans-serif", fontSize: "15px", maxWidth: "80%", lineHeight: "1.5" }}>{msg.text}</div>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#d1d5db", marginTop: "3px" }}>{msg.time}</div>
+                            </div>
+                          );
+                        })}
+                        <div ref={chatBottomRef} />
+                      </>
+                    )}
+                  </div>
+                  <div style={{ padding: "12px 16px", borderTop: "1px solid #f3f4f6", display: "flex", gap: "8px" }}>
+                    <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && sendChat()}
+                      placeholder="Type a message…"
+                      style={{ ...inputStyle, flex: 1 }} />
+                    <button onClick={sendChat} style={{ padding: "10px 18px", borderRadius: "10px", border: "none",
+                      background: accentBlue, color: "#fff", fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>Send</button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ── Direct Messages ── */}
+            {msgSubTab === "direct" && (() => {
+              const otherWalkers = getAllWalkers(walkerProfiles).filter(w => w.name !== walker.name);
+
+              // Thread view
+              if (dmThread) {
+                const threadWalker = otherWalkers.find(w => w.name === dmThread) || { name: dmThread, avatar: "🐾" };
+                return (
+                  <>
+                    <button onClick={() => setDmThread(null)} style={{ background: "none", border: "none",
+                      color: "#6b7280", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "15px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+                      ← Back to Direct Messages
+                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+                      <span style={{ fontSize: "24px" }}>{threadWalker.avatar}</span>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
+                        fontSize: "16px", color: "#111827" }}>{dmThread}</div>
+                    </div>
+                    <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "16px", overflow: "hidden" }}>
+                      <div ref={dmContainerRef} style={{ padding: "16px 18px", height: "400px", overflowY: "auto",
+                        display: "flex", flexDirection: "column", gap: "14px" }}>
+                        {dmLoading && dmMessages.length === 0 ? (
+                          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                            fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>Loading…</div>
+                        ) : dmMessages.length === 0 ? (
+                          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                            <span style={{ fontSize: "32px" }}>👋</span>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
+                              No messages yet. Start the conversation!
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            {dmMessages.map(msg => {
+                              const isMine = msg.from === walker.name;
+                              return (
+                                <div key={msg.id} style={{ display: "flex", flexDirection: "column", alignItems: isMine ? "flex-end" : "flex-start" }}>
+                                  <div style={{ padding: "10px 14px", borderRadius: isMine ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                                    background: isMine ? accentBlue : "#f3f4f6", color: isMine ? "#fff" : "#111827",
+                                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px", maxWidth: "80%", lineHeight: "1.5" }}>{msg.text}</div>
+                                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#d1d5db", marginTop: "3px" }}>{msg.time}</div>
+                                </div>
+                              );
+                            })}
+                            <div ref={dmBottomRef} />
+                          </>
+                        )}
+                      </div>
+                      <div style={{ padding: "12px 16px", borderTop: "1px solid #f3f4f6", display: "flex", gap: "8px" }}>
+                        <input value={dmInput} onChange={e => setDmInput(e.target.value)}
+                          onKeyDown={e => e.key === "Enter" && sendDm()}
+                          placeholder={`Message ${dmThread}…`}
+                          style={{ ...inputStyle, flex: 1 }} />
+                        <button onClick={sendDm} style={{ padding: "10px 18px", borderRadius: "10px", border: "none",
+                          background: accentBlue, color: "#fff", fontFamily: "'DM Sans', sans-serif",
+                          fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>Send</button>
+                      </div>
+                    </div>
+                  </>
+                );
+              }
+
+              // Walker list view
+              return (
+                <>
+                  <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280", marginBottom: "14px" }}>
+                    Send a private message to another walker.
+                  </p>
+                  {otherWalkers.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "48px 24px", background: "#fff",
+                      borderRadius: "16px", border: "1.5px solid #e4e7ec" }}>
+                      <div style={{ fontSize: "36px", marginBottom: "12px" }}>👥</div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>No other walkers yet.</div>
+                    </div>
+                  ) : otherWalkers.map(w => (
+                    <button key={w.id} onClick={() => setDmThread(w.name)}
+                      style={{ width: "100%", background: "#fff", border: "1.5px solid #e4e7ec",
+                        borderRadius: "14px", padding: "14px 18px", marginBottom: "10px",
+                        cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: "14px" }}>
+                      <span style={{ fontSize: "28px", flexShrink: 0 }}>{w.avatar}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                          fontSize: "16px", color: "#111827" }}>{w.name}</div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af" }}>
+                          {w.role || "Walker"}
+                        </div>
+                      </div>
+                      <span style={{ color: "#d1d5db", fontSize: "18px" }}>›</span>
+                    </button>
+                  ))}
+                </>
+              );
+            })()}
+
+            {/* ── Client Messages ── */}
+            {msgSubTab === "clients" && (() => {
+              const msgs = selectedClientMsgEmail ? (clientMsgsByEmail[selectedClientMsgEmail] || []) : [];
+              const selectedClientObj = selectedClientMsgEmail ? Object.values(clients).find(c => c.email === selectedClientMsgEmail) : null;
+              return (
+                <>
+                  {myKeyClients.length === 0 ? (
+                    <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "16px",
+                      padding: "40px", textAlign: "center" }}>
+                      <div style={{ fontSize: "32px", marginBottom: "10px" }}>💬</div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#9ca3af", fontSize: "15px" }}>
+                        You don't have any key clients yet.
+                      </div>
+                    </div>
+                  ) : !selectedClientMsgEmail ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      {myKeyClients.map(c => {
+                        const convoMsgs = clientMsgsByEmail[c.email] || [];
+                        const lastMsg   = convoMsgs[convoMsgs.length - 1];
+                        const lastSeen  = clientMsgSeenMap[c.email] ? new Date(clientMsgSeenMap[c.email]) : null;
+                        const unread    = convoMsgs.filter(m => m.from !== walker.name && m.sentAt && (!lastSeen || new Date(m.sentAt) > lastSeen)).length;
+                        return (
+                          <button key={c.email} onClick={() => setSelectedClientMsgEmail(c.email)}
+                            className="hover-card"
+                            style={{ width: "100%", background: "#fff",
+                              border: unread > 0 ? "1.5px solid #8B5E3C" : "1.5px solid #e4e7ec",
+                              borderRadius: "14px", padding: "14px 16px", cursor: "pointer",
+                              textAlign: "left", display: "flex", alignItems: "center", gap: "14px" }}>
+                            <div style={{ width: "44px", height: "44px", borderRadius: "50%",
+                              background: unread > 0 ? "#C4541A" : "#f3f4f6",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              fontSize: "20px", flexShrink: 0 }}>🐾</div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                                fontSize: "16px", color: "#111827", marginBottom: "2px" }}>{c.name}</div>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                                color: "#9ca3af", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {lastMsg ? `${lastMsg.from === walker.name ? "You: " : ""}${lastMsg.text}` : "No messages yet"}
+                              </div>
+                            </div>
+                            <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+                              {unread > 0 && (
+                                <span style={{ background: "#ef4444", color: "#fff", borderRadius: "10px",
+                                  fontSize: "13px", fontWeight: 700, padding: "1px 7px", lineHeight: "16px",
+                                  minWidth: "16px", textAlign: "center" }}>{unread}</span>
+                              )}
+                              {lastMsg && <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#d1d5db" }}>{lastMsg.time}</div>}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div>
+                      <button onClick={() => setSelectedClientMsgEmail(null)} style={{
+                        background: "none", border: "none", color: "#6b7280", cursor: "pointer",
+                        fontFamily: "'DM Sans', sans-serif", fontSize: "15px", marginBottom: "12px",
+                        display: "flex", alignItems: "center", gap: "6px", padding: 0 }}>
+                        ← Back to Clients
+                      </button>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                        fontSize: "15px", color: "#111827", marginBottom: "12px" }}>
+                        {selectedClientObj?.name || selectedClientMsgEmail}
+                      </div>
+                      <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "16px", overflow: "hidden" }}>
+                        <div ref={clientMsgContainerRef}
+                          style={{ padding: "16px 18px", height: "420px", overflowY: "auto",
+                            display: "flex", flexDirection: "column", gap: "14px" }}>
+                          {clientMsgLoading && msgs.length === 0 ? (
+                            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                              fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>Loading messages…</div>
+                          ) : msgs.length === 0 ? (
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column",
+                              alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                              <span style={{ fontSize: "32px" }}>💬</span>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                                color: "#9ca3af", textAlign: "center" }}>No messages yet. Say hello to {selectedClientObj?.name}!</div>
+                            </div>
+                          ) : (
+                            <>
+                              {msgs.map(msg => {
+                                const isMine = msg.from === walker.name;
+                                return (
+                                  <div key={msg.id} style={{ display: "flex", flexDirection: "column",
+                                    alignItems: isMine ? "flex-end" : "flex-start" }}>
+                                    {!isMine && <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                                      color: "#9ca3af", marginBottom: "4px", fontWeight: 600 }}>{msg.from}</div>}
+                                    <div style={{ padding: "10px 14px",
+                                      borderRadius: isMine ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                                      background: isMine ? accentBlue : "#f3f4f6",
+                                      color: isMine ? "#fff" : "#111827",
+                                      fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                                      maxWidth: "80%", lineHeight: "1.5" }}>{msg.text}</div>
+                                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                                      color: "#d1d5db", marginTop: "3px" }}>{msg.time}</div>
+                                  </div>
+                                );
+                              })}
+                              <div ref={clientMsgBottomRef} />
+                            </>
+                          )}
+                        </div>
+                        <div style={{ padding: "12px 16px", borderTop: "1px solid #f3f4f6", display: "flex", gap: "8px" }}>
+                          <input value={clientMsgInput} onChange={e => setClientMsgInput(e.target.value)}
+                            onKeyDown={e => e.key === "Enter" && sendWalkerMsg()}
+                            placeholder={`Message ${selectedClientObj?.name || "client"}…`}
+                            style={{ flex: 1, padding: "10px 14px", borderRadius: "10px",
+                              border: "1.5px solid #e4e7ec", background: "#fff",
+                              fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                              color: "#111827", outline: "none" }} />
+                          <button onClick={sendWalkerMsg} style={{ padding: "10px 18px", borderRadius: "10px", border: "none",
+                            background: accentBlue, color: "#fff", fontFamily: "'DM Sans', sans-serif",
+                            fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>Send</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
-
-        {/* ── My Clients ── */}
         {tab === "myclients" && (() => {
           const myClients = Object.values(clients).filter(c => c.keyholder === walker.name);
           return (
