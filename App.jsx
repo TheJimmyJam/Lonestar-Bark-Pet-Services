@@ -8033,17 +8033,19 @@ function WalkerApplicationPage({ onBack }) {
         }),
       });
       if (!res.ok) throw new Error(await res.text());
-      notifyAdmin("new_applicant", {
-        name: `${form.firstName.trim()} ${form.lastName.trim()}`,
-        email: form.email.trim(),
-        phone: form.phone,
-        city: form.city,
-        hasExp: form.hasDogExp === true,
-      });
       setDone(true);
     } catch {
       setErrors({ submit: "Something went wrong. Please try again." });
+      return;
     } finally { setSubmit(false); }
+    // Notify admins outside try/catch so it always fires
+    notifyAdmin("new_applicant", {
+      name: `${form.firstName.trim()} ${form.lastName.trim()}`,
+      email: form.email.trim(),
+      phone: form.phone,
+      city: form.city,
+      hasExp: form.hasDogExp === true,
+    });
   };
 
   return (
