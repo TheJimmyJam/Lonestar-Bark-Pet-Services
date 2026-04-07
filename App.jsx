@@ -16555,6 +16555,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
   };
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [expandedKpi, setExpandedKpi] = useState(null);
+  const [kpiWalkDetail, setKpiWalkDetail] = useState(null);
   const [expandedBooking, setExpandedBooking] = useState(null);
   const [completingKey, setCompletingKey] = useState(null);
   const [undoingKey, setUndoingKey] = useState(null);
@@ -17168,19 +17169,65 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                     </div>
                     {weekCompletedList.length === 0
                       ? <div style={emptyStyle}>No completed walks this week.</div>
-                      : weekCompletedList.map((b, i) => (
-                      <div key={i} style={{ ...rowStyle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div>
-                          <div style={{ fontWeight: 600, color: "#111827", fontSize: "15px" }}>{b.clientName}</div>
-                          <div style={{ fontSize: "15px", color: "#9ca3af" }}>
-                            {new Date(b.completedAt || b.scheduledDateTime || b.bookedAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-                            {b.form?.walker ? ` · ${b.form.walker}` : ""}
-                          </div>
-                        </div>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                          fontWeight: 600, color: amber }}>${effectivePrice(b)}</div>
-                      </div>
-                    ))}
+                      : weekCompletedList.map((b, i) => {
+                          const isDetailOpen = kpiWalkDetail?.key === b.key;
+                          return (
+                            <div key={i}>
+                              <div onClick={() => setKpiWalkDetail(isDetailOpen ? null : b)}
+                                style={{ ...rowStyle, display: "flex", justifyContent: "space-between",
+                                  alignItems: "center", cursor: "pointer",
+                                  background: isDetailOpen ? "#fffbeb" : "transparent",
+                                  margin: "0 -16px", padding: "10px 16px", transition: "background 0.15s" }}>
+                                <div>
+                                  <div style={{ fontWeight: 600, color: "#111827", fontSize: "15px" }}>
+                                    {b.clientName} · {b.form?.pet || "Pet"}
+                                  </div>
+                                  <div style={{ fontSize: "14px", color: "#9ca3af" }}>
+                                    {new Date(b.completedAt || b.scheduledDateTime || b.bookedAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                                    {b.form?.walker ? ` · ${b.form.walker}` : ""}
+                                    {" · "}{b.slot?.duration || "30 min"}
+                                  </div>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                                    fontWeight: 600, color: amber }}>${effectivePrice(b)}</div>
+                                  <span style={{ color: "#d1d5db", fontSize: "12px" }}>{isDetailOpen ? "▲" : "▾"}</span>
+                                </div>
+                              </div>
+                              {isDetailOpen && (
+                                <div style={{ background: "#fffbeb", border: "1px solid #fde68a",
+                                  borderRadius: "10px", padding: "12px 14px", margin: "0 0 8px",
+                                  fontFamily: "'DM Sans', sans-serif", fontSize: "14px" }}>
+                                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                                    {[
+                                      ["Client", b.clientName],
+                                      ["Pet", b.form?.pet || "—"],
+                                      ["Walker", b.form?.walker || "Unassigned"],
+                                      ["Date", new Date(b.scheduledDateTime || b.bookedAt).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })],
+                                      ["Time", b.slot?.time || "—"],
+                                      ["Duration", b.slot?.duration || "30 min"],
+                                      ["Service", b.service === "cat" ? "Cat-sitting" : b.isOvernight ? "Overnight" : "Dog walk"],
+                                      ["Amount", `$${effectivePrice(b)}`],
+                                    ].map(([label, val]) => (
+                                      <div key={label}>
+                                        <div style={{ color: "#9ca3af", fontSize: "11px", fontWeight: 600,
+                                          textTransform: "uppercase", letterSpacing: "0.8px" }}>{label}</div>
+                                        <div style={{ color: "#111827", fontWeight: 500, marginTop: "2px" }}>{val}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  {b.form?.notes && (
+                                    <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px solid #fde68a" }}>
+                                      <div style={{ color: "#9ca3af", fontSize: "11px", fontWeight: 600,
+                                        textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "3px" }}>Notes</div>
+                                      <div style={{ color: "#374151" }}>{b.form.notes}</div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                     <div style={{ display: "flex", justifyContent: "space-between",
                       padding: "10px 0 2px", fontFamily: "'DM Sans', sans-serif",
                       fontSize: "16px", fontWeight: 700, color: "#111827", borderTop: "2px solid #f3f4f6", marginTop: "4px" }}>
@@ -17211,10 +17258,13 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       {walkerRows.length === 0
                         ? <div style={emptyStyle}>No data yet.</div>
                         : walkerRows.map((r, i) => (
-                        <div key={i} style={{ ...rowStyle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div key={i} onClick={() => { if (r.walker) { changeTab("walkers"); setSelectedWalkerId(r.walker.id); setExpandedKpi(null); } }}
+                          style={{ ...rowStyle, display: "flex", justifyContent: "space-between", alignItems: "center",
+                            cursor: r.walker ? "pointer" : "default" }}>
                           <div>
                             <span style={{ fontWeight: 500, color: "#111827" }}>{r.walker?.avatar || "🐾"} {r.name}</span>
                             <span style={{ color: "#9ca3af", marginLeft: "6px" }}>({r.count} walks)</span>
+                            {r.walker && <span style={{ color: "#7A4D6E", fontSize: "12px", marginLeft: "6px" }}>→ profile</span>}
                           </div>
                           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                             fontWeight: 600, color: "#7A4D6E" }}>${r.revenue}</div>
@@ -17258,10 +17308,13 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       {walkerProfitRows(completedBookings).length === 0
                         ? <div style={emptyStyle}>No completed walks yet.</div>
                         : walkerProfitRows(completedBookings).map((r, i) => (
-                        <div key={i} style={{ ...rowStyle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div key={i} onClick={() => { if (r.walker) { changeTab("walkers"); setSelectedWalkerId(r.walker.id); setExpandedKpi(null); } }}
+                          style={{ ...rowStyle, display: "flex", justifyContent: "space-between", alignItems: "center",
+                            cursor: r.walker ? "pointer" : "default" }}>
                           <div>
                             <div style={{ fontWeight: 600, color: "#111827", fontSize: "15px" }}>
                               {r.walker?.avatar || "🐾"} {r.name}
+                              {r.walker && <span style={{ color: "#059669", fontSize: "12px", marginLeft: "6px" }}>→ profile</span>}
                             </div>
                             <div style={{ fontSize: "15px", color: "#9ca3af" }}>
                               {r.count} walk{r.count !== 1 ? "s" : ""} · payout ${r.payout}
@@ -17837,7 +17890,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                           transition: "border-color 0.2s, box-shadow 0.2s",
                           boxShadow: isOpen ? `0 4px 16px ${s.color}18` : "none",
                           cursor: "pointer" }}
-                        onClick={() => setExpandedKpi(isOpen ? null : s.id)}>
+                        onClick={() => { setExpandedKpi(isOpen ? null : s.id); if (isOpen) setKpiWalkDetail(null); }}>
                         <div style={{ padding: "14px 16px", position: "relative" }}>
                           <div style={{ position: "absolute", top: "12px", right: "12px",
                             fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
