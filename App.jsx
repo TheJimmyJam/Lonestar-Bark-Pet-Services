@@ -1775,7 +1775,7 @@ function ScheduleWalkSection({ title, children }) {
   );
 }
 
-function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", doneLabel = "View in Bookings →", walkerProfiles = {}, allowHistorical = false }) {
+function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", doneLabel = "View in Bookings →", walkerProfiles = {}, allowHistorical = false, clientFilter = null }) {
   const TIME_SLOTS = [];
   for (let h = 7; h <= 19; h++) {
     for (const m of [0, 30]) {
@@ -2038,6 +2038,7 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
           style={{ ...iStyle(errors.client), color: form.clientId ? "#111827" : "#9ca3af" }}>
           <option value="">— Choose a client —</option>
           {Object.values(clients)
+            .filter(c => !clientFilter || clientFilter(c))
             .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
             .map(c => {
               const pets = [...(c.dogs || c.pets || []), ...(c.cats || [])];
@@ -11805,36 +11806,38 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                   background: sameAsLastWeekFlash ? "#6B3E1A" : "#C4541A",
                   borderRadius: "14px", padding: "16px 20px", marginBottom: "20px",
                   display: "flex", alignItems: "center", justifyContent: "space-between",
-                  gap: "16px", flexWrap: "wrap",
+                  gap: "12px",
                   boxShadow: "0 4px 16px rgba(26,107,74,0.25)",
                   transition: "background 0.3s ease",
                 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <span style={{ fontSize: "22px" }}>📋</span>
-                    <div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
-                        fontSize: "16px", color: "#fff", marginBottom: "2px" }}>
-                        {sameAsLastWeekFlash ? "✓ Schedule copied from last week!" : "Repeat last week's schedule"}
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: "22px", flexShrink: 0 }}>📋</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
+                          fontSize: "16px", color: "#fff" }}>
+                          {sameAsLastWeekFlash ? "✓ Schedule copied from last week!" : "Repeat last week's schedule"}
+                        </div>
+                        {!sameAsLastWeekFlash && (
+                          <button onClick={applySameAsLastWeek} style={{
+                            padding: "5px 14px", borderRadius: "8px", border: "2px solid rgba(255,255,255,0.5)",
+                            background: "rgba(255,255,255,0.15)", color: "#fff",
+                            fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 700,
+                            cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
+                            transition: "all 0.15s ease",
+                          }}>
+                            Use Last Week's Hours →
+                          </button>
+                        )}
                       </div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                        color: "rgba(255,255,255,0.75)" }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                        color: "rgba(255,255,255,0.75)", marginTop: "3px" }}>
                         {sameAsLastWeekFlash
                           ? "Your availability has been filled in — review and save below."
-                          : `Copy your availability from ${prevWeekDates[0].toLocaleDateString("en-US",{month:"short",day:"numeric"})}–${prevWeekDates[6].toLocaleDateString("en-US",{month:"short",day:"numeric"})} to this week`}
+                          : `Copy availability from ${prevWeekDates[0].toLocaleDateString("en-US",{month:"short",day:"numeric"})}–${prevWeekDates[6].toLocaleDateString("en-US",{month:"short",day:"numeric"})}`}
                       </div>
                     </div>
                   </div>
-                  {!sameAsLastWeekFlash && (
-                    <button onClick={applySameAsLastWeek} style={{
-                      padding: "10px 22px", borderRadius: "10px", border: "2px solid rgba(255,255,255,0.5)",
-                      background: "rgba(255,255,255,0.15)", color: "#fff",
-                      fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 700,
-                      cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
-                      transition: "all 0.15s ease",
-                    }}>
-                      Use Last Week's Hours →
-                    </button>
-                  )}
                 </div>
               );
             })()}
@@ -12887,6 +12890,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
             doneLabel="View My Schedule →"
             onDone={() => setTab("mywalks")}
             walkerProfiles={walkerProfiles}
+            clientFilter={c => c.keyholder === walker.name}
           />
         )}
 
@@ -13805,14 +13809,19 @@ function AdminMapView({ clients, walkerProfiles, geoCache, setGeoCache }) {
       iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -20],
     });
 
-    // Helper: rounded-square walker icon
-    const walkerIcon = (color, avatar) => L.divIcon({
-      className: "",
-      html: `<div style="width:40px;height:40px;border-radius:10px;background:${color};
-        border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,0.35);
-        display:flex;align-items:center;justify-content:center;font-size:20px">${avatar}</div>`,
-      iconSize: [40, 40], iconAnchor: [20, 20], popupAnchor: [0, -22],
-    });
+    // Helper: rounded-square walker icon with initials
+    const walkerIcon = (color, name) => {
+      const initials = (name || "?").split(" ").map(p => p[0] || "").join("").slice(0, 2).toUpperCase();
+      return L.divIcon({
+        className: "",
+        html: `<div style="width:40px;height:40px;border-radius:10px;background:${color};
+          border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,0.35);
+          display:flex;align-items:center;justify-content:center;
+          font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;
+          color:#fff;letter-spacing:0.5px">${initials}</div>`,
+        iconSize: [40, 40], iconAnchor: [20, 20], popupAnchor: [0, -22],
+      });
+    };
 
     const jitter = () => (Math.random() - 0.5) * 0.0025;
     const plotted = {};
@@ -13858,7 +13867,7 @@ function AdminMapView({ clients, walkerProfiles, geoCache, setGeoCache }) {
     walkersWithAddr.forEach(({ w, prof, addr }) => {
       if (!geoCache[addr]) return;
       const { lat, lng } = geoCache[addr];
-      L.marker([lat, lng], { icon: walkerIcon(w.color || "#C4541A", w.avatar || "🐾"), zIndexOffset: 1000 })
+      L.marker([lat, lng], { icon: walkerIcon(w.color || "#C4541A", w.name || ""), zIndexOffset: 1000 })
         .addTo(map)
         .bindPopup(`
           <div style="font-family:'DM Sans',sans-serif;min-width:170px;padding:2px">
@@ -16957,6 +16966,10 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
           const t = TABS[0];
           return (
             <button key={t.id} onClick={() => { changeTab(t.id); document.querySelector('[data-scroll-pane]')?.scrollTo({ top: 0, behavior: 'instant' }); }} style={{
+              padding: "10px 14px", border: "none", whiteSpace: "nowrap",
+              background: "transparent", flexShrink: 0,
+              borderBottom: tab === t.id ? `3px solid ${amber}` : "3px solid transparent",
+              borderRight: "1px solid #6B4420",
               color: tab === t.id ? "#fff" : "rgba(255,255,255,0.65)",
               fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
               fontWeight: tab === t.id ? 600 : 400,
@@ -16974,6 +16987,14 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
             const badgeCount = notifCounts[t.id] || 0;
             return (
               <button key={t.id} onClick={() => { changeTab(t.id); document.querySelector('[data-scroll-pane]')?.scrollTo({ top: 0, behavior: 'instant' }); }} style={{
+                padding: "10px 14px", border: "none", whiteSpace: "nowrap", background: "transparent",
+                borderBottom: tab === t.id ? `3px solid ${amber}` : "3px solid transparent",
+                color: tab === t.id ? "#fff" : "rgba(255,255,255,0.65)",
+                fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                fontWeight: tab === t.id ? 600 : 400,
+                cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
+                display: "flex", alignItems: "center", gap: "5px", flexShrink: 0,
+                position: "relative",
               }}>
                 <span style={{ fontSize: "15px" }}>{t.icon}</span> {t.label}
                 {badgeCount > 0 && (
