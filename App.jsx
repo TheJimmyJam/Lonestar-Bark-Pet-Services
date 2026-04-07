@@ -4316,6 +4316,23 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     return null;
   });
 
+  // Auto-reload invoices when returning from successful payment
+  useEffect(() => {
+    if (paymentBanner?.type === "success") {
+      loadInvoicesFromDB().then(invRows => {
+        const fresh = { ...clients };
+        Object.keys(fresh).forEach(cid => { fresh[cid] = { ...fresh[cid], invoices: [] }; });
+        invRows.forEach(inv => {
+          if (fresh[inv._clientId]) {
+            const { _clientId, ...invData } = inv;
+            fresh[inv._clientId].invoices = [...(fresh[inv._clientId].invoices || []), invData];
+          }
+        });
+        setClients(fresh);
+      });
+    }
+  }, [paymentBanner]);
+
   // ── Client ↔ Walker messaging state ──
   const [clientMsgs, setClientMsgs]       = useState([]);
   const [clientMsgLoading, setClientMsgLoading] = useState(false);
@@ -8575,13 +8592,61 @@ export default function LonestarBark() {
     if (payment === "success" && invoiceId) {
       window.history.replaceState({}, "", window.location.pathname);
       const now = new Date().toISOString();
-      // Update invoices table directly — mergeInvoicesIntoClients will pick it up on load
+      // Update invoices table directly
       updateInvoiceInDB(invoiceId, { status: "paid", paidAt: now });
-      // Store in localStorage so we can show a success banner after login
+      // Store success banner flag
       try { localStorage.setItem("dwi_payment_success", invoiceId); } catch {}
+      // Retrieve stored client ID for auto-login
+      let returnClientId = "";
+      try { returnClientId = localStorage.getItem("dwi_stripe_return_clientId") || ""; localStorage.removeItem("dwi_stripe_return_clientId"); } catch {}
+      if (returnClientId) {
+        // Load fresh data then auto-login the client
+        Promise.all([loadClients(), loadWalkerProfiles(), loadTrades(), loadInvoicesFromDB(), loadAdminList()]).then(([c, wp, tr, invRows, admins]) => {
+          injectCustomWalkers(wp);
+          const extended = extendRecurringBookings(c);
+          if (extended !== c) saveClients(extended);
+          const withInvoices = mergeInvoicesIntoClients(extended, invRows);
+          setClients(withInvoices);
+          setWalkerProfiles(wp);
+          setTrades(tr);
+          setAdminList(admins);
+          setLoading(false);
+          // Auto-login the returning client
+          const returningClient = withInvoices[returnClientId];
+          if (returningClient) {
+            setSelectedRole("customer");
+            setShowApp(true);
+            setActiveUser(returningClient);
+          }
+        });
+        return; // Skip the second Promise.all below
+      }
     } else if (payment === "cancelled") {
       window.history.replaceState({}, "", window.location.pathname);
       try { localStorage.setItem("dwi_payment_cancelled", "1"); } catch {}
+      // Retrieve stored client ID for auto-login on cancel too
+      let returnClientId = "";
+      try { returnClientId = localStorage.getItem("dwi_stripe_return_clientId") || ""; localStorage.removeItem("dwi_stripe_return_clientId"); } catch {}
+      if (returnClientId) {
+        Promise.all([loadClients(), loadWalkerProfiles(), loadTrades(), loadInvoicesFromDB(), loadAdminList()]).then(([c, wp, tr, invRows, admins]) => {
+          injectCustomWalkers(wp);
+          const extended = extendRecurringBookings(c);
+          if (extended !== c) saveClients(extended);
+          const withInvoices = mergeInvoicesIntoClients(extended, invRows);
+          setClients(withInvoices);
+          setWalkerProfiles(wp);
+          setTrades(tr);
+          setAdminList(admins);
+          setLoading(false);
+          const returningClient = withInvoices[returnClientId];
+          if (returningClient) {
+            setSelectedRole("customer");
+            setShowApp(true);
+            setActiveUser(returningClient);
+          }
+        });
+        return;
+      }
     }
 
     if (token) {
@@ -14753,6 +14818,8 @@ function StripePaymentModal({ invoice, client, onClose, onPaid }) {
       });
       const data = await res.json();
       if (data.url) {
+        // Store client ID so we can auto-login on return from Stripe
+        try { localStorage.setItem("dwi_stripe_return_clientId", client?.id || ""); } catch {}
         window.location.href = data.url;
       } else {
         setError(data.error || "Something went wrong. Please try again.");
