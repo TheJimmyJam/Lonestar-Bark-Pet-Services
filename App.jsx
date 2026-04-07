@@ -4634,6 +4634,18 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       const updatedClients = { ...clients, [client.id]: updated };
       setClients(updatedClients);
       saveClients(updatedClients);
+      // Notify admins of new client booking
+      newBookings.forEach(b => {
+        notifyAdmin("new_booking", {
+          clientName: client.name,
+          pet: form.pet,
+          date: b.date,
+          time: b.slot?.time || "—",
+          duration: b.slot?.duration || "—",
+          walker: form.walker || "Unassigned",
+          price: b.price || 0,
+        });
+      });
       setSubmitting(false);
       setStep("confirm");
     }, 800);
