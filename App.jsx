@@ -8851,7 +8851,7 @@ export default function LonestarBark() {
   return (
     <CustomerErrorBoundary>
       <BookingApp
-        client={activeUser}
+        client={clients[activeUser.id] || activeUser}
         onLogout={handleLogout}
         clients={clients}
         setClients={handleSetClients}
