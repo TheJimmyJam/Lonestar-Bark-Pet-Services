@@ -90,7 +90,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 async function notifyAdmin(type, data) {
   try {
-    fetch(`${SUPABASE_URL}/functions/v1/notify-admin`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/notify-admin`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -98,8 +98,10 @@ async function notifyAdmin(type, data) {
       },
       body: JSON.stringify({ type, data }),
     });
+    const body = await res.json();
+    console.log(`[notifyAdmin] ${type} → ${res.status}`, body);
   } catch (e) {
-    console.error("notifyAdmin failed:", e);
+    console.error("[notifyAdmin] failed:", e);
   }
 }
 
