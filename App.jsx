@@ -8666,7 +8666,6 @@ export default function LonestarBark() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
       },
       body: JSON.stringify({ email: newClient.email, clientName: newClient.name }),
     }).catch(e => console.error("Failed to send verification email:", e));
