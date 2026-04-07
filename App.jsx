@@ -16274,7 +16274,6 @@ function AdminDemoDataSection({ clients, setClients, walkerProfiles, setWalkerPr
 
   const handleGenerate = async () => {
     setStatus("generating");
-    // Small delay so the UI updates before the heavy sync work
     await new Promise(r => setTimeout(r, 80));
     const { demoWalkerProfiles, demoClients } = buildDemoData();
     const newWalkers = { ...walkerProfiles, ...demoWalkerProfiles };
@@ -16282,12 +16281,35 @@ function AdminDemoDataSection({ clients, setClients, walkerProfiles, setWalkerPr
     injectCustomWalkers(newWalkers);
     setWalkerProfiles(newWalkers);
     setClients(newClients);
+    await Promise.all([saveClients(newClients), saveWalkerProfiles(newWalkers)]);
     setStatus("done");
   };
 
   const handleRemove = async () => {
     setStatus("removing");
     await new Promise(r => setTimeout(r, 80));
+
+    // Collect demo record identifiers for Supabase deletion
+    const demoClientPins = Object.entries(clients)
+      .filter(([, c]) => c.isDemo).map(([pin]) => pin);
+    const demoWalkerIds = Object.entries(walkerProfiles)
+      .filter(([, w]) => w.isDemo).map(([id]) => id);
+
+    // Delete demo rows from Supabase (upsert won't remove them)
+    try {
+      if (demoClientPins.length > 0) {
+        const pinList = demoClientPins.map(p => `"${p}"`).join(",");
+        await sbFetch(`clients?pin=in.(${pinList})`,
+          { method: "DELETE", headers: { "Prefer": "" } });
+      }
+      if (demoWalkerIds.length > 0) {
+        await sbFetch(`walkers?walker_id=in.(${demoWalkerIds.join(",")})`,
+          { method: "DELETE", headers: { "Prefer": "" } });
+      }
+    } catch (e) {
+      console.error("Demo data Supabase deletion failed:", e);
+    }
+
     const { cleanClients, cleanWalkers } = removeDemoData(clients, walkerProfiles);
     injectCustomWalkers(cleanWalkers);
     setWalkerProfiles(cleanWalkers);
