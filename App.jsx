@@ -4290,12 +4290,7 @@ function QuickRebookBanner({ client, service, myBookings, clients, setClients, o
 
 function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {} }) {
   const [page, setPage] = useState("overview");
-  const [service, setService] = useState(() => {
-    const hasDogs = (client.dogs || client.pets || []).filter(Boolean).length > 0;
-    const hasCats = (client.cats || []).filter(Boolean).length > 0;
-    if (!hasDogs && hasCats) return "cat";
-    return "dog";
-  });
+  const [service, setService] = useState("dog");
   const [paymentBanner, setPaymentBanner] = useState(() => {
     try {
       const success = localStorage.getItem("dwi_payment_success");
@@ -4388,7 +4383,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   });
   // Convenience: selected walks for active day
   const selectedWalks = walksByDay[activeDay] || [{ slotId: "", duration: null }];
-  const setSelectedWalks = (newWalks) => setWalksByDay(prev => ({ ...prev, [activeDay]: newWalks }));
+  const setSelectedWalks = (newWalksOrFn) => setWalksByDay(prev => {
+    const current = prev[activeDay] || [{ slotId: "", duration: null }];
+    const newWalks = typeof newWalksOrFn === "function" ? newWalksOrFn(current) : newWalksOrFn;
+    return { ...prev, [activeDay]: newWalks };
+  });
   // Legacy alias for compatibility
   const selectedDay = activeDay;
   const weekDates = getWeekDates(weekOffset);
@@ -6014,11 +6013,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         <>
           <div style={{ background: "#fff", borderBottom: "1px solid #e4e7ec",
             display: "flex", justifyContent: "center" }}>
-            {Object.values(SERVICES).filter(s => {
-              if (s.id === "dog") return savedDogs.length > 0;
-              if (s.id === "cat") return savedCats.length > 0;
-              return true;
-            }).map(s => {
+            {Object.values(SERVICES).map(s => {
               const active = service === s.id;
               return (
                 <button key={s.id} className="slot-btn"
@@ -6702,7 +6697,14 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     Your Walker
                   </div>
                   <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "4px" }}>
-                    {getAllWalkers(walkerProfiles).map(w => {
+                    {(() => {
+                      const all = getAllWalkers(walkerProfiles);
+                      const preferred = client.preferredWalker;
+                      return [
+                        ...all.filter(w => w.name === preferred),
+                        ...all.filter(w => w.name !== preferred),
+                      ];
+                    })().map(w => {
                       const isPreferred = w.name === (client.preferredWalker || getAllWalkers(walkerProfiles)[0]?.name);
                       const isSelected = form.walker === w.name;
                       const walkerDateSlots = walkerAvailability[w.id]?.[selectedDateKey] || [];
@@ -8633,6 +8635,7 @@ function WalkerApplicationPage({ onBack }) {
 class CustomerErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(e) { return { error: e }; }
+  componentDidCatch(error, info) { console.error("CustomerErrorBoundary caught:", error, info); }
   render() {
     if (this.state.error) {
       return (
@@ -8647,6 +8650,13 @@ class CustomerErrorBoundary extends Component {
             <div style={{ fontSize: "15px", color: "#6b7280", marginBottom: "24px" }}>
               Please refresh the page and try again.
             </div>
+            {this.state.error && (
+              <div style={{ fontSize: "12px", color: "#9ca3af", marginBottom: "16px",
+                fontFamily: "monospace", textAlign: "left", background: "#f9fafb",
+                padding: "10px", borderRadius: "8px", wordBreak: "break-all" }}>
+                {this.state.error.toString()}
+              </div>
+            )}
             <button onClick={() => window.location.reload()}
               style={{ padding: "12px 28px", borderRadius: "10px", border: "none",
                 background: "#C4541A", color: "#fff", fontSize: "15px",
