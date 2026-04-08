@@ -19506,8 +19506,32 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                   const isDeleting   = deletingKey === b.key;
                   const isEditing    = editingBookingKey === b.key;
                   const isPast       = new Date(b.scheduledDateTime || b.bookedAt) <= now;
-
                   const isUnassigned = !isCompleted && !b.form?.walker;
+
+                  // ── Meet & Greet card ──
+                  if (b.isHandoff) return (
+                    <div key={b.key} style={{ background: "#F5EFF3", border: "1.5px solid #C4A0B8",
+                      borderRadius: "14px", marginBottom: "10px", padding: "14px 18px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "3px" }}>
+                            <span style={{ fontSize: "18px" }}>🤝</span>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                              fontSize: "16px", color: "#7A4D6E" }}>Meet & Greet · 15 min</div>
+                          </div>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280", marginBottom: "2px" }}>
+                            📅 {b.day}, {b.date} · {b.slot?.time}
+                          </div>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
+                            👤 {b.clientName} &nbsp;·&nbsp;
+                            🦺 {b.form?.walker || <span style={{ color: "#dc2626", fontWeight: 600 }}>Unassigned</span>}
+                          </div>
+                        </div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                          color: "#9ca3af", fontStyle: "italic", flexShrink: 0, marginLeft: "12px" }}>Free</div>
+                      </div>
+                    </div>
+                  );
 
                   const borderColor = isEditing
                     ? "2px solid #b45309"
@@ -19859,7 +19883,8 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                   const q = bookingSearch.toLowerCase();
                   return (b.clientName || "").toLowerCase().includes(q)
                     || (b.form?.walker || "").toLowerCase().includes(q)
-                    || (b.form?.pet    || "").toLowerCase().includes(q);
+                    || (b.form?.pet    || "").toLowerCase().includes(q)
+                    || (b.isHandoff && "meet greet".includes(q));
                 };
                 const sortedUpcoming = upcoming.filter(bookingMatchesSearch).slice().sort((a, b) =>
                   new Date(a.scheduledDateTime || a.bookedAt) - new Date(b.scheduledDateTime || b.bookedAt));
