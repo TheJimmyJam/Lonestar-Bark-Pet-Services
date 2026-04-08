@@ -4290,7 +4290,12 @@ function QuickRebookBanner({ client, service, myBookings, clients, setClients, o
 
 function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {} }) {
   const [page, setPage] = useState("overview");
-  const [service, setService] = useState("dog");
+  const [service, setService] = useState(() => {
+    const hasDogs = (client.dogs || client.pets || []).filter(Boolean).length > 0;
+    const hasCats = (client.cats || []).filter(Boolean).length > 0;
+    if (!hasDogs && hasCats) return "cat";
+    return "dog";
+  });
   const [paymentBanner, setPaymentBanner] = useState(() => {
     try {
       const success = localStorage.getItem("dwi_payment_success");
@@ -6009,7 +6014,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         <>
           <div style={{ background: "#fff", borderBottom: "1px solid #e4e7ec",
             display: "flex", justifyContent: "center" }}>
-            {Object.values(SERVICES).map(s => {
+            {Object.values(SERVICES).filter(s => {
+              if (s.id === "dog") return savedDogs.length > 0;
+              if (s.id === "cat") return savedCats.length > 0;
+              return true;
+            }).map(s => {
               const active = service === s.id;
               return (
                 <button key={s.id} className="slot-btn"
