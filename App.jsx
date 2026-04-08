@@ -82,13 +82,17 @@ const WALKER_SERVICES = [
   { id: "pet-transportation", label: "Pet Transportation", icon: "🚗", color: "#b45309", bg: "#fffbeb", border: "#fde68a" },
   { id: "overnight-stays",    label: "Overnight Stays",    icon: "🌙", color: "#7A4D6E", bg: "#F7F0F5", border: "#E8D0E0" },
 ];
-// Generate 30-min meet & greet slots 8:00 AM – 7:00 PM
-const ALL_HANDOFF_SLOTS = [
-  { id: "morning",   label: "8am – 11am",  time: "8am – 11am",  hour: 8,  minute: 0 },
-  { id: "midday",    label: "11am – 2pm",  time: "11am – 2pm",  hour: 11, minute: 0 },
-  { id: "afternoon", label: "2pm – 5pm",   time: "2pm – 5pm",   hour: 14, minute: 0 },
-  { id: "evening",   label: "5pm – 8pm",   time: "5pm – 8pm",   hour: 17, minute: 0 },
-];
+// Hourly meet & greet slots 8:00 AM – 7:00 PM (15 min appointment)
+const ALL_HANDOFF_SLOTS = (() => {
+  const slots = [];
+  for (let h = 8; h <= 19; h++) {
+    const hour12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
+    const ampm   = h < 12 ? "AM" : "PM";
+    const label  = `${hour12}:00 ${ampm}`;
+    slots.push({ id: `h${h}`, label, time: label, hour: h, minute: 0 });
+  }
+  return slots;
+})();
 // ─── Supabase Configuration ───────────────────────────────────────────────────
 // !! PASTE YOUR VALUES BELOW — replace the placeholder strings !!
 const SUPABASE_URL = "https://mvkmxmhsudqwxrsiifms.supabase.co";
