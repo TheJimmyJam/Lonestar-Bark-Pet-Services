@@ -7587,7 +7587,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
               { icon: "🐈", color: "#3D6B7A", light: "#EBF4F6", border: "#8EBCC6",
                 title: "Cat-sitting", desc: "Your cat gets one-on-one attention from their dedicated sitter — in the comfort of home, on their own terms. Every visit is tailored to your cat's routine, with feeding, playtime, litter box care, and plenty of affection." },
               { icon: "🌙", color: "#7A4D6E", light: "#F5EFF3", border: "#C4A0B8",
-                title: "Overnight Stays", desc: "Because some trips are longer than a walk can cover. We've got your pet — tucked in, loved on, and right at home.\n\n🏡 At our place — $100/night\n🔑 At your place — $150/night" },
+                title: "Overnight Stays", desc: "When you're away overnight, your pet stays comfortable in their own home with a dedicated sitter by their side.\n\n🏡 At our place — $100/night\n🔑 At your place — $150/night" },
               { icon: "🚗", color: "#b45309", light: "#fffbeb", border: "#fde68a",
                 title: "Pet Transportation", desc: "Vet visit? Groomer calling? We'll handle the ride so you don't have to. Your pet travels safely and stress-free with someone they already trust — door to door, no detours.\n\n*Prices vary based on size and distance." },
             ].map(svc => (
