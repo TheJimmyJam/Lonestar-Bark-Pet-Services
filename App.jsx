@@ -1095,11 +1095,8 @@ const GLOBAL_STYLES = `
   /* Landing services grid: stack on mobile, 2×2 on wider screens */
   .lp-services-grid {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 16px;
-  }
-  @media (min-width: 600px) {
-    .lp-services-grid { grid-template-columns: 1fr 1fr; }
   }
 
   /* Landing how-it-works steps: 1-col mobile, 2-col tablet, 3-col desktop */
@@ -7586,7 +7583,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           <div className="lp-services-grid">
             {[
               { icon: "🐕", color: "#C4541A", light: "#FDF5EC", border: "#D4A843",
-                title: "Dog-walking", desc: "Your dog walks one-on-one with their dedicated walker — never in a large group, never rushed. Personalized 30 or 60-minute walks tailored to your dog's pace and personality, with flexible scheduling up to 5x per week and tiered pricing that rewards frequency." },
+                title: "Dog-walking", desc: "Your dog walks one-on-one with their dedicated walker — never in a large group, never rushed. Every walk is personalized to your dog's pace, personality, and needs, with flexible scheduling that fits your life." },
               { icon: "🐈", color: "#3D6B7A", light: "#EBF4F6", border: "#8EBCC6",
                 title: "Cat-sitting", desc: "30 or 60-minute in-home visits for your feline friend. Feeding, playtime, litter box care, and plenty of affection while you're away. Same pricing as dog-walking." },
               { icon: "🌙", color: "#7A4D6E", light: "#F5EFF3", border: "#C4A0B8",
