@@ -14895,36 +14895,27 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                                 )}
                               </div>
                             ))}
-                            <div style={{ display: "flex", justifyContent: "space-between",
-                              paddingTop: "10px", marginTop: "4px",
-                              borderTop: "2px solid #e4e7ec",
-                              fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 700 }}>
-                              <span style={{ color: "#9ca3af" }}>Total</span>
-                              <span style={{ color: meta.effectiveStatus === "paid" ? "#059669" : "#111827" }}>
-                                ${inv.total}
-                              </span>
-                            </div>
-                            {inv.gratuity > 0 && (
-                              <div style={{ display: "flex", justifyContent: "space-between",
-                                alignItems: "center", marginTop: "8px", padding: "8px 12px",
-                                background: "#FDF5EC", borderRadius: "8px",
-                                border: "1.5px solid #D4A87A",
-                                fontFamily: "'DM Sans', sans-serif" }}>
-                                <div>
-                                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#C4541A" }}>
-                                    🤝 Gratuity (100% to walker)
-                                  </div>
-                                  {(inv.items || []).find(it => it.walker) && (
-                                    <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px" }}>
-                                      For {inv.items.find(it => it.walker)?.walker}
-                                    </div>
-                                  )}
-                                </div>
-                                <div style={{ fontSize: "15px", fontWeight: 700, color: "#C4541A" }}>
-                                  +${Number(inv.gratuity).toFixed(2)}
-                                </div>
+                            <div style={{ borderTop: "2px solid #e4e7ec", paddingTop: "10px",
+                              marginTop: "4px", display: "flex", flexDirection: "column", gap: "6px",
+                              fontFamily: "'DM Sans', sans-serif" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px" }}>
+                                <span style={{ color: "#9ca3af" }}>Walk Total</span>
+                                <span style={{ fontWeight: 600, color: "#111827" }}>${inv.total}</span>
                               </div>
-                            )}
+                              {inv.gratuity > 0 && (
+                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px" }}>
+                                  <span style={{ color: "#C4541A", fontWeight: 500 }}>🤝 Gratuity (to walker)</span>
+                                  <span style={{ fontWeight: 600, color: "#C4541A" }}>+${Number(inv.gratuity).toFixed(2)}</span>
+                                </div>
+                              )}
+                              <div style={{ display: "flex", justifyContent: "space-between",
+                                borderTop: "1px solid #e4e7ec", paddingTop: "6px", fontSize: "15px", fontWeight: 700 }}>
+                                <span style={{ color: "#9ca3af" }}>Total</span>
+                                <span style={{ color: meta.effectiveStatus === "paid" ? "#059669" : "#111827" }}>
+                                  ${(inv.total + (inv.gratuity || 0)).toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
                             <div style={{ fontFamily: "'DM Sans', sans-serif",
                               fontSize: "12px", color: "#9ca3af", marginTop: "8px" }}>
                               {inv.id}
@@ -15747,6 +15738,7 @@ function AdminInvoicesTab({ clients, setClients }) {
   const overdueCount = allInvoices.filter(inv => invoiceStatusMeta(inv.status, inv.dueDate).effectiveStatus === "overdue").length;
   const paidTotal = allInvoices.filter(inv => inv.status === "paid").reduce((s, inv) => s + (inv.total || 0), 0);
   const pendingTotal = allInvoices.filter(inv => inv.status === "sent").reduce((s, inv) => s + (inv.total || 0), 0);
+  const gratuityOwed = allInvoices.filter(inv => inv.status === "paid" && inv.gratuity > 0).reduce((s, inv) => s + (inv.gratuity || 0), 0);
 
   return (
     <div className="fade-up">
@@ -15899,6 +15891,7 @@ function AdminInvoicesTab({ clients, setClients }) {
               { label: "Overdue", value: `${overdueCount}`, sub: "unpaid past due", color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
               { label: "Collected", value: fmt(paidTotal, true), sub: "total paid", color: green, bg: "#FDF5EC", border: "#D4A843" },
               { label: "Uninvoiced", value: `${bulkWalkCount}`, sub: `${bulkClientCount} client${bulkClientCount !== 1 ? "s" : ""}`, color: "#3D6B7A", bg: "#EBF4F6", border: "#8ECAD4" },
+              { label: "🤝 Gratuities Owed", value: gratuityOwed > 0 ? fmt(gratuityOwed, true) : "—", sub: "to walkers", color: "#059669", bg: "#f0fdf4", border: "#a8d5bf" },
             ].map(kpi => (
               <div key={kpi.label} style={{ background: kpi.bg, border: `1.5px solid ${kpi.border}`,
                 borderRadius: "14px", padding: "16px 18px" }}>
