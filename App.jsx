@@ -3649,6 +3649,18 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
 
 // ─── Main Booking App ─────────────────────────────────────────────────────────
 // ─── Client My Info Page ──────────────────────────────────────────────────────
+function MyInfoSection({ title, children }) {
+  return (
+    <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
+      borderRadius: "14px", padding: "20px", marginBottom: "12px" }}>
+      <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
+        fontSize: "15px", letterSpacing: "1.5px", textTransform: "uppercase",
+        color: "#9ca3af", marginBottom: "16px" }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
 function ClientMyInfoPage({ client, clients, setClients }) {
   const green = "#C4541A";
   const [infoSaved, setInfoSaved] = useState(false);
@@ -3673,7 +3685,7 @@ function ClientMyInfoPage({ client, clients, setClients }) {
   const [newPinTemp, setNewPinTemp] = useState("");
 
   // Dirty check — compare draft to live client
-  const isDirty = (() => {
+  const isDirty = useMemo(() => {
     if (draft.name !== (client.name || "")) return true;
     if (draft.email !== (client.email || "")) return true;
     if (draft.phone !== (client.phone || "")) return true;
@@ -3687,7 +3699,7 @@ function ClientMyInfoPage({ client, clients, setClients }) {
     if (JSON.stringify(dogs) !== JSON.stringify(client.dogs || [])) return true;
     if (JSON.stringify(cats) !== JSON.stringify(client.cats || [])) return true;
     return false;
-  })();
+  }, [draft, client]);
 
   // Scroll/navigation guard
   useEffect(() => {
@@ -3696,17 +3708,18 @@ function ClientMyInfoPage({ client, clients, setClients }) {
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
-  const labelStyle = {
+  const labelStyle = useMemo(() => ({
     display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
     fontWeight: 600, letterSpacing: "1.5px", textTransform: "uppercase",
     color: "#9ca3af", marginBottom: "6px",
-  };
-  const fieldStyle = {
+  }), []);
+
+  const fieldStyle = useMemo(() => ({
     width: "100%", padding: "11px 14px", borderRadius: "10px",
     border: "1.5px solid #d1d5db", background: "#fff",
     fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
     color: "#111827", outline: "none", boxSizing: "border-box",
-  };
+  }), []);
 
   const handleSave = () => {
     const validDogs = draft.dogs.map(d => d.trim()).filter(Boolean);
@@ -3753,16 +3766,6 @@ function ClientMyInfoPage({ client, clients, setClients }) {
       setNewPinTemp(""); setPinSection("enter-new");
     }
   };
-
-  const Section = ({ title, children }) => (
-    <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
-      borderRadius: "14px", padding: "20px", marginBottom: "12px" }}>
-      <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
-        fontSize: "15px", letterSpacing: "1.5px", textTransform: "uppercase",
-        color: "#9ca3af", marginBottom: "16px" }}>{title}</div>
-      {children}
-    </div>
-  );
 
   return (
     <div className="app-container fade-up">
@@ -3835,7 +3838,7 @@ function ClientMyInfoPage({ client, clients, setClients }) {
         </div>
       )}
 
-      <Section title="Personal Info">
+      <MyInfoSection title="Personal Info">
         <div style={{ marginBottom: "12px" }}>
           <label style={labelStyle}>Full Name</label>
           <input value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
@@ -3858,15 +3861,15 @@ function ClientMyInfoPage({ client, clients, setClients }) {
             onFocus={e => e.target.style.borderColor = green}
             onBlur={e => e.target.style.borderColor = "#d1d5db"} />
         </div>
-      </Section>
+      </MyInfoSection>
 
-      <Section title="Home Address">
+      <MyInfoSection title="Home Address">
         <AddressFields value={draft.addrObj}
           onChange={(obj) => setDraft(d => ({ ...d, addrObj: obj }))}
           inputBaseStyle={{ padding: "11px 14px", fontSize: "16px" }} />
-      </Section>
+      </MyInfoSection>
 
-      <Section title="Vet Information 🏥">
+      <MyInfoSection title="Vet Information 🏥">
         <div style={{ marginBottom: "12px" }}>
           <label style={labelStyle}>Vet Name</label>
           <input value={draft.vetName} onChange={e => setDraft(d => ({ ...d, vetName: e.target.value }))}
@@ -3891,9 +3894,9 @@ function ClientMyInfoPage({ client, clients, setClients }) {
             onFocus={e => e.target.style.borderColor = green}
             onBlur={e => e.target.style.borderColor = "#d1d5db"} />
         </div>
-      </Section>
+      </MyInfoSection>
 
-      <Section title="Your Dogs 🐕">
+      <MyInfoSection title="Your Dogs 🐕">
         {draft.dogs.map((dog, i) => (
           <div key={i} style={{ display: "flex", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
             <input value={dog}
@@ -3915,9 +3918,9 @@ function ClientMyInfoPage({ client, clients, setClients }) {
             color: green, fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 500, cursor: "pointer" }}>
           + Add Dog
         </button>
-      </Section>
+      </MyInfoSection>
 
-      <Section title="Your Cats 🐈">
+      <MyInfoSection title="Your Cats 🐈">
         {draft.cats.length === 0 && (
           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
             color: "#d1d5db", fontStyle: "italic", marginBottom: "8px" }}>No cats on file</div>
@@ -3941,15 +3944,15 @@ function ClientMyInfoPage({ client, clients, setClients }) {
             color: "#3D6B7A", fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 500, cursor: "pointer" }}>
           + Add Cat
         </button>
-      </Section>
+      </MyInfoSection>
 
-      <Section title="Notes for Walkers">
+      <MyInfoSection title="Notes for Walkers">
         <textarea value={draft.notes} onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))}
           rows={3} placeholder="Leash preferences, allergies, entry instructions…"
           style={{ ...fieldStyle, resize: "vertical", lineHeight: "1.6" }}
           onFocus={e => e.target.style.borderColor = green}
           onBlur={e => e.target.style.borderColor = "#d1d5db"} />
-      </Section>
+      </MyInfoSection>
       <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
         borderRadius: "14px", padding: "20px", marginBottom: "32px" }}>
         <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
@@ -4866,25 +4869,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 ))}
               </div>
             </div>
-
-            {/* Quick rebook — dog */}
-            <QuickRebookBanner
-              client={client}
-              service="dog"
-              myBookings={myBookings}
-              clients={clients}
-              setClients={setClients}
-              onBooked={() => setPage("mywalks")}
-            />
-            {/* Quick rebook — cat */}
-            <QuickRebookBanner
-              client={client}
-              service="cat"
-              myBookings={myBookings}
-              clients={clients}
-              setClients={setClients}
-              onBooked={() => setPage("mywalks")}
-            />
 
             {/* Quick action */}
             <button onClick={() => setPage("book")} style={{
@@ -6377,14 +6361,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   </div>
                 )}
 
-                <QuickRebookBanner
-                  client={client}
-                  service={service}
-                  myBookings={myBookings}
-                  clients={clients}
-                  setClients={setClients}
-                  onBooked={() => setPage("mywalks")}
-                />
 
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                     marginBottom: "10px" }}>
@@ -17680,7 +17656,9 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
 
   // Profit: revenue minus walker payout (flat rates per duration/tier)
   const totalWalkerPayout = completedBookings.reduce((s, b) => s + getWalkerPayout(b), 0);
-  const weekWalkerPayout = weekCompleted.reduce((s, b) => s + getWalkerPayout(b), 0);
+  const weekWalkerPayout = completedBookings
+    .filter(b => new Date(b.completedAt || b.scheduledDateTime || b.bookedAt) >= wMon)
+    .reduce((s, b) => s + getWalkerPayout(b), 0);
   const totalProfit = totalRevenue - totalWalkerPayout;
   const weekProfit = weekRevenue - weekWalkerPayout;
 
