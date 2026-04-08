@@ -86,8 +86,8 @@ const WALKER_SERVICES = [
 function generateHandoffSlots() {
   const slots = [];
   for (let h = 8; h <= 18; h++) {
-    ["00", "30"].forEach(m => {
-      if (h === 18 && m === "30") return; // stop at 7:00 PM
+    ["00", "15", "30", "45"].forEach(m => {
+      if (h === 18 && m !== "00") return; // stop at 6:15 PM
       const hour12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
       const ampm = h < 12 ? "AM" : "PM";
       slots.push({ id: `h${h}${m}`, time: `${hour12}:${m} ${ampm}`, hour: h, minute: parseInt(m) });
@@ -772,13 +772,6 @@ function fmt(n, dollars = false) {
   return dollars ? `$${formatted}` : formatted;
 }
 
-// Like fmt but preserves cents when the value isn't a whole number
-function fmtPrice(n) {
-  const num = typeof n === "string" ? parseFloat(n) : n;
-  if (isNaN(num)) return "$0";
-  return num % 1 === 0 ? `$${num}` : `$${num.toFixed(2)}`;
-}
-
 function formatPhone(raw) {
   const digits = (raw || "").replace(/\D/g, "").slice(0, 10);
   if (digits.length <= 3) return digits;
@@ -1263,7 +1256,6 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
     { id: "about", label: "Our Team", icon: "👥" },
     ...(client.keyholder ? [{ id: "messages", label: "Messages", icon: "💬" }] : []),
     { id: "myinfo", label: "My Info", icon: "👤" },
-    { id: "contact", label: "Contact Us", icon: "✉️" },
   ];
   const [pinned, ...rest] = clientTabs;
   return (
@@ -3144,12 +3136,13 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
   // Helper: compute follow-on walk start time (meet & greet slot + 30 min)
   const getFollowOnTime = () => {
     if (!selSlot) return null;
-    const totalMins = selSlot.hour * 60 + selSlot.minute + 30;
+    const totalMins = selSlot.hour * 60 + selSlot.minute + 15;
     const h = Math.floor(totalMins / 60);
     const m = totalMins % 60;
     const hour12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
     const ampm = h < 12 ? "AM" : "PM";
-    return { time: `${hour12}:${m === 0 ? "00" : "30"} ${ampm}`, hour: h, minute: m };
+    const mStr = m === 0 ? "00" : m === 15 ? "15" : m === 30 ? "30" : "45";
+    return { time: `${hour12}:${mStr} ${ampm}`, hour: h, minute: m };
   };
 
   const sendCode = () => setCodeSent(true);
@@ -3426,24 +3419,6 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
               </div>
             )}
 
-            {selSlot && (
-              <div ref={detailsSectionRef} style={{ marginBottom: "24px" }} className="fade-up">
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
-                  letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px" }}>
-                  Preferred Walker (optional)
-                </div>
-                <select value={selWalker} onChange={e => setSelWalker(e.target.value)} style={{
-                  width: "100%", padding: "12px 14px", borderRadius: "10px",
-                  border: "1.5px solid #d1d5db", background: "#fff", fontSize: "16px",
-                  fontFamily: "'DM Sans', sans-serif", color: selWalker ? "#111827" : "#9ca3af",
-                  cursor: "pointer", appearance: "none",
-                }}>
-                  <option value="">No preference</option>
-                  {getAllWalkers(walkerProfiles).map(w => <option key={w.id} value={w.name}>{w.name} — {w.role}</option>)}
-                </select>
-              </div>
-            )}
-
             {/* Phone + Address — required before confirming */}
             {selSlot && (
               <div className="fade-up" style={{ marginBottom: "20px", display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -3507,7 +3482,7 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
                         🐕 Add a walk after the meet & greet
                       </div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#6b7280" }}>
-                        Schedule a 30 or 60 min walk immediately following your meet & greet
+                        Schedule a 30 or 60 min walk immediately following your 15-min meet & greet
                         {followOn ? ` (starts at ${followOn.time})` : ""}.
                       </div>
                     </div>
@@ -3607,7 +3582,7 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
                   fontSize: "16px", color: "#C4541A", letterSpacing: "1px",
                   textTransform: "uppercase", marginBottom: "12px" }}>Your bookings</div>
                 {[
-                  { icon: "🤝", label: "Meet & Greet", time: selSlot?.time, dur: "30 min", price: null },
+                  { icon: "🤝", label: "Meet & Greet", time: selSlot?.time, dur: "15 min", price: null },
                   { icon: "🐕", label: "First Walk", time: getFollowOnTime().time, dur: followOnDuration, price: fmt(getSessionPrice(followOnDuration, 1), true) },
                 ].map((row, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px",
@@ -4360,7 +4335,17 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     return 0;
   })();
   const [weekOffset, setWeekOffset] = useState(minWeekOffset);
-  const [selectedDay, setSelectedDay] = useState(() => {
+  const [selectedDays, setSelectedDays] = useState(() => {
+    // Auto-select the first non-disabled day
+    const startDates = getWeekDates(minWeekOffset);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startDates[i]); d.setHours(0, 0, 0, 0);
+      if (d >= today && (!handoffMidnight || d >= handoffMidnight)) return new Set([i]);
+    }
+    return new Set([0]);
+  });
+  const [activeDay, setActiveDay] = useState(() => {
     const startDates = getWeekDates(minWeekOffset);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     for (let i = 0; i < 7; i++) {
@@ -4369,6 +4354,25 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     }
     return 0;
   });
+  // walksByDay: { [dayIndex]: [{slotId, duration}] }
+  const [walksByDay, setWalksByDay] = useState(() => {
+    const startDates = getWeekDates(minWeekOffset);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startDates[i]); d.setHours(0, 0, 0, 0);
+      if (d >= today && (!handoffMidnight || d >= handoffMidnight)) return { [i]: [{ slotId: "", duration: null }] };
+    }
+    return { 0: [{ slotId: "", duration: null }] };
+  });
+  // Convenience: selected walks for active day
+  const selectedWalks = walksByDay[activeDay] || [{ slotId: "", duration: null }];
+  const setSelectedWalks = (newWalksOrFn) => setWalksByDay(prev => {
+    const current = prev[activeDay] || [{ slotId: "", duration: null }];
+    const newWalks = typeof newWalksOrFn === "function" ? newWalksOrFn(current) : newWalksOrFn;
+    return { ...prev, [activeDay]: newWalks };
+  });
+  // Legacy alias for compatibility
+  const selectedDay = activeDay;
   const weekDates = getWeekDates(weekOffset);
   const dateStr = (i) => dateStrFromDate(weekDates[i]);
   const [selectedSlot, setSelectedSlot] = useState(null);
@@ -4378,7 +4382,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const savedPets = service === "dog" ? savedDogs : savedCats;
   const [form, setForm] = useState({ name: client.name || "", pet: (service === "dog" ? savedDogs : savedCats).slice(-1)[0] || "", email: client.email, phone: client.phone || "", address: client.address || "", addrObj: addrFromString(client.address || ""), walker: client.preferredWalker || "", notes: client.notes || "" });
   const [additionalDogs, setAdditionalDogs] = useState([]);
-  const [selectedWalks, setSelectedWalks] = useState([{ slotId: "", duration: null }]);
   const [isRecurring, setIsRecurring] = useState(false);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -4581,47 +4584,54 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     if (Object.keys(e).length) { setErrors(e); return; }
     setSubmitting(true);
     setTimeout(() => {
-      const validWalks = selectedWalks.filter(w => w.slotId && w.duration);
-      const primarySlot = svc.slots.find(s => s.id === validWalks[0]?.slotId);
+      const newBookings = [];
 
-      const newBookings = validWalks.map(w => {
-        const slot = svc.slots.find(s => s.id === w.slotId);
-        if (!slot) return null;
-        const apptDate = new Date(weekDates[selectedDay]);
-        const [timePart, meridiem] = slot.time.split(" ");
-        let [hours, minutes] = timePart.split(":").map(Number);
-        if (meridiem === "PM" && hours !== 12) hours += 12;
-        if (meridiem === "AM" && hours === 12) hours = 0;
-        apptDate.setHours(hours, minutes || 0, 0, 0);
-        return {
-          key: bookingKey(service, selectedDay, slot.id),
-          service, day: FULL_DAYS[selectedDay], date: dateStr(selectedDay),
-          slot: { ...slot, duration: w.duration },
-          form: { ...form, additionalDogs }, bookedAt: new Date().toISOString(),
-          scheduledDateTime: apptDate.toISOString(),
-          additionalDogCount: additionalDogs.length,
-          additionalDogCharge: additionalDogs.length * 10,
-          price: 0, priceTier: "",
-          recurringId: isRecurring && w === validWalks[0] ? `rec_${service}_${selectedDay}_${slot.id}` : undefined,
-        };
-      }).filter(Boolean);
+      // Loop over every selected day and its walks
+      Array.from(selectedDays).sort((a, b) => a - b).forEach(dayIdx => {
+        const dayWalks = (walksByDay[dayIdx] || []).filter(w => w.slotId && w.duration);
+        dayWalks.forEach(w => {
+          const slot = svc.slots.find(s => s.id === w.slotId);
+          if (!slot) return;
+          const apptDate = new Date(weekDates[dayIdx]);
+          const [timePart, meridiem] = slot.time.split(" ");
+          let [hours, minutes] = timePart.split(":").map(Number);
+          if (meridiem === "PM" && hours !== 12) hours += 12;
+          if (meridiem === "AM" && hours === 12) hours = 0;
+          apptDate.setHours(hours, minutes || 0, 0, 0);
+          newBookings.push({
+            key: bookingKey(service, dayIdx, slot.id),
+            service, day: FULL_DAYS[dayIdx], date: dateStrFromDate(weekDates[dayIdx]),
+            slot: { ...slot, duration: w.duration },
+            form: { ...form, additionalDogs }, bookedAt: new Date().toISOString(),
+            scheduledDateTime: apptDate.toISOString(),
+            additionalDogCount: additionalDogs.length,
+            additionalDogCharge: additionalDogs.length * 10,
+            price: 0, priceTier: "",
+          });
+        });
+      });
 
+      // Append new bookings then reprice
       const allBookings = applySameDayDiscount(repriceWeekBookings([...myBookings, ...newBookings]));
 
+      // Save address, phone, and all dog/cat names back to client profile
       const petKey = service === "dog" ? "dogs" : "cats";
       const existingPets = client[petKey] || (service === "dog" ? (client.pets || []) : []);
       const allNewPetNames = [form.pet.trim(), ...additionalDogs.map(d => d.trim())].filter(Boolean);
       const mergedPets = [...existingPets];
       allNewPetNames.forEach(n => { if (!mergedPets.includes(n)) mergedPets.push(n); });
 
+      // Recurring schedule — only for first walk on active day (single day, single walk)
       const existingRecurring = client.recurringSchedules || [];
       let updatedRecurring = existingRecurring;
-      if (isRecurring && primarySlot) {
-        const recurringId = `rec_${service}_${selectedDay}_${primarySlot.id}`;
+      const activeDayWalks = (walksByDay[activeDay] || []).filter(w => w.slotId && w.duration);
+      const primarySlot = svc.slots.find(s => s.id === activeDayWalks[0]?.slotId);
+      if (isRecurring && primarySlot && selectedDays.size === 1) {
+        const recurringId = `rec_${service}_${activeDay}_${primarySlot.id}`;
         const newSchedule = {
-          id: recurringId, service, dayOfWeek: selectedDay,
+          id: recurringId, service, dayOfWeek: activeDay,
           slotId: primarySlot.id, slotTime: primarySlot.time,
-          duration: validWalks[0].duration,
+          duration: activeDayWalks[0].duration,
           form: { ...form, additionalDogs },
           additionalDogCount: additionalDogs.length,
           createdAt: new Date().toISOString(), cancelledWeeks: [],
@@ -4629,7 +4639,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         updatedRecurring = [...existingRecurring.filter(r => r.id !== recurringId), newSchedule];
       }
 
-      if (primarySlot) setSelectedSlot({ ...primarySlot, duration: validWalks[0].duration });
+      if (primarySlot) setSelectedSlot({ ...primarySlot, duration: activeDayWalks[0]?.duration });
 
       const updated = {
         ...client, bookings: allBookings,
@@ -4643,6 +4653,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       setClients(updatedClients);
       saveClients(updatedClients);
 
+      // Notify admins
       newBookings.forEach(b => {
         notifyAdmin("new_booking", {
           clientName: client.name, pet: form.pet,
@@ -4661,7 +4672,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     const pets = service === "dog" ? savedDogs : savedCats;
     setForm({ name: client.name || "", pet: pets.slice(-1)[0] || "", email: client.email, phone: client.phone || "", address: client.address || "", addrObj: addrFromString(client.address || ""), walker: client.preferredWalker || "", notes: client.notes || "" });
     setAdditionalDogs([]);
-    setSelectedWalks([{ slotId: "", duration: null }]);
+    setWalksByDay({ [activeDay]: [{ slotId: "", duration: null }] });
+    setSelectedDays(new Set([activeDay]));
     setIsRecurring(false);
     setErrors({}); setMapCoords(null); setMapError(null);
   };
@@ -4804,7 +4816,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               {renderKpiCard({
                 label: "Current Tier",
                 value: currentTier.label,
-                sub: `${fmtPrice(currentTier.prices["30 min"])}/30 min · ${fmtPrice(currentTier.prices["60 min"])}/60 min`,
+                sub: `$${currentTier.prices["30 min"]}/30 min · $${currentTier.prices["60 min"]}/60 min`,
                 accent: tierColor[currentTier.label],
                 onClick: () => setPage("pricing"),
               })}
@@ -4876,35 +4888,33 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
             border: `1.5px solid ${weekBookingCount >= 5 ? "#3D6B7A" : weekBookingCount >= 3 ? "#C4541A" : "#e4e7ec"}` }}>
             <div style={{ padding: "12px 14px",
               background: weekBookingCount >= 5 ? "#EBF4F6" : weekBookingCount >= 3 ? "#FDF5EC" : "#f9fafb",
-              display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "6px", marginBottom: "2px" }}>
-                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                    fontSize: "15px", color: "#111827", whiteSpace: "nowrap" }}>
-                    {currentTier.label} rate
-                  </span>
-                  <span style={{ fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap",
+              display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                  fontSize: "15px", color: "#111827", marginBottom: "2px" }}>
+                  {currentTier.label} rate this week
+                  <span style={{ marginLeft: "8px", fontSize: "15px", fontWeight: 500,
                     padding: "2px 8px", borderRadius: "20px",
                     background: weekBookingCount >= 5 ? "#3D6B7A" : weekBookingCount >= 3 ? "#C4541A" : "#e4e7ec",
                     color: weekBookingCount >= 1 ? "#fff" : "#6b7280" }}>
-                    {weekBookingCount} this week
+                    {weekBookingCount} booked this week
                   </span>
                 </div>
                 {bookingsUntilNextTier > 0 && (
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280" }}>
-                    {bookingsUntilNextTier} more to unlock <strong>{nextTier.label}</strong>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#6b7280" }}>
+                    {bookingsUntilNextTier} more walk{bookingsUntilNextTier !== 1 ? "s" : ""} to unlock <strong>{nextTier.label}</strong> pricing
                   </div>
                 )}
                 {weekBookingCount >= 5 && (
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#3D6B7A" }}>
-                    Best rate active 🎉
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#3D6B7A" }}>
+                    Best rate active — saving vs. Easy Rider 🎉
                   </div>
                 )}
               </div>
               <div style={{ textAlign: "right", flexShrink: 0 }}>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                  fontWeight: 600, color: "#111827" }}>{fmtPrice(currentTier.prices["30 min"])}</div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>30 min</div>
+                  fontWeight: 600, color: "#111827" }}>${currentTier.prices["30 min"]}</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>30 min</div>
               </div>
             </div>
           </div>
@@ -4939,7 +4949,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       padding: "8px 12px", textAlign: "center" }}>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af", marginBottom: "2px" }}>{dur}</div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", textTransform: "uppercase", letterSpacing: "1px",
-                        fontWeight: 600, color: "#111827" }}>{fmtPrice(price)}</div>
+                        fontWeight: 600, color: "#111827" }}>${price}</div>
                     </div>
                   ))}
                 </div>
@@ -5187,7 +5197,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               service: "handoff",
               day: new Date(handoffInfo.handoffDate).toLocaleDateString("en-US", { weekday: "long" }),
               date: new Date(handoffInfo.handoffDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-              slot: { time: handoffInfo.handoffSlot.time, duration: "30 min" },
+              slot: { time: handoffInfo.handoffSlot.time, duration: "15 min" },
               form: { walker: handoffInfo.handoffWalker || "", pet: "", name: client.name || "" },
               scheduledDateTime: handoffInfo.handoffDate,
               price: null,
@@ -5394,7 +5404,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                    fontWeight: 600, color: "#111827" }}>{fmtPrice(currentTier.prices["30 min"])}</div>
+                    fontWeight: 600, color: "#111827" }}>${currentTier.prices["30 min"]}</div>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>30 min</div>
                 </div>
               </div>
@@ -5876,19 +5886,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
 
       {page === "myinfo" && (
         <ClientMyInfoPage client={client} clients={clients} setClients={setClients} />
-      )}
-
-      {/* ── CONTACT PAGE ── */}
-      {page === "contact" && (
-        <div className="app-container fade-up">
-          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase",
-            letterSpacing: "1.5px", fontWeight: 600, color: "#111827", marginBottom: "4px" }}>Contact Us</div>
-          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
-            marginBottom: "20px" }}>
-            Have a question or need to reach us? Fill out the form below and we'll get back to you shortly.
-          </p>
-          <ClientContactForm client={client} />
-        </div>
       )}
 
       {/* ── MESSAGES PAGE ── */}
@@ -6377,7 +6374,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       Select Date
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <button onClick={() => { if (weekOffset > minWeekOffset) { setWeekOffset(w => w - 1); setSelectedDay(0); } }}
+                      <button onClick={() => { if (weekOffset > minWeekOffset) { setWeekOffset(w => w - 1); setActiveDay(0); setSelectedDays(new Set([0])); setWalksByDay({ 0: [{ slotId: "", duration: null }] }); } }}
                         disabled={weekOffset === minWeekOffset}
                         style={{ width: "30px", height: "30px", borderRadius: "8px",
                           border: "1.5px solid #e4e7ec", background: weekOffset === minWeekOffset ? "#f9fafb" : "#fff",
@@ -6388,7 +6385,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                         color: "#6b7280", minWidth: "80px", textAlign: "center" }}>
                         {weekOffset === 0 ? "This week" : weekOffset === 1 ? "Next week" : `+${weekOffset} weeks`}
                       </div>
-                      <button onClick={() => { setWeekOffset(w => w + 1); setSelectedDay(0); }}
+                      <button onClick={() => { setWeekOffset(w => w + 1); setActiveDay(0); setSelectedDays(new Set([0])); setWalksByDay({ 0: [{ slotId: "", duration: null }] }); }}
                         disabled={weekOffset >= 8}
                         style={{ width: "30px", height: "30px", borderRadius: "8px",
                           border: "1.5px solid #e4e7ec", background: weekOffset >= 8 ? "#f9fafb" : "#fff",
@@ -6399,7 +6396,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   </div>
                 <div className="day-selector">
                     {DAYS.map((d, i) => {
-                      const active = selectedDay === i;
+                      const isSelected = selectedDays.has(i);
+                      const isActive = activeDay === i;
                       const cutoff24h = new Date(Date.now() + 24 * 60 * 60 * 1000);
                       const lastSlotOfDay = new Date(weekDates[i]);
                       lastSlotOfDay.setHours(19, 0, 0, 0);
@@ -6412,27 +6410,58 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                         ? dayDate < new Date(handoffCutoff.getFullYear(), handoffCutoff.getMonth(), handoffCutoff.getDate())
                         : false;
                       const disabled = isPast || isBeforeHandoff;
+                      const hasWalks = (walksByDay[i] || []).some(w => w.slotId && w.duration);
                       return (
-                        <button key={d} onClick={() => !disabled && (setSelectedDay(i), setSelectedWalks([{ slotId: "", duration: null }]))}
+                        <button key={d} onClick={() => {
+                          if (disabled) return;
+                          // Toggle selection, always set as active day
+                          setActiveDay(i);
+                          setSelectedDays(prev => {
+                            const next = new Set(prev);
+                            if (next.has(i) && next.size > 1) {
+                              next.delete(i);
+                            } else {
+                              next.add(i);
+                            }
+                            return next;
+                          });
+                          // Init walks for this day if not yet set
+                          setWalksByDay(prev => ({
+                            ...prev,
+                            [i]: prev[i] || [{ slotId: "", duration: null }],
+                          }));
+                        }}
                           disabled={disabled}
                           style={{
                             minWidth: "52px", padding: "10px 6px", borderRadius: "10px",
-                            border: active ? `2px solid ${svc.color}` : "2px solid #e4e7ec",
-                            background: active ? svc.color : disabled ? "#f9fafb" : "#fff",
-                            color: active ? "#fff" : disabled ? "#d1d5db" : "#374151",
+                            border: isActive ? `2px solid ${svc.color}` : isSelected ? `2px solid ${svc.color}88` : "2px solid #e4e7ec",
+                            background: isActive ? svc.color : isSelected ? `${svc.color}18` : disabled ? "#f9fafb" : "#fff",
+                            color: isActive ? "#fff" : isSelected ? svc.color : disabled ? "#d1d5db" : "#374151",
                             cursor: disabled ? "default" : "pointer",
                             display: "flex", flexDirection: "column", alignItems: "center", gap: "3px",
-                            fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s" }}>
+                            fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s", position: "relative" }}>
                           <span style={{ fontSize: "16px", fontWeight: 600, textTransform: "uppercase" }}>{d}</span>
                           <span style={{ fontSize: "17px", fontWeight: 700 }}>{weekDates[i].getDate()}</span>
+                          {hasWalks && !isActive && (
+                            <span style={{ width: "6px", height: "6px", borderRadius: "50%",
+                              background: svc.color, position: "absolute", bottom: "4px" }} />
+                          )}
                         </button>
                       );
                     })}
                   </div>
 
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
-                    letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px" }}>
-                    {FULL_DAYS[selectedDay]} · {dateStr(selectedDay)}
+                    letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px",
+                    display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span>{FULL_DAYS[activeDay]} · {dateStr(activeDay)}</span>
+                    {selectedDays.size > 1 && (
+                      <span style={{ fontSize: "13px", fontWeight: 500, color: svc.color,
+                        background: `${svc.color}15`, borderRadius: "20px", padding: "2px 10px",
+                        letterSpacing: "0.5px" }}>
+                        {selectedDays.size} days selected
+                      </span>
+                    )}
                   </div>
 
                   {/* Walk selector rows */}
@@ -6455,7 +6484,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
 
                       // Meet & Greet itself is 30 min — block slots that start before meet & greet ends
                       const handoffStartMins = handoffInfo.handoffSlot.hour * 60 + handoffInfo.handoffSlot.minute;
-                      const handoffEndMins   = handoffStartMins + 30;
+                      const handoffEndMins   = handoffStartMins + 15;
                       const slotStartMins    = slot.hour * 60 + slot.minute;
 
                       // Block if slot starts before meet & greet ends
@@ -6632,7 +6661,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                               setStep("form");
                             }}
                             style={{ width: "100%", padding: "14px", borderRadius: "12px",
-                              border: "none", background: "#059669", color: "#fff",
+                              border: "none", background: svc.color, color: "#fff",
                               fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                               fontWeight: 500, cursor: "pointer" }}>
                             {selectedWalks.length > 1
@@ -7225,10 +7254,12 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   padding: "32px 28px", boxShadow: "0 8px 48px rgba(0,0,0,0.28)",
                   textAlign: "center",
                 }}>
+                  {/* Success mark */}
                   <div className="pop" style={{ fontSize: "56px", marginBottom: "12px" }}>✓</div>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                     fontWeight: 600, color: "#111827", marginBottom: "6px" }}>
-                    {selectedWalks.filter(w => w.slotId && w.duration).length > 1 ? "Appointments Confirmed" : "Appointment Confirmed"}
+                    {Array.from(selectedDays).reduce((total, d) => total + (walksByDay[d] || []).filter(w => w.slotId && w.duration).length, 0) > 1
+                      ? "Appointments Confirmed" : "Appointment Confirmed"}
                   </div>
                   <p style={{ fontFamily: "'DM Sans', sans-serif", color: "#6b7280",
                     fontSize: "15px", marginBottom: "24px", lineHeight: "1.6" }}>
@@ -7245,42 +7276,50 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       <div>
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
                           fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", color: "#111827" }}>{svc.label}</div>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: svc.color }}>
-                          {FULL_DAYS[selectedDay]}, {dateStr(selectedDay)}
-                          {selectedWalks.filter(w=>w.slotId&&w.duration).length === 1 && selectedSlot?.time
-                            ? ` at ${selectedSlot?.time}` : ` · ${selectedWalks.filter(w=>w.slotId&&w.duration).length} walks`}
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: svc.color }}>
+                          {selectedDays.size === 1
+                            ? `${FULL_DAYS[activeDay]}, ${dateStr(activeDay)}`
+                            : `${selectedDays.size} days booked`}
                         </div>
                       </div>
                     </div>
 
-                    {selectedWalks.filter(w => w.slotId && w.duration).length > 1 && (
-                      <div style={{ marginBottom: "12px", display: "flex", flexDirection: "column", gap: "5px" }}>
-                        {selectedWalks.filter(w => w.slotId && w.duration).map((w, i) => {
-                          const slot = svc.slots.find(s => s.id === w.slotId);
-                          const p = getSessionPrice(w.duration, weekBookingCount + i + 1);
-                          return (
-                            <div key={i} style={{ display: "flex", justifyContent: "space-between",
-                              padding: "7px 10px", borderRadius: "8px", background: svc.light,
-                              border: `1px solid ${svc.border}` }}>
-                              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#374151" }}>
-                                {slot?.time} · {w.duration}
-                              </span>
-                              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                                fontWeight: 600, color: svc.color }}>${p}</span>
+                    {/* Per-day summary */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
+                      {Array.from(selectedDays).sort((a, b) => a - b).map(dayIdx => {
+                        const dayWalks = (walksByDay[dayIdx] || []).filter(w => w.slotId && w.duration);
+                        if (!dayWalks.length) return null;
+                        return (
+                          <div key={dayIdx} style={{ background: svc.light, border: `1px solid ${svc.border}`,
+                            borderRadius: "10px", padding: "10px 12px" }}>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                              fontWeight: 600, color: svc.color, marginBottom: "4px" }}>
+                              {FULL_DAYS[dayIdx]}, {dateStrFromDate(weekDates[dayIdx])}
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                            {dayWalks.map((w, i) => {
+                              const slot = svc.slots.find(s => s.id === w.slotId);
+                              const p = getSessionPrice(w.duration, weekBookingCount + i + 1);
+                              return (
+                                <div key={i} style={{ display: "flex", justifyContent: "space-between",
+                                  fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#374151" }}>
+                                  <span>{slot?.time} · {w.duration}</span>
+                                  <span style={{ fontWeight: 600, color: "#111827" }}>${p}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
 
-                    {isRecurring && (
+                    {isRecurring && selectedDays.size === 1 && (
                       <div style={{ display: "flex", alignItems: "center", gap: "8px",
                         padding: "8px 12px", borderRadius: "8px", marginBottom: "10px",
                         background: "#FDF5EC", border: "1.5px solid #D4A87A" }}>
                         <span style={{ fontSize: "16px" }}>🔁</span>
                         <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                           color: "#C4541A", lineHeight: "1.5" }}>
-                          <strong>Recurring weekly</strong> — booked every {FULL_DAYS[selectedDay]} until cancelled.
+                          <strong>Recurring weekly</strong> — booked every {FULL_DAYS[activeDay]} until cancelled.
                         </span>
                       </div>
                     )}
@@ -7350,360 +7389,10 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
 }
 
 // ─── Landing Page ─────────────────────────────────────────────────────────────
-// ─── Client Portal Contact Form (inline, pre-filled) ─────────────────────────
-function ClientContactForm({ client }) {
-  const green = "#C4541A";
-  const [form, setForm] = useState({
-    name: client?.name || "",
-    phone: client?.phone || "",
-    email: client?.email || "",
-    preference: "email",
-    message: "",
-  });
-  const [submitted, setSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-
-  const hasContact = form.phone.trim() || form.email.trim();
-  const canSubmit = hasContact && form.message.trim() && !submitting;
-
-  const handleSubmit = async () => {
-    if (!canSubmit) return;
-    setSubmitting(true);
-    setError("");
-    try {
-      await notifyAdmin("contact_us", {
-        name: form.name.trim() || "Anonymous",
-        phone: form.phone.trim(),
-        email: form.email.trim(),
-        preference: form.preference,
-        message: form.message.trim(),
-      });
-      setSubmitted(true);
-    } catch {
-      setError("Something went wrong. Please try again.");
-    }
-    setSubmitting(false);
-  };
-
-  const labelStyle = {
-    display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-    fontWeight: 600, letterSpacing: "1.5px", textTransform: "uppercase",
-    color: "#9ca3af", marginBottom: "6px",
-  };
-  const inputStyle = {
-    width: "100%", padding: "11px 14px", borderRadius: "10px",
-    border: "1.5px solid #e4e7ec", background: "#fff",
-    fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-    color: "#111827", outline: "none", boxSizing: "border-box",
-  };
-
-  if (submitted) {
-    return (
-      <div className="fade-up" style={{ background: "#fff", border: "1.5px solid #e4e7ec",
-        borderRadius: "16px", padding: "40px 24px", textAlign: "center" }}>
-        <div style={{ fontSize: "48px", marginBottom: "14px" }}>🐾</div>
-        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "18px",
-          fontWeight: 700, color: "#111827", marginBottom: "8px" }}>Message Sent!</div>
-        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-          color: "#6b7280", lineHeight: "1.6" }}>
-          We received your message and will reach out via your preferred contact method soon.
-        </div>
-        <button onClick={() => { setSubmitted(false); setForm(f => ({ ...f, message: "" })); }}
-          style={{ marginTop: "24px", padding: "12px 32px", borderRadius: "10px",
-            border: "none", background: green, color: "#fff",
-            fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-            fontWeight: 600, cursor: "pointer" }}>
-          Send Another
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
-      borderRadius: "16px", padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
-
-      {/* Name */}
-      <div>
-        <label style={labelStyle}>Your Name <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "12px" }}>(optional)</span></label>
-        <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-          placeholder="First and last name" style={inputStyle}
-          onFocus={e => e.target.style.borderColor = green}
-          onBlur={e => e.target.style.borderColor = "#e4e7ec"} />
-      </div>
-
-      {/* Phone + Email */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-        <div>
-          <label style={labelStyle}>Phone <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "12px" }}>(optional)</span></label>
-          <input type="tel" value={form.phone}
-            onChange={e => setForm(f => ({ ...f, phone: formatPhone(e.target.value) }))}
-            maxLength={12} placeholder="214.555.0000" style={inputStyle}
-            onFocus={e => e.target.style.borderColor = green}
-            onBlur={e => e.target.style.borderColor = "#e4e7ec"} />
-        </div>
-        <div>
-          <label style={labelStyle}>Email <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "12px" }}>(optional)</span></label>
-          <input type="email" value={form.email}
-            onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-            placeholder="you@email.com" style={inputStyle}
-            onFocus={e => e.target.style.borderColor = green}
-            onBlur={e => e.target.style.borderColor = "#e4e7ec"} />
-        </div>
-      </div>
-      {!hasContact && (
-        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-          color: "#f59e0b", marginTop: "-8px" }}>
-          ⚠ Please provide at least a phone number or email address.
-        </div>
-      )}
-
-      {/* Contact Preference */}
-      <div>
-        <label style={labelStyle}>Preferred Contact Method</label>
-        <div style={{ display: "flex", gap: "8px" }}>
-          {[
-            { id: "phone", label: "📞 Phone Call" },
-            { id: "email", label: "✉️ Email" },
-            { id: "text", label: "💬 Text" },
-          ].map(opt => (
-            <button key={opt.id} onClick={() => setForm(f => ({ ...f, preference: opt.id }))}
-              style={{ flex: 1, padding: "10px 6px", borderRadius: "10px", cursor: "pointer",
-                border: form.preference === opt.id ? `2px solid ${green}` : "1.5px solid #e4e7ec",
-                background: form.preference === opt.id ? `${green}12` : "#f9fafb",
-                color: form.preference === opt.id ? green : "#6b7280",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-                fontWeight: form.preference === opt.id ? 600 : 400,
-                transition: "all 0.15s" }}>
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Message */}
-      <div>
-        <label style={labelStyle}>
-          How can we help?
-          <span style={{ float: "right", fontWeight: 400, textTransform: "none",
-            letterSpacing: 0, fontSize: "12px",
-            color: form.message.length > 220 ? "#ef4444" : "#9ca3af" }}>
-            {form.message.length}/250
-          </span>
-        </label>
-        <textarea value={form.message}
-          onChange={e => setForm(f => ({ ...f, message: e.target.value.slice(0, 250) }))}
-          rows={4} placeholder="Tell us what's on your mind…"
-          style={{ ...inputStyle, resize: "none", lineHeight: "1.6" }}
-          onFocus={e => e.target.style.borderColor = green}
-          onBlur={e => e.target.style.borderColor = "#e4e7ec"} />
-      </div>
-
-      {error && (
-        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#ef4444" }}>
-          {error}
-        </div>
-      )}
-
-      <button onClick={handleSubmit} disabled={!canSubmit}
-        style={{ width: "100%", padding: "15px", borderRadius: "12px", border: "none",
-          background: canSubmit ? green : "#e4e7ec",
-          color: canSubmit ? "#fff" : "#9ca3af",
-          fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600,
-          cursor: canSubmit ? "pointer" : "default", transition: "all 0.15s" }}>
-        {submitting ? "Sending…" : "Send Message"}
-      </button>
-    </div>
-  );
-}
-
-// ─── Contact Us Form (modal, used on landing page) ────────────────────────────
-function ContactUsForm({ onClose, darkMode = false }) {
-  const green = "#C4541A";
-  const [form, setForm] = useState({ name: "", phone: "", email: "", preference: "email", message: "" });
-  const [submitted, setSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-
-  const hasContact = form.phone.trim() || form.email.trim();
-  const canSubmit = hasContact && form.message.trim() && !submitting;
-
-  const handleSubmit = async () => {
-    if (!canSubmit) return;
-    setSubmitting(true);
-    setError("");
-    try {
-      await notifyAdmin("contact_us", {
-        name: form.name.trim() || "Anonymous",
-        phone: form.phone.trim(),
-        email: form.email.trim(),
-        preference: form.preference,
-        message: form.message.trim(),
-      });
-      setSubmitted(true);
-    } catch {
-      setError("Something went wrong. Please try again.");
-    }
-    setSubmitting(false);
-  };
-
-  const labelStyle = {
-    display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-    fontWeight: 600, letterSpacing: "1.5px", textTransform: "uppercase",
-    color: darkMode ? "rgba(255,255,255,0.5)" : "#9ca3af", marginBottom: "6px",
-  };
-  const inputStyle = {
-    width: "100%", padding: "11px 14px", borderRadius: "10px",
-    border: `1.5px solid ${darkMode ? "rgba(255,255,255,0.12)" : "#e4e7ec"}`,
-    background: darkMode ? "rgba(255,255,255,0.06)" : "#fff",
-    fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-    color: darkMode ? "#fff" : "#111827", outline: "none", boxSizing: "border-box",
-  };
-
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 500,
-      background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end",
-      justifyContent: "center" }}>
-      <div className="fade-up" style={{
-        background: darkMode ? "#0B1423" : "#fff",
-        borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "520px",
-        maxHeight: "92vh", overflowY: "auto",
-        padding: "28px 24px 40px", boxShadow: "0 -8px 40px rgba(0,0,0,0.3)",
-      }}>
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
-          <div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-              textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 700,
-              color: darkMode ? "#fff" : "#111827" }}>Contact Us</div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-              color: darkMode ? "rgba(255,255,255,0.5)" : "#9ca3af", marginTop: "2px" }}>
-              We'll get back to you shortly.
-            </div>
-          </div>
-          <button onClick={onClose} style={{ background: "none", border: "none",
-            color: darkMode ? "rgba(255,255,255,0.4)" : "#9ca3af",
-            fontSize: "22px", cursor: "pointer", lineHeight: 1, padding: "4px" }}>✕</button>
-        </div>
-
-        {submitted ? (
-          <div className="fade-up" style={{ textAlign: "center", padding: "32px 0" }}>
-            <div style={{ fontSize: "48px", marginBottom: "14px" }}>🐾</div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "18px",
-              fontWeight: 700, color: darkMode ? "#fff" : "#111827", marginBottom: "8px" }}>
-              Message Sent!
-            </div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-              color: darkMode ? "rgba(255,255,255,0.5)" : "#6b7280", lineHeight: "1.6" }}>
-              We received your message and will reach out via your preferred contact method soon.
-            </div>
-            <button onClick={onClose} style={{ marginTop: "24px", padding: "12px 32px",
-              borderRadius: "10px", border: "none", background: green, color: "#fff",
-              fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
-              cursor: "pointer" }}>Done</button>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            {/* Name */}
-            <div>
-              <label style={labelStyle}>Your Name <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(optional)</span></label>
-              <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="First and last name" style={inputStyle}
-                onFocus={e => e.target.style.borderColor = green}
-                onBlur={e => e.target.style.borderColor = darkMode ? "rgba(255,255,255,0.12)" : "#e4e7ec"} />
-            </div>
-
-            {/* Phone + Email */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-              <div>
-                <label style={labelStyle}>Phone</label>
-                <input type="tel" value={form.phone}
-                  onChange={e => setForm(f => ({ ...f, phone: formatPhone(e.target.value) }))}
-                  maxLength={12} placeholder="214.555.0000" style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = green}
-                  onBlur={e => e.target.style.borderColor = darkMode ? "rgba(255,255,255,0.12)" : "#e4e7ec"} />
-              </div>
-              <div>
-                <label style={labelStyle}>Email</label>
-                <input type="email" value={form.email}
-                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  placeholder="you@email.com" style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = green}
-                  onBlur={e => e.target.style.borderColor = darkMode ? "rgba(255,255,255,0.12)" : "#e4e7ec"} />
-              </div>
-            </div>
-            {!hasContact && (
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-                color: "#f59e0b", marginTop: "-6px" }}>
-                ⚠ Please provide at least a phone number or email address.
-              </div>
-            )}
-
-            {/* Contact Preference */}
-            <div>
-              <label style={labelStyle}>Preferred Contact Method</label>
-              <div style={{ display: "flex", gap: "8px" }}>
-                {[
-                  { id: "phone", label: "📞 Phone Call" },
-                  { id: "email", label: "✉️ Email" },
-                  { id: "text", label: "💬 Text" },
-                ].map(opt => (
-                  <button key={opt.id} onClick={() => setForm(f => ({ ...f, preference: opt.id }))}
-                    style={{ flex: 1, padding: "10px 6px", borderRadius: "10px", cursor: "pointer",
-                      border: form.preference === opt.id ? `2px solid ${green}` : `1.5px solid ${darkMode ? "rgba(255,255,255,0.12)" : "#e4e7ec"}`,
-                      background: form.preference === opt.id ? `${green}15` : darkMode ? "rgba(255,255,255,0.04)" : "#f9fafb",
-                      color: form.preference === opt.id ? green : darkMode ? "rgba(255,255,255,0.6)" : "#6b7280",
-                      fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: form.preference === opt.id ? 600 : 400,
-                      transition: "all 0.15s" }}>
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Message */}
-            <div>
-              <label style={labelStyle}>
-                How can we help?
-                <span style={{ float: "right", fontWeight: 400, textTransform: "none",
-                  letterSpacing: 0, color: form.message.length > 220 ? "#ef4444" : "inherit" }}>
-                  {form.message.length}/250
-                </span>
-              </label>
-              <textarea value={form.message}
-                onChange={e => setForm(f => ({ ...f, message: e.target.value.slice(0, 250) }))}
-                rows={4} placeholder="Tell us what's on your mind…"
-                style={{ ...inputStyle, resize: "none", lineHeight: "1.6" }}
-                onFocus={e => e.target.style.borderColor = green}
-                onBlur={e => e.target.style.borderColor = darkMode ? "rgba(255,255,255,0.12)" : "#e4e7ec"} />
-            </div>
-
-            {error && (
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-                color: "#ef4444" }}>{error}</div>
-            )}
-
-            <button onClick={handleSubmit} disabled={!canSubmit}
-              style={{ width: "100%", padding: "15px", borderRadius: "12px", border: "none",
-                background: canSubmit ? green : "#e4e7ec",
-                color: canSubmit ? "#fff" : "#9ca3af",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600,
-                cursor: canSubmit ? "pointer" : "default", transition: "all 0.15s" }}>
-              {submitting ? "Sending…" : "Send Message"}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
   const [expandedWalker, setExpandedWalker] = useState(null);
   const [navScrolled, setNavScrolled] = useState(false);
   const [landingMenuOpen, setLandingMenuOpen] = useState(false);
-  const [contactOpen, setContactOpen] = useState(false);
   const [landingView, setLandingView] = useState(
     () => window.location.hash === "#apply" ? "apply" : "home"
   ); // "home" | "apply"
@@ -7860,15 +7549,6 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                   Join the Team ✦
                 </span>
               </button>
-              <button onClick={() => { setContactOpen(true); setLandingMenuOpen(false); }} style={{
-                width: "100%", padding: "14px 24px", border: "none", background: "transparent",
-                display: "flex", alignItems: "center", gap: "14px", cursor: "pointer", textAlign: "left",
-              }}>
-                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                  fontWeight: 500, color: "rgba(255,255,255,0.85)", letterSpacing: "0.3px" }}>
-                  Contact Us
-                </span>
-              </button>
             </div>
             <div style={{ padding: "20px", borderTop: "1px solid #1E4A32",
               display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -7886,10 +7566,6 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             </div>
           </div>
         </div>
-      )}
-
-      {contactOpen && (
-        <ContactUsForm onClose={() => setContactOpen(false)} darkMode />
       )}
 
       {/* ── Hero ── */}
@@ -7923,7 +7599,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             marginBottom: "40px", fontWeight: 500, maxWidth: "600px", margin: "0 auto 40px",
             letterSpacing: "0.15em", textAlign: "center" }}>
             <div>INSURED & VETTED WALKERS &nbsp;·&nbsp; TRANSPARENT PRICING</div>
-            <div>FREE INITIAL MEET & GREET &nbsp;·&nbsp; YOUR PEACE OF MIND</div>
+            <div>FREE 15-MIN MEET & GREET &nbsp;·&nbsp; YOUR PEACE OF MIND</div>
           </div>
           <div className="lp-fade-4 lp-hero-ctas">
             <button onClick={onSignUp} className="lp-cta-btn" style={{
@@ -8072,7 +7748,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                       color: tier.durationFg }}>30 min</span>
                     <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
                       <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
-                        fontWeight: 500, color: tier.priceFg }}>{fmtPrice(tier.price30)}</span>
+                        fontWeight: 500, color: tier.priceFg }}>${tier.price30}</span>
                       {tier.save30 && <span style={{ fontFamily: "'DM Sans', sans-serif",
                         fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save30}</span>}
                     </div>
@@ -8083,7 +7759,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                       color: tier.durationFg }}>60 min</span>
                     <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
                       <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
-                        fontWeight: 500, color: tier.priceFg }}>{fmtPrice(tier.price60)}</span>
+                        fontWeight: 500, color: tier.priceFg }}>${tier.price60}</span>
                       {tier.save60 && <span style={{ fontFamily: "'DM Sans', sans-serif",
                         fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save60}</span>}
                     </div>
@@ -8125,7 +7801,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
               { step: "01", icon: "✍️", title: "Create Your Account",
                 desc: "Sign up with your email and set a secure PIN. Takes under a minute." },
               { step: "02", icon: "🗓️", title: "Schedule Your Meet & Greet",
-                desc: "Pick a day and time for your free in-home Meet & Greet Appointment. Monday–Friday, 8am–7pm." },
+                desc: "Pick a day and time for your free 15-minute in-home Meet & Greet. Monday–Friday, 8am–7pm." },
               { step: "03", icon: "🤝", title: "We Meet Your Pet",
                 desc: "Your walker comes to you. We meet your dog or cat, learn their personality, and get comfortable together." },
               { step: "04", icon: "📋", title: "Share the Details",
@@ -8160,7 +7836,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
               </div>
               <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                 color: "#ffffffcc", lineHeight: "1.75", marginBottom: "16px" }}>
-                This is a free, 30-minute in-person meeting at your home before your first regular booking. 
+                This is a free, 15-minute in-person meeting at your home before your first regular booking. 
                 It's how we make sure your pet is comfortable with their walker, and how we get everything 
                 we need to provide truly personalized care.
               </p>
@@ -8377,7 +8053,9 @@ function WalkerApplicationPage({ onBack }) {
     // Step 2 — Experience
     hasDogExp: null, expYears: "", expDesc: "",
     firstAid: false, petCpr: false, otherCerts: "",
-    // Step 3 — Availability
+    // Step 3 — References & Availability
+    ref1Name: "", ref1Phone: "", ref1Rel: "",
+    ref2Name: "", ref2Phone: "", ref2Rel: "",
     days: [], times: [], hoursPerWeek: "",
   };
 
@@ -8463,6 +8141,10 @@ function WalkerApplicationPage({ onBack }) {
 
   const handleFinalSubmit = async () => {
     const errs = {};
+    if (!form.ref1Name.trim())                            errs.ref1Name  = "Required";
+    if (form.ref1Phone.replace(/\D/g,"").length < 10)    errs.ref1Phone = "Valid phone required";
+    if (!form.ref2Name.trim())                            errs.ref2Name  = "Required";
+    if (form.ref2Phone.replace(/\D/g,"").length < 10)    errs.ref2Phone = "Valid phone required";
     if (form.days.length === 0)                           errs.days      = "Select at least one day";
     if (form.times.length === 0)                          errs.times     = "Select at least one time window";
     if (Object.keys(errs).length) { setErrors(errs); return; }
@@ -8491,6 +8173,12 @@ function WalkerApplicationPage({ onBack }) {
           first_aid:         form.firstAid,
           pet_cpr:           form.petCpr,
           message:           form.otherCerts,
+          ref1_name:         form.ref1Name,
+          ref1_phone:        form.ref1Phone,
+          ref1_rel:          form.ref1Rel,
+          ref2_name:         form.ref2Name,
+          ref2_phone:        form.ref2Phone,
+          ref2_rel:          form.ref2Rel,
           days:              form.days,
           times:             form.times,
           hours_per_week:    form.hoursPerWeek,
@@ -8814,18 +8502,56 @@ function WalkerApplicationPage({ onBack }) {
               )}
 
               {/* ══════════════════════════════════════════════
-                  STEP 3 — Availability
+                  STEP 3 — References & Availability
               ══════════════════════════════════════════════ */}
               {step === 3 && (
                 <div>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
                     fontWeight: 600, color: "#111827", marginBottom: "6px" }}>
-                    Your availability.
+                    References & availability.
                   </div>
                   <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
                     color: "#9ca3af", marginBottom: "24px" }}>
-                    Tell us your general schedule. Almost done.
+                    Two references and your general schedule. Almost done.
                   </p>
+
+                  {/* References */}
+                  {[
+                    { prefix: "ref1", label: "Reference 1" },
+                    { prefix: "ref2", label: "Reference 2" },
+                  ].map(({ prefix, label }) => (
+                    <div key={prefix} style={{ background: "#f9fafb", borderRadius: "12px",
+                      padding: "16px", marginBottom: "14px", border: "1.5px solid #e4e7ec" }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                        fontWeight: 700, color: "#9ca3af", marginBottom: "12px",
+                        textTransform: "uppercase", letterSpacing: "1px" }}>{label}</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
+                        <div>
+                          <label style={lbl}>Name *</label>
+                          <input value={form[`${prefix}Name`]}
+                            onChange={e => { f(`${prefix}Name`, e.target.value); clrErr(`${prefix}Name`); }}
+                            placeholder="Full name"
+                            style={{ ...inp(errors[`${prefix}Name`]), padding: "9px 11px" }} />
+                          {errMsg(`${prefix}Name`)}
+                        </div>
+                        <div>
+                          <label style={lbl}>Phone *</label>
+                          <input value={form[`${prefix}Phone`]}
+                            onChange={e => { f(`${prefix}Phone`, formatPhone(e.target.value)); clrErr(`${prefix}Phone`); }}
+                            placeholder="214.555.0000" maxLength={12}
+                            style={{ ...inp(errors[`${prefix}Phone`]), padding: "9px 11px" }} />
+                          {errMsg(`${prefix}Phone`)}
+                        </div>
+                      </div>
+                      <div>
+                        <label style={lbl}>Relationship</label>
+                        <input value={form[`${prefix}Rel`]}
+                          onChange={e => f(`${prefix}Rel`, e.target.value)}
+                          placeholder="Former employer, colleague, client…"
+                          style={{ ...inp(false), padding: "9px 11px" }} />
+                      </div>
+                    </div>
+                  ))}
 
                   {/* Days */}
                   <div style={{ marginBottom: "18px" }}>
@@ -8892,7 +8618,6 @@ function WalkerApplicationPage({ onBack }) {
 class CustomerErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(e) { return { error: e }; }
-  componentDidCatch(error, info) { console.error("CustomerErrorBoundary caught:", error, info); }
   render() {
     if (this.state.error) {
       return (
@@ -8907,13 +8632,6 @@ class CustomerErrorBoundary extends Component {
             <div style={{ fontSize: "15px", color: "#6b7280", marginBottom: "24px" }}>
               Please refresh the page and try again.
             </div>
-            {this.state.error && (
-              <div style={{ fontSize: "12px", color: "#9ca3af", marginBottom: "16px",
-                fontFamily: "monospace", textAlign: "left", background: "#f9fafb",
-                padding: "10px", borderRadius: "8px", wordBreak: "break-all" }}>
-                {this.state.error.toString()}
-              </div>
-            )}
             <button onClick={() => window.location.reload()}
               style={{ padding: "12px 28px", borderRadius: "10px", border: "none",
                 background: "#C4541A", color: "#fff", fontSize: "15px",
@@ -9109,7 +8827,7 @@ export default function LonestarBark() {
   };
 
   const handleHandoffComplete = (handoffData) => {
-    const client = activeUser;
+    const client = clients[activeUser.id] || activeUser;
     let bookings = client.bookings || [];
     if (handoffData.followOnWalk) {
       const fw = handoffData.followOnWalk;
@@ -10541,7 +10259,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
       service: "handoff",
       day: new Date(c.handoffInfo.handoffDate).toLocaleDateString("en-US", { weekday: "long" }),
       date: new Date(c.handoffInfo.handoffDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      slot: { time: c.handoffInfo.handoffSlot?.time || "", duration: "30 min" },
+      slot: { time: c.handoffInfo.handoffSlot?.time || "", duration: "15 min" },
       form: { walker: "", pet: "", name: c.name },
       scheduledDateTime: c.handoffInfo.handoffDate,
       price: 0,
@@ -10564,7 +10282,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
       service: "handoff",
       day: new Date(c.handoffInfo.handoffDate).toLocaleDateString("en-US", { weekday: "long" }),
       date: new Date(c.handoffInfo.handoffDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      slot: { time: c.handoffInfo.handoffSlot?.time || "", duration: "30 min" },
+      slot: { time: c.handoffInfo.handoffSlot?.time || "", duration: "15 min" },
       form: { walker: walker.name, pet: "", name: c.name },
       scheduledDateTime: c.handoffInfo.handoffDate,
       price: null,
@@ -11603,7 +11321,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
                                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
                                   fontSize: "15px", color: "#111827" }}>
-                                  Meet & Greet Appointment · 30 min
+                                  Meet & Greet Appointment · 15 min
                                 </div>
                                 {justClaimed && (
                                   <span style={{ background: "#F5EFF3", border: "1px solid #C4A0B8",
@@ -16472,39 +16190,23 @@ function ClientInvoicesPage({ client, clients, setClients }) {
   const [payingInv, setPayingInv] = useState(null);
   const [paidConfirm, setPaidConfirm] = useState(null);
   const [invSearch, setInvSearch] = useState("");
-  const [invFilter, setInvFilter] = useState("all"); // "all" | "pending" | "paid"
 
   const green = "#C4541A";
   const allInvoices = [...(client.invoices || [])].sort((a, b) =>
     new Date(b.createdAt) - new Date(a.createdAt)
   );
   const invQ = invSearch.toLowerCase();
-
-  const statusOf = (inv) => {
-    const { effectiveStatus } = invoiceStatusMeta(inv.status, inv.dueDate);
-    return effectiveStatus;
-  };
-
-  const filteredByStatus = invFilter === "all"
-    ? allInvoices
-    : invFilter === "paid"
-      ? allInvoices.filter(inv => statusOf(inv) === "paid")
-      : allInvoices.filter(inv => statusOf(inv) === "sent" || statusOf(inv) === "overdue");
-
   const myInvoices = invQ
-    ? filteredByStatus.filter(inv =>
+    ? allInvoices.filter(inv =>
         (inv.id || "").toLowerCase().includes(invQ) ||
         (inv.status || "").toLowerCase().includes(invQ) ||
         String(inv.total || "").includes(invQ) ||
         (inv.weekLabel || "").toLowerCase().includes(invQ) ||
         (inv.items || []).some(it => (it.description || "").toLowerCase().includes(invQ))
       )
-    : filteredByStatus;
+    : allInvoices;
 
-  const pendingCount = allInvoices.filter(inv => statusOf(inv) === "sent" || statusOf(inv) === "overdue").length;
-  const paidCount = allInvoices.filter(inv => statusOf(inv) === "paid").length;
-
-  const outstandingTotal = allInvoices
+  const outstandingTotal = myInvoices
     .filter(inv => inv.status === "sent")
     .reduce((s, inv) => s + (inv.total || 0), 0);
 
@@ -16565,35 +16267,6 @@ function ClientInvoicesPage({ client, clients, setClients }) {
             top: "50%", transform: "translateY(-50%)", background: "none", border: "none",
             cursor: "pointer", color: "#9ca3af", fontSize: "16px" }}>✕</button>
         )}
-      </div>
-
-      {/* Filter tabs */}
-      <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
-        {[
-          { id: "all",     label: "All",     count: allInvoices.length },
-          { id: "pending", label: "Pending", count: pendingCount },
-          { id: "paid",    label: "Paid",    count: paidCount },
-        ].map(tab => (
-          <button key={tab.id} onClick={() => setInvFilter(tab.id)}
-            style={{ flex: 1, padding: "9px 10px", borderRadius: "10px", cursor: "pointer",
-              border: invFilter === tab.id ? `2px solid ${green}` : "1.5px solid #e4e7ec",
-              background: invFilter === tab.id ? `${green}10` : "#fff",
-              color: invFilter === tab.id ? green : "#6b7280",
-              fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-              fontWeight: invFilter === tab.id ? 700 : 400,
-              transition: "all 0.15s",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-            {tab.label}
-            {tab.count > 0 && (
-              <span style={{ background: invFilter === tab.id ? green : "#e4e7ec",
-                color: invFilter === tab.id ? "#fff" : "#6b7280",
-                borderRadius: "20px", fontSize: "12px", fontWeight: 700,
-                padding: "1px 7px", transition: "all 0.15s" }}>
-                {tab.count}
-              </span>
-            )}
-          </button>
-        ))}
       </div>
 
       {/* Paid confirm banner */}
@@ -18376,6 +18049,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 { id: "pipelineRev",    label: "Pipeline Revenue",  value: fmt(pipelineRevenue, true),        icon: "🔮", color: "#7A4D6E", note: "upcoming", detail: `${upcoming.filter(b => !b.isOvernight).length} walks` },
                 { id: "uninvoiced",     label: "Uninvoiced Walks",  value: (() => { const cnt = Object.values(clients).filter(c => !c.deleted).reduce((s, c) => { const ik = new Set((c.invoices||[]).filter(i=>i.status!=="draft").flatMap(i=>(i.items||[]).map(it=>it.bookingKey))); return s + (c.bookings||[]).filter(b=>b.adminCompleted&&!b.cancelled&&!ik.has(b.key)).length; }, 0); return cnt; })(), icon: "📬", color: "#3D6B7A", note: "pending" },
                 { id: "upcoming",       label: "Upcoming Walks",    value: upcoming.length,              icon: "🐕", color: "#C4541A" },
+                { id: "completed",      label: "Completed Walks",   value: completedBookings.length,     icon: "✅", color: "#059669" },
               ];
 
               const drawerContent = (id) => {
