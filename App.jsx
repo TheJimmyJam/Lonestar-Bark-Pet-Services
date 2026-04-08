@@ -1381,8 +1381,7 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
   const [name, setName] = useState("");
   const [dogs, setDogs] = useState([""]);
   const [cats, setCats] = useState([""]);
-  const [walkSchedule, setWalkSchedule] = useState(null);
-  const [preferredDuration, setPreferredDuration] = useState(null);
+  
   const [pendingPin, setPendingPin] = useState("");
   const [newClientPin, setNewClientPin] = useState(null);
   const [isNew, setIsNew] = useState(false);
@@ -1464,8 +1463,8 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
       name: name.trim(),
       dogs: validDogs,
       cats: validCats,
-      walkSchedule: walkSchedule || null,
-      preferredDuration: preferredDuration || null,
+      walkSchedule: null,
+      preferredDuration: null,
       handoffDone: false,
       bookings: [],
       createdAt: new Date().toISOString(),
@@ -1710,68 +1709,6 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                     color: "#1a2d45", fontStyle: "italic" }}>No cats added yet.</div>
                 )}
-              </div>
-            </div>
-
-            {/* Walk Schedule — optional */}
-            <div style={{ marginBottom: "24px" }}>
-              <label style={{ ...labelStyle, marginBottom: "6px" }}>
-                Preferred Walk Schedule{" "}
-                <span style={{ fontWeight: 400, color: "#1a2d45", textTransform: "none",
-                  letterSpacing: "0", fontSize: "15px" }}>(optional)</span>
-              </label>
-
-              {/* Duration toggle */}
-              <div style={{ marginBottom: "10px" }}>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                  color: "#ffffffaa", marginBottom: "6px" }}>Walk duration</div>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  {["30 min", "60 min"].map(d => {
-                    const sel = preferredDuration === d;
-                    return (
-                      <button key={d} onClick={() => setPreferredDuration(sel ? null : d)} style={{
-                        flex: 1, padding: "10px", borderRadius: "10px", cursor: "pointer",
-                        border: sel ? "1.5px solid #8B5E3C" : "1.5px solid #4A2E18",
-                        background: sel ? "#C4541A" : "#0B1423",
-                        color: sel ? "#fff" : "#ffffffaa",
-                        fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                        fontWeight: sel ? 600 : 400, transition: "all 0.15s",
-                      }}>{d}</button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {SCHEDULE_OPTIONS.map(opt => {
-                  const selected = walkSchedule === opt.value;
-                  return (
-                    <button key={opt.value} onClick={() => setWalkSchedule(selected ? null : opt.value)}
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "12px 14px", borderRadius: "10px", cursor: "pointer",
-                        border: selected ? `1.5px solid ${opt.color}` : "1.5px solid #4A2E18",
-                        background: selected ? `${opt.color}18` : "#0B1423",
-                        transition: "all 0.15s",
-                      }}>
-                      <div style={{ textAlign: "left" }}>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                          fontWeight: 600, color: selected ? "#fff" : "#ffffffcc",
-                          marginBottom: "1px" }}>{opt.label}</div>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                          color: selected ? opt.color : "#ffffffaa" }}>{opt.freq}</div>
-                      </div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                        fontWeight: 600, color: selected ? opt.color : "#ffffffcc" }}>
-                        {opt.price}<span style={{ fontSize: "15px", fontFamily: "'DM Sans', sans-serif",
-                          fontWeight: 400, color: "#ffffffaa" }}>/session</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                color: "#ffffff55", marginTop: "8px", lineHeight: "1.5" }}>
-                These are just preferences — you can choose any duration or schedule after signup.
               </div>
             </div>
 
@@ -7614,84 +7551,92 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
 
       {/* ── Pricing ── */}
       <section id="pricing" className="lp-section" style={{ background: "#fff" }}>
-        <div style={{ maxWidth: "900px", margin: "0 auto", textAlign: "center" }}>
+        <div style={{ maxWidth: "860px", margin: "0 auto", textAlign: "center" }}>
           <div className="section-divider" />
           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "36px",
             fontWeight: 600, color: "#111827", marginBottom: "12px" }}>Transparent Pricing</div>
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
-            marginBottom: "16px", lineHeight: "1.7", maxWidth: "540px", margin: "0 auto 16px" }}>
-            The more you book, the less you pay. Pricing is calculated weekly and applied retroactively — 
-            so your whole week reprices when you unlock a new tier.
+            lineHeight: "1.7", maxWidth: "540px", margin: "0 auto 48px" }}>
+            The more you book, the less you pay — and your whole week reprices when you unlock a new tier.
           </p>
-          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#9ca3af",
-            letterSpacing: "0.3px", marginBottom: "52px" }}>
-            Pricing tiers reset each week
-          </div>
-          <div style={{ marginBottom: "40px" }} className="lp-pricing-grid">
+
+          {/* Pricing table */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1px",
+            background: "#e4e7ec", borderRadius: "14px", overflow: "hidden", marginBottom: "28px" }}>
             {[
-              { label: "Easy Rider", freq: "1× per week", badge: null,
-                price30: 30, price60: 45, color: "#6b7280", borderColor: "#e4e7ec", bg: "#fff",
-                desc: "One walk a week — perfect for a laid-back pup who likes to take it easy." },
-              { label: "Steady Stroll", freq: "3× per week", badge: "Popular",
-                price30: 27.50, price60: 42.50, color: "#C4541A", borderColor: "#C4541A", bg: "#fff",
-                desc: "Three walks a week — a great rhythm that keeps your dog active and happy." },
-              { label: "Full Gallop", freq: "5× per week", badge: "Best Value",
-                price30: 25, price60: 40, color: "#3D6B7A", borderColor: "#3D6B7A", bg: "#fff",
-                desc: "Five walks a week — for the high-energy dog who lives for the leash." },
-            ].map((tier, i) => (
-              <div key={tier.label} className="lp-hover" style={{ background: tier.bg,
-                border: `${tier.badge ? "2px" : "1.5px"} solid ${tier.borderColor}`,
-                borderRadius: "18px", padding: "28px 24px", textAlign: "left", position: "relative",
-                boxShadow: tier.badge === "Popular" ? "0 6px 24px rgba(26,107,74,0.12)" : "0 2px 8px rgba(0,0,0,0.04)" }}>
-                {tier.badge && (
-                  <div style={{ position: "absolute", top: "-13px", left: "20px",
-                    background: tier.badge === "Best Value" ? "#3D6B7A" : "#C4541A",
-                    color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                    fontWeight: 600, letterSpacing: "1.5px", textTransform: "uppercase",
-                    padding: "4px 12px", borderRadius: "20px" }}>{tier.badge}</div>
-                )}
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                  fontWeight: 600, color: "#111827", marginBottom: "4px" }}>{tier.label}</div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                  color: tier.color, fontWeight: 500, marginBottom: "14px",
-                  textTransform: "uppercase", letterSpacing: "1px" }}>{tier.freq}</div>
-                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                  color: "#9ca3af", lineHeight: "1.6", marginBottom: "20px" }}>{tier.desc}</p>
-                <div style={{ display: "flex", gap: "10px" }}>
-                  {[["30 min", tier.price30], ["60 min", tier.price60]].map(([dur, price]) => (
-                    <div key={dur} style={{ flex: 1, background: "#f5f6f8", borderRadius: "10px",
-                      padding: "12px 10px", textAlign: "center" }}>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                        color: "#9ca3af", marginBottom: "4px" }}>{dur}</div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                        fontWeight: 600, color: "#111827" }}>${price}</div>
-                    </div>
-                  ))}
+              { label: "Easy Rider", freq: "1× per week", badge: null, badgeColor: null,
+                price30: 30, price60: 45, save30: null, save60: null,
+                bg: "#fff", nameFg: "#6b7280", freqFg: "#9ca3af", lineFg: "#f3f4f6",
+                durationFg: "#9ca3af", priceFg: "#111827", saveFg: null },
+              { label: "Steady Stroll", freq: "3× per week", badge: "Popular", badgeColor: "#C4541A",
+                price30: 27.50, price60: 42.50, save30: "save $2.50", save60: "save $2.50",
+                bg: "#1A1A1A", nameFg: "rgba(255,255,255,0.5)", freqFg: "rgba(255,255,255,0.35)",
+                lineFg: "rgba(255,255,255,0.1)", durationFg: "rgba(255,255,255,0.35)",
+                priceFg: "#fff", saveFg: "#C4541A" },
+              { label: "Full Gallop", freq: "5× per week", badge: "Best Value", badgeColor: "#3D6B7A",
+                price30: 25, price60: 40, save30: "save $5", save60: "save $5",
+                bg: "#fff", nameFg: "#6b7280", freqFg: "#9ca3af", lineFg: "#f3f4f6",
+                durationFg: "#9ca3af", priceFg: "#111827", saveFg: "#3D6B7A" },
+            ].map(tier => (
+              <div key={tier.label} style={{ background: tier.bg, padding: "20px 20px 24px",
+                display: "flex", flexDirection: "column" }}>
+                {/* Badge row — always present for height consistency */}
+                <div style={{ height: "29px", display: "flex", alignItems: "center", marginBottom: "0" }}>
+                  {tier.badge && (
+                    <span style={{ display: "inline-block", fontSize: "10px", fontWeight: 600,
+                      letterSpacing: "0.1em", textTransform: "uppercase", padding: "3px 10px",
+                      borderRadius: "20px", background: tier.badgeColor, color: "#fff" }}>
+                      {tier.badge}
+                    </span>
+                  )}
+                </div>
+                {/* Tier name */}
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", fontWeight: 600,
+                  letterSpacing: "0.12em", textTransform: "uppercase", color: tier.nameFg,
+                  marginBottom: "6px" }}>{tier.label}</div>
+                {/* Frequency */}
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                  color: tier.freqFg, marginBottom: "0" }}>{tier.freq}</div>
+                {/* Divider */}
+                <div style={{ height: "0.5px", background: tier.lineFg, margin: "14px 0" }} />
+                {/* 30 min row */}
+                <div style={{ display: "flex", justifyContent: "space-between",
+                  alignItems: "center", padding: "5px 0" }}>
+                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                    color: tier.durationFg }}>30 min</span>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
+                      fontWeight: 500, color: tier.priceFg }}>${tier.price30}</span>
+                    {tier.save30 && <span style={{ fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save30}</span>}
+                  </div>
+                </div>
+                {/* 60 min row */}
+                <div style={{ display: "flex", justifyContent: "space-between",
+                  alignItems: "center", padding: "5px 0" }}>
+                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                    color: tier.durationFg }}>60 min</span>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
+                      fontWeight: 500, color: tier.priceFg }}>${tier.price60}</span>
+                    {tier.save60 && <span style={{ fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save60}</span>}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
-          <div style={{ background: "#FDF5EC", border: "1.5px solid #D4A87A",
-            borderRadius: "14px", padding: "18px 22px", display: "inline-flex",
-            alignItems: "center", gap: "12px", maxWidth: "560px" }}>
-            <span style={{ fontSize: "20px", flexShrink: 0 }}>💡</span>
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-              color: "#374151", lineHeight: "1.6", textAlign: "left", margin: 0 }}>
-              <strong>Retroactive repricing:</strong> Book your 3rd walk this week and all 3 sessions 
-              automatically reprice to the Steady Stroll rate — not just the new one.
-            </p>
+
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af",
+            letterSpacing: "0.05em", marginBottom: "48px" }}>
+            Pricing resets weekly · Whole week reprices when you unlock a new tier
           </div>
-          <div style={{ textAlign: "center", marginTop: "48px" }}>
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-              color: "#9ca3af", marginBottom: "16px" }}>
-              Transparent pricing, no surprises — just great walks.
-            </p>
-            <button onClick={onSignUp} className="lp-cta-btn" style={{
-              padding: "13px 36px", borderRadius: "10px", border: "none",
-              background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
-              fontSize: "16px", fontWeight: 500, cursor: "pointer", letterSpacing: "0.3px",
-            }}>Sign Up Now →</button>
-          </div>
+
+          <button onClick={onSignUp} className="lp-cta-btn" style={{
+            padding: "13px 36px", borderRadius: "10px", border: "none",
+            background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
+            fontSize: "16px", fontWeight: 500, cursor: "pointer", letterSpacing: "0.3px",
+          }}>Sign Up Now →</button>
         </div>
       </section>
 
