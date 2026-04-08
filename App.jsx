@@ -4581,63 +4581,47 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     if (Object.keys(e).length) { setErrors(e); return; }
     setSubmitting(true);
     setTimeout(() => {
-      const newBookings = [];
+      const validWalks = selectedWalks.filter(w => w.slotId && w.duration);
+      const primarySlot = svc.slots.find(s => s.id === validWalks[0]?.slotId);
 
-      console.log("[handleSubmit] selectedDays:", Array.from(selectedDays));
-      console.log("[handleSubmit] walksByDay:", JSON.stringify(walksByDay));
-      console.log("[handleSubmit] weekOffset:", weekOffset);
+      const newBookings = validWalks.map(w => {
+        const slot = svc.slots.find(s => s.id === w.slotId);
+        if (!slot) return null;
+        const apptDate = new Date(weekDates[selectedDay]);
+        const [timePart, meridiem] = slot.time.split(" ");
+        let [hours, minutes] = timePart.split(":").map(Number);
+        if (meridiem === "PM" && hours !== 12) hours += 12;
+        if (meridiem === "AM" && hours === 12) hours = 0;
+        apptDate.setHours(hours, minutes || 0, 0, 0);
+        return {
+          key: bookingKey(service, selectedDay, slot.id),
+          service, day: FULL_DAYS[selectedDay], date: dateStr(selectedDay),
+          slot: { ...slot, duration: w.duration },
+          form: { ...form, additionalDogs }, bookedAt: new Date().toISOString(),
+          scheduledDateTime: apptDate.toISOString(),
+          additionalDogCount: additionalDogs.length,
+          additionalDogCharge: additionalDogs.length * 10,
+          price: 0, priceTier: "",
+          recurringId: isRecurring && w === validWalks[0] ? `rec_${service}_${selectedDay}_${slot.id}` : undefined,
+        };
+      }).filter(Boolean);
 
-      // Loop over every selected day and its walks
-      Array.from(selectedDays).sort((a, b) => a - b).forEach(dayIdx => {
-        const dayWalks = (walksByDay[dayIdx] || []).filter(w => w.slotId && w.duration);
-        console.log(`[handleSubmit] day ${dayIdx} walks:`, JSON.stringify(dayWalks));
-        dayWalks.forEach(w => {
-          const slot = svc.slots.find(s => s.id === w.slotId);
-          if (!slot) { console.warn("[handleSubmit] slot not found for slotId:", w.slotId); return; }
-          const apptDate = new Date(weekDates[dayIdx]);
-          const [timePart, meridiem] = slot.time.split(" ");
-          let [hours, minutes] = timePart.split(":").map(Number);
-          if (meridiem === "PM" && hours !== 12) hours += 12;
-          if (meridiem === "AM" && hours === 12) hours = 0;
-          apptDate.setHours(hours, minutes || 0, 0, 0);
-          const booking = {
-            key: bookingKey(service, dayIdx, slot.id),
-            service, day: FULL_DAYS[dayIdx], date: dateStrFromDate(weekDates[dayIdx]),
-            slot: { ...slot, duration: w.duration },
-            form: { ...form, additionalDogs }, bookedAt: new Date().toISOString(),
-            scheduledDateTime: apptDate.toISOString(),
-            additionalDogCount: additionalDogs.length,
-            additionalDogCharge: additionalDogs.length * 10,
-            price: 0, priceTier: "",
-          };
-          console.log("[handleSubmit] booking created:", booking.key, booking.scheduledDateTime);
-          newBookings.push(booking);
-        });
-      });
-
-      console.log("[handleSubmit] total newBookings:", newBookings.length);
-
-      // Append new bookings then reprice
       const allBookings = applySameDayDiscount(repriceWeekBookings([...myBookings, ...newBookings]));
 
-      // Save address, phone, and all dog/cat names back to client profile
       const petKey = service === "dog" ? "dogs" : "cats";
       const existingPets = client[petKey] || (service === "dog" ? (client.pets || []) : []);
       const allNewPetNames = [form.pet.trim(), ...additionalDogs.map(d => d.trim())].filter(Boolean);
       const mergedPets = [...existingPets];
       allNewPetNames.forEach(n => { if (!mergedPets.includes(n)) mergedPets.push(n); });
 
-      // Recurring schedule — only for first walk on active day (single day, single walk)
       const existingRecurring = client.recurringSchedules || [];
       let updatedRecurring = existingRecurring;
-      const activeDayWalks = (walksByDay[activeDay] || []).filter(w => w.slotId && w.duration);
-      const primarySlot = svc.slots.find(s => s.id === activeDayWalks[0]?.slotId);
-      if (isRecurring && primarySlot && selectedDays.size === 1) {
-        const recurringId = `rec_${service}_${activeDay}_${primarySlot.id}`;
+      if (isRecurring && primarySlot) {
+        const recurringId = `rec_${service}_${selectedDay}_${primarySlot.id}`;
         const newSchedule = {
-          id: recurringId, service, dayOfWeek: activeDay,
+          id: recurringId, service, dayOfWeek: selectedDay,
           slotId: primarySlot.id, slotTime: primarySlot.time,
-          duration: activeDayWalks[0].duration,
+          duration: validWalks[0].duration,
           form: { ...form, additionalDogs },
           additionalDogCount: additionalDogs.length,
           createdAt: new Date().toISOString(), cancelledWeeks: [],
@@ -4645,7 +4629,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         updatedRecurring = [...existingRecurring.filter(r => r.id !== recurringId), newSchedule];
       }
 
-      if (primarySlot) setSelectedSlot({ ...primarySlot, duration: activeDayWalks[0]?.duration });
+      if (primarySlot) setSelectedSlot({ ...primarySlot, duration: validWalks[0].duration });
 
       const updated = {
         ...client, bookings: allBookings,
@@ -4659,7 +4643,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       setClients(updatedClients);
       saveClients(updatedClients);
 
-      // Notify admins
       newBookings.forEach(b => {
         notifyAdmin("new_booking", {
           clientName: client.name, pet: form.pet,
@@ -4678,8 +4661,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     const pets = service === "dog" ? savedDogs : savedCats;
     setForm({ name: client.name || "", pet: pets.slice(-1)[0] || "", email: client.email, phone: client.phone || "", address: client.address || "", addrObj: addrFromString(client.address || ""), walker: client.preferredWalker || "", notes: client.notes || "" });
     setAdditionalDogs([]);
-    setWalksByDay({ [activeDay]: [{ slotId: "", duration: null }] });
-    setSelectedDays(new Set([activeDay]));
+    setSelectedWalks([{ slotId: "", duration: null }]);
     setIsRecurring(false);
     setErrors({}); setMapCoords(null); setMapError(null);
   };
@@ -4921,7 +4903,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               </div>
               <div style={{ textAlign: "right", flexShrink: 0 }}>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                  fontWeight: 600, color: "#111827" }}>${currentTier.prices["30 min"]}</div>
+                  fontWeight: 600, color: "#111827" }}>{fmtPrice(currentTier.prices["30 min"])}</div>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>30 min</div>
               </div>
             </div>
@@ -5412,7 +5394,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                    fontWeight: 600, color: "#111827" }}>${currentTier.prices["30 min"]}</div>
+                    fontWeight: 600, color: "#111827" }}>{fmtPrice(currentTier.prices["30 min"])}</div>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>30 min</div>
                 </div>
               </div>
@@ -6395,7 +6377,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       Select Date
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <button onClick={() => { if (weekOffset > minWeekOffset) { setWeekOffset(w => w - 1); setActiveDay(0); setSelectedDays(new Set([0])); setWalksByDay({ 0: [{ slotId: "", duration: null }] }); } }}
+                      <button onClick={() => { if (weekOffset > minWeekOffset) { setWeekOffset(w => w - 1); setSelectedDay(0); } }}
                         disabled={weekOffset === minWeekOffset}
                         style={{ width: "30px", height: "30px", borderRadius: "8px",
                           border: "1.5px solid #e4e7ec", background: weekOffset === minWeekOffset ? "#f9fafb" : "#fff",
@@ -6406,7 +6388,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                         color: "#6b7280", minWidth: "80px", textAlign: "center" }}>
                         {weekOffset === 0 ? "This week" : weekOffset === 1 ? "Next week" : `+${weekOffset} weeks`}
                       </div>
-                      <button onClick={() => { setWeekOffset(w => w + 1); setActiveDay(0); setSelectedDays(new Set([0])); setWalksByDay({ 0: [{ slotId: "", duration: null }] }); }}
+                      <button onClick={() => { setWeekOffset(w => w + 1); setSelectedDay(0); }}
                         disabled={weekOffset >= 8}
                         style={{ width: "30px", height: "30px", borderRadius: "8px",
                           border: "1.5px solid #e4e7ec", background: weekOffset >= 8 ? "#f9fafb" : "#fff",
@@ -6417,8 +6399,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   </div>
                 <div className="day-selector">
                     {DAYS.map((d, i) => {
-                      const isSelected = selectedDays.has(i);
-                      const isActive = activeDay === i;
+                      const active = selectedDay === i;
                       const cutoff24h = new Date(Date.now() + 24 * 60 * 60 * 1000);
                       const lastSlotOfDay = new Date(weekDates[i]);
                       lastSlotOfDay.setHours(19, 0, 0, 0);
@@ -6431,58 +6412,27 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                         ? dayDate < new Date(handoffCutoff.getFullYear(), handoffCutoff.getMonth(), handoffCutoff.getDate())
                         : false;
                       const disabled = isPast || isBeforeHandoff;
-                      const hasWalks = (walksByDay[i] || []).some(w => w.slotId && w.duration);
                       return (
-                        <button key={d} onClick={() => {
-                          if (disabled) return;
-                          // Toggle selection, always set as active day
-                          setActiveDay(i);
-                          setSelectedDays(prev => {
-                            const next = new Set(prev);
-                            if (next.has(i) && next.size > 1) {
-                              next.delete(i);
-                            } else {
-                              next.add(i);
-                            }
-                            return next;
-                          });
-                          // Init walks for this day if not yet set
-                          setWalksByDay(prev => ({
-                            ...prev,
-                            [i]: prev[i] || [{ slotId: "", duration: null }],
-                          }));
-                        }}
+                        <button key={d} onClick={() => !disabled && (setSelectedDay(i), setSelectedWalks([{ slotId: "", duration: null }]))}
                           disabled={disabled}
                           style={{
                             minWidth: "52px", padding: "10px 6px", borderRadius: "10px",
-                            border: isActive ? `2px solid ${svc.color}` : isSelected ? `2px solid ${svc.color}88` : "2px solid #e4e7ec",
-                            background: isActive ? svc.color : isSelected ? `${svc.color}18` : disabled ? "#f9fafb" : "#fff",
-                            color: isActive ? "#fff" : isSelected ? svc.color : disabled ? "#d1d5db" : "#374151",
+                            border: active ? `2px solid ${svc.color}` : "2px solid #e4e7ec",
+                            background: active ? svc.color : disabled ? "#f9fafb" : "#fff",
+                            color: active ? "#fff" : disabled ? "#d1d5db" : "#374151",
                             cursor: disabled ? "default" : "pointer",
                             display: "flex", flexDirection: "column", alignItems: "center", gap: "3px",
-                            fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s", position: "relative" }}>
+                            fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s" }}>
                           <span style={{ fontSize: "16px", fontWeight: 600, textTransform: "uppercase" }}>{d}</span>
                           <span style={{ fontSize: "17px", fontWeight: 700 }}>{weekDates[i].getDate()}</span>
-                          {hasWalks && !isActive && (
-                            <span style={{ width: "6px", height: "6px", borderRadius: "50%",
-                              background: svc.color, position: "absolute", bottom: "4px" }} />
-                          )}
                         </button>
                       );
                     })}
                   </div>
 
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
-                    letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px",
-                    display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span>{FULL_DAYS[activeDay]} · {dateStr(activeDay)}</span>
-                    {selectedDays.size > 1 && (
-                      <span style={{ fontSize: "13px", fontWeight: 500, color: svc.color,
-                        background: `${svc.color}15`, borderRadius: "20px", padding: "2px 10px",
-                        letterSpacing: "0.5px" }}>
-                        {selectedDays.size} days selected
-                      </span>
-                    )}
+                    letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px" }}>
+                    {FULL_DAYS[selectedDay]} · {dateStr(selectedDay)}
                   </div>
 
                   {/* Walk selector rows */}
@@ -7275,12 +7225,10 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   padding: "32px 28px", boxShadow: "0 8px 48px rgba(0,0,0,0.28)",
                   textAlign: "center",
                 }}>
-                  {/* Success mark */}
                   <div className="pop" style={{ fontSize: "56px", marginBottom: "12px" }}>✓</div>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                     fontWeight: 600, color: "#111827", marginBottom: "6px" }}>
-                    {Array.from(selectedDays).reduce((total, d) => total + (walksByDay[d] || []).filter(w => w.slotId && w.duration).length, 0) > 1
-                      ? "Appointments Confirmed" : "Appointment Confirmed"}
+                    {selectedWalks.filter(w => w.slotId && w.duration).length > 1 ? "Appointments Confirmed" : "Appointment Confirmed"}
                   </div>
                   <p style={{ fontFamily: "'DM Sans', sans-serif", color: "#6b7280",
                     fontSize: "15px", marginBottom: "24px", lineHeight: "1.6" }}>
@@ -7297,50 +7245,42 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       <div>
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
                           fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", color: "#111827" }}>{svc.label}</div>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: svc.color }}>
-                          {selectedDays.size === 1
-                            ? `${FULL_DAYS[activeDay]}, ${dateStr(activeDay)}`
-                            : `${selectedDays.size} days booked`}
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: svc.color }}>
+                          {FULL_DAYS[selectedDay]}, {dateStr(selectedDay)}
+                          {selectedWalks.filter(w=>w.slotId&&w.duration).length === 1 && selectedSlot?.time
+                            ? ` at ${selectedSlot?.time}` : ` · ${selectedWalks.filter(w=>w.slotId&&w.duration).length} walks`}
                         </div>
                       </div>
                     </div>
 
-                    {/* Per-day summary */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
-                      {Array.from(selectedDays).sort((a, b) => a - b).map(dayIdx => {
-                        const dayWalks = (walksByDay[dayIdx] || []).filter(w => w.slotId && w.duration);
-                        if (!dayWalks.length) return null;
-                        return (
-                          <div key={dayIdx} style={{ background: svc.light, border: `1px solid ${svc.border}`,
-                            borderRadius: "10px", padding: "10px 12px" }}>
-                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-                              fontWeight: 600, color: svc.color, marginBottom: "4px" }}>
-                              {FULL_DAYS[dayIdx]}, {dateStrFromDate(weekDates[dayIdx])}
+                    {selectedWalks.filter(w => w.slotId && w.duration).length > 1 && (
+                      <div style={{ marginBottom: "12px", display: "flex", flexDirection: "column", gap: "5px" }}>
+                        {selectedWalks.filter(w => w.slotId && w.duration).map((w, i) => {
+                          const slot = svc.slots.find(s => s.id === w.slotId);
+                          const p = getSessionPrice(w.duration, weekBookingCount + i + 1);
+                          return (
+                            <div key={i} style={{ display: "flex", justifyContent: "space-between",
+                              padding: "7px 10px", borderRadius: "8px", background: svc.light,
+                              border: `1px solid ${svc.border}` }}>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#374151" }}>
+                                {slot?.time} · {w.duration}
+                              </span>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                                fontWeight: 600, color: svc.color }}>${p}</span>
                             </div>
-                            {dayWalks.map((w, i) => {
-                              const slot = svc.slots.find(s => s.id === w.slotId);
-                              const p = getSessionPrice(w.duration, weekBookingCount + i + 1);
-                              return (
-                                <div key={i} style={{ display: "flex", justifyContent: "space-between",
-                                  fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#374151" }}>
-                                  <span>{slot?.time} · {w.duration}</span>
-                                  <span style={{ fontWeight: 600, color: "#111827" }}>${p}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
 
-                    {isRecurring && selectedDays.size === 1 && (
+                    {isRecurring && (
                       <div style={{ display: "flex", alignItems: "center", gap: "8px",
                         padding: "8px 12px", borderRadius: "8px", marginBottom: "10px",
                         background: "#FDF5EC", border: "1.5px solid #D4A87A" }}>
                         <span style={{ fontSize: "16px" }}>🔁</span>
                         <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                           color: "#C4541A", lineHeight: "1.5" }}>
-                          <strong>Recurring weekly</strong> — booked every {FULL_DAYS[activeDay]} until cancelled.
+                          <strong>Recurring weekly</strong> — booked every {FULL_DAYS[selectedDay]} until cancelled.
                         </span>
                       </div>
                     )}
