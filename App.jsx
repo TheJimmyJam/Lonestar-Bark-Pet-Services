@@ -6387,7 +6387,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       Select Date
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <button onClick={() => { if (weekOffset > minWeekOffset) { setWeekOffset(w => w - 1); setSelectedDay(0); } }}
+                      <button onClick={() => { if (weekOffset > minWeekOffset) { setWeekOffset(w => w - 1); setActiveDay(0); setSelectedDays(new Set([0])); setWalksByDay({ 0: [{ slotId: "", duration: null }] }); } }}
                         disabled={weekOffset === minWeekOffset}
                         style={{ width: "30px", height: "30px", borderRadius: "8px",
                           border: "1.5px solid #e4e7ec", background: weekOffset === minWeekOffset ? "#f9fafb" : "#fff",
@@ -6398,7 +6398,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                         color: "#6b7280", minWidth: "80px", textAlign: "center" }}>
                         {weekOffset === 0 ? "This week" : weekOffset === 1 ? "Next week" : `+${weekOffset} weeks`}
                       </div>
-                      <button onClick={() => { setWeekOffset(w => w + 1); setSelectedDay(0); }}
+                      <button onClick={() => { setWeekOffset(w => w + 1); setActiveDay(0); setSelectedDays(new Set([0])); setWalksByDay({ 0: [{ slotId: "", duration: null }] }); }}
                         disabled={weekOffset >= 8}
                         style={{ width: "30px", height: "30px", borderRadius: "8px",
                           border: "1.5px solid #e4e7ec", background: weekOffset >= 8 ? "#f9fafb" : "#fff",
