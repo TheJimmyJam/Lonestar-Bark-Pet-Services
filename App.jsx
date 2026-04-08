@@ -7585,7 +7585,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
               { icon: "🐕", color: "#C4541A", light: "#FDF5EC", border: "#D4A843",
                 title: "Dog-walking", desc: "Your dog walks one-on-one with their dedicated walker — never in a large group, never rushed. Every walk is personalized to your dog's pace, personality, and needs, with flexible scheduling that fits your life." },
               { icon: "🐈", color: "#3D6B7A", light: "#EBF4F6", border: "#8EBCC6",
-                title: "Cat-sitting", desc: "30 or 60-minute in-home visits for your feline friend. Feeding, playtime, litter box care, and plenty of affection while you're away. Same pricing as dog-walking." },
+                title: "Cat-sitting", desc: "Your cat gets one-on-one attention from their dedicated sitter — in the comfort of home, on their own terms. Every visit is tailored to your cat's routine, with feeding, playtime, litter box care, and plenty of affection." },
               { icon: "🌙", color: "#7A4D6E", light: "#F5EFF3", border: "#C4A0B8",
                 title: "Overnight Stays", desc: "Because some trips are longer than a walk can cover. We've got your pet — tucked in, loved on, and right at home.\n\n🏡 At our place — $100/night\n🔑 At your place — $150/night" },
               { icon: "🚗", color: "#b45309", light: "#fffbeb", border: "#fde68a",
