@@ -6361,6 +6361,14 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   </div>
                 )}
 
+                <QuickRebookBanner
+                  client={client}
+                  service={service}
+                  myBookings={myBookings}
+                  clients={clients}
+                  setClients={setClients}
+                  onBooked={() => setPage("mywalks")}
+                />
 
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                     marginBottom: "10px" }}>
@@ -9083,7 +9091,9 @@ let CUSTOM_WALKERS = [];
 
 // Returns the full merged walker list (built-in + custom), excluding deleted walkers
 function getAllWalkers(walkerProfilesArg) {
-  return [...CUSTOM_WALKERS];
+  return [...CUSTOM_WALKERS].sort((a, b) =>
+    firstName(a.name).localeCompare(firstName(b.name))
+  );
 }
 
 // Inject custom walker profiles into the runtime registries
