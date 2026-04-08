@@ -7520,9 +7520,10 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             <em style={{ color: "#D4A843", fontStyle: "italic" }}>Done Right.</em>
           </div>
           <div className="lp-fade-3" style={{ fontFamily: "'DM Sans', sans-serif",
-            color: "#ffffffcc", fontSize: "clamp(14px, 2.5vw, 17px)", lineHeight: "1.75",
-            marginBottom: "40px", fontWeight: 300, maxWidth: "520px", margin: "0 auto 40px" }}>
-            Vetted walkers, transparent pricing, and a personal meet & greet before your first walk.
+            color: "#D4A843", fontSize: "clamp(10px, 1.5vw, 12px)", lineHeight: "2",
+            marginBottom: "40px", fontWeight: 500, maxWidth: "600px", margin: "0 auto 40px",
+            letterSpacing: "0.15em" }}>
+            INSURED & VETTED WALKERS &nbsp;·&nbsp; TRANSPARENT PRICING &nbsp;·&nbsp; FREE INITIAL MEET & GREET &nbsp;·&nbsp; PEACE OF MIND
           </div>
           <div className="lp-fade-4 lp-hero-ctas">
             <button onClick={onSignUp} className="lp-cta-btn" style={{
@@ -7537,16 +7538,6 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
               color: "rgba(255,255,255,0.8)", fontFamily: "'DM Sans', sans-serif",
               fontSize: "16px", fontWeight: 400, cursor: "pointer", letterSpacing: "0.3px",
             }}>How It Works</button>
-          </div>
-          <div style={{ marginTop: "56px", display: "flex", justifyContent: "center",
-            gap: "40px", flexWrap: "wrap" }}>
-            {[["🐕", "Dog-walking"], ["🐈", "Cat-sitting"], ["🌙", "Overnight Stays"], ["🚗", "Pet Transportation"], ["⭐", "Vetted Walkers"]].map(([icon, label]) => (
-              <div key={label} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ fontSize: "18px" }}>{icon}</span>
-                <span style={{ fontFamily: "'DM Sans', sans-serif", color: "rgba(255,255,255,0.55)",
-                  fontSize: "15px", fontWeight: 400, letterSpacing: "0.3px" }}>{label}</span>
-              </div>
-            ))}
           </div>
 
         </div>
@@ -7579,7 +7570,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             marginBottom: "56px", lineHeight: "1.7", maxWidth: "520px", margin: "0 auto 56px" }}>
             Whether you have a high-energy pup or an independent cat, we have a service tailored for them.
           </p>
-          <div className="lp-services-grid">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
             {[
               { icon: "🐕", color: "#C4541A", light: "#FDF5EC", border: "#D4A843",
                 title: "Dog-walking", desc: "Your dog walks one-on-one with their dedicated walker — never in a large group, never rushed. Every walk is personalized to your dog's pace, personality, and needs, with flexible scheduling that fits your life." },
