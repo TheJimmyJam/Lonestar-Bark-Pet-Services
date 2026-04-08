@@ -4328,6 +4328,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   }, []);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [recurringCancelConfirm, setRecurringCancelConfirm] = useState(null);
+  const [walksSearch, setWalksSearch] = useState("");
+  const [invoicesSearch, setInvoicesSearch] = useState("");
+  const [messagesSearch, setMessagesSearch] = useState("");
   const [mapCoords, setMapCoords] = useState(null);
   const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState(null);
@@ -5128,7 +5131,19 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       {page === "mywalks" && (() => {
         const now = new Date();
         const { monday, sunday } = getCurrentWeekRange();
-        const allActive = myBookings.filter(b => !b.cancelled);
+        const walksQ = walksSearch.toLowerCase();
+        const allActive = myBookings.filter(b => {
+          if (b.cancelled) return false;
+          if (!walksQ) return true;
+          return (
+            (b.form?.pet || "").toLowerCase().includes(walksQ) ||
+            (b.form?.walker || "").toLowerCase().includes(walksQ) ||
+            (b.day || "").toLowerCase().includes(walksQ) ||
+            (b.date || "").toLowerCase().includes(walksQ) ||
+            (b.slot?.time || "").toLowerCase().includes(walksQ) ||
+            (b.slot?.duration || "").toLowerCase().includes(walksQ)
+          );
+        });
         const pastWalks = allActive.filter(b => b.scheduledDateTime && new Date(b.scheduledDateTime) <= now);
         const futureWalks = allActive.filter(b => b.scheduledDateTime && new Date(b.scheduledDateTime) > now);
 
@@ -5236,7 +5251,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           <div className="app-container fade-up">
 
             {/* ── Welcome banner ── */}
-            <div style={{ borderRadius: "16px", overflow: "hidden", marginBottom: "20px",
+            <div style={{ borderRadius: "16px", overflow: "hidden", marginBottom: "16px",
               boxShadow: "0 4px 20px rgba(0,0,0,0.08)", position: "relative",
               background: "linear-gradient(135deg, #4d2e10 0%, #8B5E3C 100%)", height: "80px" }}>
               <div style={{ position: "absolute", inset: 0,
@@ -5250,6 +5265,25 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     fontSize: "14px" }}>They're waiting for you 🐾</div>
                 </div>
               </div>
+            </div>
+
+            {/* Search bar */}
+            <div style={{ position: "relative", marginBottom: "20px" }}>
+              <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)",
+                fontSize: "16px", pointerEvents: "none" }}>🔍</span>
+              <input
+                value={walksSearch}
+                onChange={e => setWalksSearch(e.target.value)}
+                placeholder="Search by pet, walker, day, time…"
+                style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px 10px 36px",
+                  borderRadius: "10px", border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "15px", color: "#111827", background: "#fff", outline: "none" }}
+              />
+              {walksSearch && (
+                <button onClick={() => setWalksSearch("")} style={{ position: "absolute", right: "10px",
+                  top: "50%", transform: "translateY(-50%)", background: "none", border: "none",
+                  cursor: "pointer", color: "#9ca3af", fontSize: "16px" }}>✕</button>
+              )}
             </div>
 
             {/* ── Cancellation Confirmation Modal ── */}
@@ -5365,14 +5399,20 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               </div>
             </div>
 
+            {/* ── UPCOMING ── */}
+            {(Object.keys(weekGroups).length > 0 || recurringSchedules.length > 0) && (
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600,
+                letterSpacing: "2px", textTransform: "uppercase", color: "#C4541A",
+                marginBottom: "14px", display: "flex", alignItems: "center", gap: "10px" }}>
+                <span>Upcoming</span>
+                <div style={{ flex: 1, height: "1px", background: "#f3f4f6" }} />
+              </div>
+            )}
+
             {/* Weekly totals for upcoming bookings */}
             {Object.keys(weekGroups).length > 0 && (
               <div style={{ marginBottom: "28px" }}>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
-                  letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "14px" }}>
-                  Upcoming — Weekly Summary
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                   {Object.entries(weekGroups).sort(([a],[b]) => a.localeCompare(b)).map(([key, group]) => {
                     const weekTotal = group.bookings.filter(b => !b.isHandoff).reduce((sum, b) => sum + effectivePrice(b), 0);
                     const weekCount = group.bookings.filter(b => !b.isHandoff).length;
@@ -5594,12 +5634,14 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               </div>
             )}
 
-            {/* Past walks */}
+            {/* ── COMPLETED ── */}
             {pastWalks.length > 0 && (
               <div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
-                  letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "14px" }}>
-                  Walk History
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600,
+                  letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af",
+                  marginBottom: "14px", display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span>Completed</span>
+                  <div style={{ flex: 1, height: "1px", background: "#f3f4f6" }} />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   {[...pastWalks].sort((a,b) => new Date(b.scheduledDateTime) - new Date(a.scheduledDateTime)).map((b, i) => {
@@ -5815,6 +5857,25 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
             Send a message directly to {client.keyholder} — your key holder and primary walker.
           </p>
 
+          {/* Search bar */}
+          <div style={{ position: "relative", marginBottom: "12px" }}>
+            <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)",
+              fontSize: "16px", pointerEvents: "none" }}>🔍</span>
+            <input
+              value={messagesSearch}
+              onChange={e => setMessagesSearch(e.target.value)}
+              placeholder="Search messages…"
+              style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px 10px 36px",
+                borderRadius: "10px", border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif",
+                fontSize: "15px", color: "#111827", background: "#fff", outline: "none" }}
+            />
+            {messagesSearch && (
+              <button onClick={() => setMessagesSearch("")} style={{ position: "absolute", right: "10px",
+                top: "50%", transform: "translateY(-50%)", background: "none", border: "none",
+                cursor: "pointer", color: "#9ca3af", fontSize: "16px" }}>✕</button>
+            )}
+          </div>
+
           {/* Notice banner */}
           <div style={{ background: "#fffbeb", border: "1.5px solid #fbbf24", borderRadius: "12px",
             padding: "12px 16px", marginBottom: "16px", display: "flex", gap: "10px", alignItems: "flex-start" }}>
@@ -5845,7 +5906,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 </div>
               ) : (
                 <>
-                  {clientMsgs.map(msg => {
+                  {clientMsgs.filter(msg => !messagesSearch || msg.text.toLowerCase().includes(messagesSearch.toLowerCase())).map(msg => {
                     const isMine = msg.from === client.name;
                     return (
                       <div key={msg.id} style={{ display: "flex", flexDirection: "column",
@@ -9993,6 +10054,9 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
   const [pendingNavTab, setPendingNavTab] = useState(null);
   const [walkerMenuOpen, setWalkerMenuOpen] = useState(false);
   const [invFilter, setInvFilter] = useState("all");
+  const [walkerWalksSearch, setWalkerWalksSearch] = useState("");
+  const [walkerTradesSearch, setWalkerTradesSearch] = useState("");
+  const [walkerMsgsSearch, setWalkerMsgsSearch] = useState("");
   // New calendar-based availability: { "2025-04-07": ["8:00 AM", ...], ... }
   const [availability, setAvailability] = useState({});
   const [availLoading, setAvailLoading] = useState(false);
@@ -11416,13 +11480,24 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
         {/* ── My Schedule ── */}
         {tab === "mywalks" && (() => {
           const todayStr = new Date().toDateString();
+          const walksQ = walkerWalksSearch.toLowerCase();
+          const filteredWalks = walksQ
+            ? myWalks.filter(b =>
+                (b.clientName || "").toLowerCase().includes(walksQ) ||
+                (b.form?.pet || "").toLowerCase().includes(walksQ) ||
+                (b.day || "").toLowerCase().includes(walksQ) ||
+                (b.date || "").toLowerCase().includes(walksQ) ||
+                (b.slot?.time || "").toLowerCase().includes(walksQ) ||
+                (b.slot?.duration || "").toLowerCase().includes(walksQ)
+              )
+            : myWalks;
 
-          const todayWalks = myWalks.filter(b => {
+          const todayWalks = filteredWalks.filter(b => {
             const appt = new Date(b.scheduledDateTime || b.bookedAt);
             return appt.toDateString() === todayStr;
           }).sort((a, b) => new Date(a.scheduledDateTime) - new Date(b.scheduledDateTime));
 
-          const futureWalks = myWalks.filter(b => {
+          const futureWalks = filteredWalks.filter(b => {
             const appt = new Date(b.scheduledDateTime || b.bookedAt);
             return appt.toDateString() !== todayStr;
           }).sort((a, b) => new Date(a.scheduledDateTime) - new Date(b.scheduledDateTime));
@@ -11917,9 +11992,28 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                 fontWeight: 600, color: "#111827", marginBottom: "6px" }}>My Schedule</div>
               <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
-                marginBottom: "20px" }}>
+                marginBottom: "14px" }}>
                 Confirm or mark today's walks complete directly from the list. Tap a walk for full details.
               </p>
+
+              {/* Search bar */}
+              <div style={{ position: "relative", marginBottom: "20px" }}>
+                <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)",
+                  fontSize: "16px", pointerEvents: "none" }}>🔍</span>
+                <input
+                  value={walkerWalksSearch}
+                  onChange={e => setWalkerWalksSearch(e.target.value)}
+                  placeholder="Search by client, pet, day, time…"
+                  style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px 10px 36px",
+                    borderRadius: "10px", border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif",
+                    fontSize: "15px", color: "#111827", background: "#fff", outline: "none" }}
+                />
+                {walkerWalksSearch && (
+                  <button onClick={() => setWalkerWalksSearch("")} style={{ position: "absolute", right: "10px",
+                    top: "50%", transform: "translateY(-50%)", background: "none", border: "none",
+                    cursor: "pointer", color: "#9ca3af", fontSize: "16px" }}>✕</button>
+                )}
+              </div>
 
               {myWalks.length === 0 ? (
                 <div style={{ background: "#fff", borderRadius: "16px", padding: "40px",
@@ -12853,12 +12947,30 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
         {/* ── Shift Trades ── */}
         {tab === "trades" && (() => {
           const myTrades = (trades || []);
+          const tradesQ = walkerTradesSearch.toLowerCase();
           // Trades offered BY this walker (outgoing)
-          const myOffers = myTrades.filter(t => t.fromWalker === walker.name);
+          const myOffers = myTrades.filter(t => {
+            if (t.fromWalker !== walker.name) return false;
+            if (!tradesQ) return true;
+            return (
+              (t.clientName || "").toLowerCase().includes(tradesQ) ||
+              (t.pet || "").toLowerCase().includes(tradesQ) ||
+              (t.date || "").toLowerCase().includes(tradesQ) ||
+              (t.day || "").toLowerCase().includes(tradesQ) ||
+              (t.status || "").toLowerCase().includes(tradesQ)
+            );
+          });
           // Trades offered TO all others that this walker can accept (incoming — offered by others, pending)
-          const incoming = myTrades.filter(t =>
-            t.fromWalker !== walker.name && t.status === "pending"
-          );
+          const incoming = myTrades.filter(t => {
+            if (t.fromWalker === walker.name || t.status !== "pending") return false;
+            if (!tradesQ) return true;
+            return (
+              (t.clientName || "").toLowerCase().includes(tradesQ) ||
+              (t.pet || "").toLowerCase().includes(tradesQ) ||
+              (t.date || "").toLowerCase().includes(tradesQ) ||
+              (t.fromWalker || "").toLowerCase().includes(tradesQ)
+            );
+          });
 
           const submitOffer = () => {
             const booking = myWalks.find(b => b.key === offerBookingKey);
@@ -12974,9 +13086,28 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                 fontWeight: 600, color: "#111827", marginBottom: "6px" }}>Shift Trades</div>
               <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
-                marginBottom: "24px" }}>
+                marginBottom: "14px" }}>
                 Offer one of your walks for another walker to pick up — optionally sweeten it with a bonus.
               </p>
+
+              {/* Search bar */}
+              <div style={{ position: "relative", marginBottom: "20px" }}>
+                <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)",
+                  fontSize: "16px", pointerEvents: "none" }}>🔍</span>
+                <input
+                  value={walkerTradesSearch}
+                  onChange={e => setWalkerTradesSearch(e.target.value)}
+                  placeholder="Search by client, pet, date, status…"
+                  style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px 10px 36px",
+                    borderRadius: "10px", border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif",
+                    fontSize: "15px", color: "#111827", background: "#fff", outline: "none" }}
+                />
+                {walkerTradesSearch && (
+                  <button onClick={() => setWalkerTradesSearch("")} style={{ position: "absolute", right: "10px",
+                    top: "50%", transform: "translateY(-50%)", background: "none", border: "none",
+                    cursor: "pointer", color: "#9ca3af", fontSize: "16px" }}>✕</button>
+                )}
+              </div>
 
               {/* ── Offer a Walk ── */}
               {sectionLabel("Offer a Walk for Trade")}
@@ -13287,6 +13418,25 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
               fontWeight: 600, color: "#111827", marginBottom: "14px" }}>Messages</div>
 
+            {/* Search bar */}
+            <div style={{ position: "relative", marginBottom: "14px" }}>
+              <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)",
+                fontSize: "16px", pointerEvents: "none" }}>🔍</span>
+              <input
+                value={walkerMsgsSearch}
+                onChange={e => setWalkerMsgsSearch(e.target.value)}
+                placeholder="Search messages…"
+                style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px 10px 36px",
+                  borderRadius: "10px", border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "15px", color: "#111827", background: "#fff", outline: "none" }}
+              />
+              {walkerMsgsSearch && (
+                <button onClick={() => setWalkerMsgsSearch("")} style={{ position: "absolute", right: "10px",
+                  top: "50%", transform: "translateY(-50%)", background: "none", border: "none",
+                  cursor: "pointer", color: "#9ca3af", fontSize: "16px" }}>✕</button>
+              )}
+            </div>
+
             {/* Sub-tab pills */}
             <div style={{ display: "flex", gap: "8px", marginBottom: "18px" }}>
               {[{ id: "team", label: "Team" }, { id: "direct", label: "Direct" }, { id: "clients", label: "Clients" }].map(st => {
@@ -13328,7 +13478,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                       </div>
                     ) : (
                       <>
-                        {chatMessages.map(msg => {
+                        {chatMessages.filter(msg => !walkerMsgsSearch || msg.text.toLowerCase().includes(walkerMsgsSearch.toLowerCase()) || msg.from.toLowerCase().includes(walkerMsgsSearch.toLowerCase())).map(msg => {
                           const isMine = msg.from === walker.name;
                           return (
                             <div key={msg.id} style={{ display: "flex", flexDirection: "column", alignItems: isMine ? "flex-end" : "flex-start" }}>
@@ -13391,7 +13541,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                           </div>
                         ) : (
                           <>
-                            {dmMessages.map(msg => {
+                            {dmMessages.filter(msg => !walkerMsgsSearch || msg.text.toLowerCase().includes(walkerMsgsSearch.toLowerCase()) || msg.from.toLowerCase().includes(walkerMsgsSearch.toLowerCase())).map(msg => {
                               const isMine = msg.from === walker.name;
                               return (
                                 <div key={msg.id} style={{ display: "flex", flexDirection: "column", alignItems: isMine ? "flex-end" : "flex-start" }}>
@@ -13468,7 +13618,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                     </div>
                   ) : !selectedClientMsgEmail ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                      {myKeyClients.map(c => {
+                      {myKeyClients.filter(c => !walkerMsgsSearch || c.name.toLowerCase().includes(walkerMsgsSearch.toLowerCase())).map(c => {
                         const convoMsgs = clientMsgsByEmail[c.email] || [];
                         const lastMsg   = convoMsgs[convoMsgs.length - 1];
                         const lastSeen  = clientMsgSeenMap[c.email] ? new Date(clientMsgSeenMap[c.email]) : null;
@@ -13532,7 +13682,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                             </div>
                           ) : (
                             <>
-                              {msgs.map(msg => {
+                              {msgs.filter(msg => !walkerMsgsSearch || msg.text.toLowerCase().includes(walkerMsgsSearch.toLowerCase()) || msg.from.toLowerCase().includes(walkerMsgsSearch.toLowerCase())).map(msg => {
                                 const isMine = msg.from === walker.name;
                                 return (
                                   <div key={msg.id} style={{ display: "flex", flexDirection: "column",
@@ -14851,10 +15001,11 @@ function AdminInvoicesTab({ clients, setClients }) {
   // Create invoice state
   const [step, setStep] = useState(1); // 1=client, 2=type/items, 3=preview
   const [selectedClientId, setSelectedClientId] = useState(null);
-  const [invoiceType, setInvoiceType] = useState("walk"); // "walk" | "week"
+  const [invoiceType, setInvoiceType] = useState("walk"); // "walk" | "week" | "custom"
   const [selectedWalkKeys, setSelectedWalkKeys] = useState([]);
   const [selectedWeek, setSelectedWeek] = useState(null); // { monday, label }
   const [invoiceNotes, setInvoiceNotes] = useState("");
+  const [customItems, setCustomItems] = useState([{ description: "", amount: "" }]);
   const [sending, setSending] = useState(false);
   const [sentConfirm, setSentConfirm] = useState(null);
   const [bulkState, setBulkState] = useState("idle"); // "idle"|"confirm"|"sending"|"done"
@@ -14930,13 +15081,19 @@ function AdminInvoicesTab({ clients, setClients }) {
         amount: effectivePrice(b),
       }));
     }
+    if (invoiceType === "custom") {
+      return customItems
+        .filter(it => it.description.trim() && parseFloat(it.amount) > 0)
+        .map(it => ({ description: it.description.trim(), amount: parseFloat(it.amount) }));
+    }
     return [];
   })();
   const previewTotal = previewItems.reduce((s, it) => s + it.amount, 0);
 
   const resetCreate = () => {
     setStep(1); setSelectedClientId(null); setInvoiceType("walk");
-    setSelectedWalkKeys([]); setSelectedWeek(null); setInvoiceNotes(""); setSentConfirm(null);
+    setSelectedWalkKeys([]); setSelectedWeek(null); setInvoiceNotes("");
+    setCustomItems([{ description: "", amount: "" }]); setSentConfirm(null);
   };
 
   // ── Bulk invoice: find all uninvoiced completed walks across every client ──
@@ -15558,16 +15715,17 @@ function AdminInvoicesTab({ clients, setClients }) {
                     {[
                       { id: "walk", label: "Select Walks", icon: "🐕", desc: "Pick individual walks" },
                       { id: "week", label: "Full Week", icon: "📅", desc: "Invoice an entire week" },
+                      { id: "custom", label: "Custom Charge", icon: "✏️", desc: "Any amount, any reason" },
                     ].map(opt => (
-                      <button key={opt.id} onClick={() => { setInvoiceType(opt.id); setSelectedWalkKeys([]); setSelectedWeek(null); }}
+                      <button key={opt.id} onClick={() => { setInvoiceType(opt.id); setSelectedWalkKeys([]); setSelectedWeek(null); setCustomItems([{ description: "", amount: "" }]); }}
                         style={{ flex: 1, padding: "14px 12px", borderRadius: "12px", cursor: "pointer",
                           border: invoiceType === opt.id ? `2px solid ${green}` : "1.5px solid #e4e7ec",
                           background: invoiceType === opt.id ? "#FDF5EC" : "#fff",
                           textAlign: "center", transition: "all 0.12s" }}>
                         <div style={{ fontSize: "22px", marginBottom: "4px" }}>{opt.icon}</div>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                          fontWeight: 600, color: invoiceType === opt.id ? green : "#374151" }}>{opt.label}</div>
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                          fontWeight: 600, color: invoiceType === opt.id ? green : "#374151" }}>{opt.label}</div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
                           color: "#9ca3af" }}>{opt.desc}</div>
                       </button>
                     ))}
@@ -15691,6 +15849,76 @@ function AdminInvoicesTab({ clients, setClients }) {
                           </button>
                         );
                       })}
+                    </div>
+                  )}
+
+                  {/* Custom charge line items */}
+                  {invoiceType === "custom" && (
+                    <div style={{ marginBottom: "16px" }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                        color: "#6b7280", marginBottom: "12px" }}>
+                        Add one or more line items for this invoice.
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "12px" }}>
+                        {customItems.map((item, idx) => (
+                          <div key={idx} style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
+                            <div style={{ flex: 1 }}>
+                              <input
+                                value={item.description}
+                                onChange={e => {
+                                  const updated = [...customItems];
+                                  updated[idx] = { ...updated[idx], description: e.target.value };
+                                  setCustomItems(updated);
+                                }}
+                                placeholder="Description (e.g. Holiday boarding, Special request…)"
+                                style={{ width: "100%", boxSizing: "border-box", padding: "10px 13px",
+                                  borderRadius: "9px", border: "1.5px solid #e4e7ec",
+                                  fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                                  color: "#111827", outline: "none" }}
+                              />
+                            </div>
+                            <div style={{ width: "100px", flexShrink: 0 }}>
+                              <input
+                                value={item.amount}
+                                onChange={e => {
+                                  const updated = [...customItems];
+                                  updated[idx] = { ...updated[idx], amount: e.target.value.replace(/[^0-9.]/g, "") };
+                                  setCustomItems(updated);
+                                }}
+                                placeholder="$0.00"
+                                inputMode="decimal"
+                                style={{ width: "100%", boxSizing: "border-box", padding: "10px 13px",
+                                  borderRadius: "9px", border: "1.5px solid #e4e7ec",
+                                  fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                                  color: "#111827", outline: "none" }}
+                              />
+                            </div>
+                            {customItems.length > 1 && (
+                              <button onClick={() => setCustomItems(customItems.filter((_, i) => i !== idx))}
+                                style={{ background: "none", border: "none", cursor: "pointer",
+                                  color: "#9ca3af", fontSize: "20px", padding: "8px 4px", lineHeight: 1 }}>✕</button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={() => setCustomItems([...customItems, { description: "", amount: "" }])}
+                        style={{ background: "none", border: `1.5px dashed ${green}`, borderRadius: "9px",
+                          padding: "8px 16px", cursor: "pointer", width: "100%",
+                          fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                          color: green, fontWeight: 500 }}>
+                        + Add Line Item
+                      </button>
+                      {previewItems.length > 0 && (
+                        <div style={{ marginTop: "12px", background: "#FDF5EC", border: "1.5px solid #D4A87A",
+                          borderRadius: "10px", padding: "12px 16px", display: "flex",
+                          justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#374151" }}>
+                            Total
+                          </span>
+                          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "18px",
+                            fontWeight: 700, color: green }}>${previewTotal.toFixed(2)}</span>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -15871,11 +16099,22 @@ function ClientInvoicesPage({ client, clients, setClients }) {
   const [selectedInv, setSelectedInv] = useState(null);
   const [payingInv, setPayingInv] = useState(null);
   const [paidConfirm, setPaidConfirm] = useState(null);
+  const [invSearch, setInvSearch] = useState("");
 
   const green = "#C4541A";
-  const myInvoices = [...(client.invoices || [])].sort((a, b) =>
+  const allInvoices = [...(client.invoices || [])].sort((a, b) =>
     new Date(b.createdAt) - new Date(a.createdAt)
   );
+  const invQ = invSearch.toLowerCase();
+  const myInvoices = invQ
+    ? allInvoices.filter(inv =>
+        (inv.id || "").toLowerCase().includes(invQ) ||
+        (inv.status || "").toLowerCase().includes(invQ) ||
+        String(inv.total || "").includes(invQ) ||
+        (inv.weekLabel || "").toLowerCase().includes(invQ) ||
+        (inv.items || []).some(it => (it.description || "").toLowerCase().includes(invQ))
+      )
+    : allInvoices;
 
   const outstandingTotal = myInvoices
     .filter(inv => inv.status === "sent")
@@ -15913,12 +16152,31 @@ function ClientInvoicesPage({ client, clients, setClients }) {
       )}
 
       {/* Header */}
-      <div style={{ marginBottom: "20px" }}>
+      <div style={{ marginBottom: "16px" }}>
         <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
           fontWeight: 600, color: "#111827", marginBottom: "4px" }}>My Invoices</div>
         <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280" }}>
           View and pay your outstanding invoices from Lonestar Bark Co.
         </p>
+      </div>
+
+      {/* Search bar */}
+      <div style={{ position: "relative", marginBottom: "20px" }}>
+        <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)",
+          fontSize: "16px", pointerEvents: "none" }}>🔍</span>
+        <input
+          value={invSearch}
+          onChange={e => setInvSearch(e.target.value)}
+          placeholder="Search by invoice ID, status, amount…"
+          style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px 10px 36px",
+            borderRadius: "10px", border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif",
+            fontSize: "15px", color: "#111827", background: "#fff", outline: "none" }}
+        />
+        {invSearch && (
+          <button onClick={() => setInvSearch("")} style={{ position: "absolute", right: "10px",
+            top: "50%", transform: "translateY(-50%)", background: "none", border: "none",
+            cursor: "pointer", color: "#9ca3af", fontSize: "16px" }}>✕</button>
+        )}
       </div>
 
       {/* Paid confirm banner */}
