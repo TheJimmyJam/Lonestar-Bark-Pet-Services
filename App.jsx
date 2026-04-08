@@ -7522,8 +7522,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           <div className="lp-fade-3" style={{ fontFamily: "'DM Sans', sans-serif",
             color: "#ffffffcc", fontSize: "clamp(14px, 2.5vw, 17px)", lineHeight: "1.75",
             marginBottom: "40px", fontWeight: 300, maxWidth: "520px", margin: "0 auto 40px" }}>
-            East Dallas raised. Dallas proud. Vetted walkers,
-            transparent pricing, and a personal meet & greet before your first walk.
+            Vetted walkers, transparent pricing, and a personal meet & greet before your first walk.
           </div>
           <div className="lp-fade-4 lp-hero-ctas">
             <button onClick={onSignUp} className="lp-cta-btn" style={{
