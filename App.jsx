@@ -34,6 +34,7 @@ const SERVICES = {
 
 // All walkers are managed through the admin portal — no hardcoded walkers.
 
+// NOTE: Prices here must stay in sync with PRICE_TIERS (line ~550) which drives actual pricing logic.
 const PRICING_TIERS = [
   { label: "Easy Rider", freq: "1x per week", badge: null,
     prices: { "30 min": 30, "60 min": 45 }, description: "One walk a week — perfect for a laid-back pup who likes to take it easy." },
@@ -133,11 +134,6 @@ async function sbFetch(path, options = {}) {
   return text ? JSON.parse(text) : null;
 }
 
-// Default seeded walker profiles
-function getDefaultWalkerProfiles() {
-  return {};
-}
-
 // ─── Supabase Storage Functions ───────────────────────────────────────────────
 
 async function loadClients() {
@@ -180,7 +176,7 @@ async function saveClients(clients) {
 async function loadWalkerProfiles() {
   try {
     const rows = await sbFetch("walkers?select=walker_id,email,data");
-    if (!rows || rows.length === 0) return getDefaultWalkerProfiles();
+    if (!rows || rows.length === 0) return {};
     const result = {};
     rows.forEach(row => {
       try {
@@ -188,10 +184,10 @@ async function loadWalkerProfiles() {
         result[row.walker_id] = parsed;
       } catch {}
     });
-    return Object.keys(result).length > 0 ? result : getDefaultWalkerProfiles();
+    return Object.keys(result).length > 0 ? result : {};
   } catch (e) {
     console.error("loadWalkerProfiles failed:", e);
-    return getDefaultWalkerProfiles();
+    return {};
   }
 }
 
@@ -599,14 +595,6 @@ function getWeekBookingCountForOffset(bookings, weekOffset) {
   }).length;
 }
 
-function getWeekBookingCount(bookings) {
-  const { monday, sunday } = getCurrentWeekRange();
-  return (bookings || []).filter(b => {
-    const d = new Date(b.bookedAt);
-    return d >= monday && d <= sunday;
-  }).length;
-}
-
 function getPriceTier(weekCount) {
   return PRICE_TIERS.find(t => weekCount >= t.minBookings) || PRICE_TIERS[2];
 }
@@ -614,19 +602,6 @@ function getPriceTier(weekCount) {
 function getSessionPrice(duration, weekCount) {
   const tier = getPriceTier(weekCount);
   return tier.prices[duration] || tier.prices["30 min"];
-}
-
-function getWeekBookingDates(bookings) {
-  const { monday, sunday } = getCurrentWeekRange();
-  return (bookings || [])
-    .filter(b => { const d = new Date(b.bookedAt); return d >= monday && d <= sunday; })
-    .map(b => b.bookedAt);
-}
-
-function getWeekDiscount(weekCount) {
-  if (weekCount >= 5) return { label: "Daily rate", saved30: 10, saved60: 10 };
-  if (weekCount >= 3) return { label: "Regular rate", saved30: 5, saved60: 5 };
-  return null;
 }
 
 function getCancellationPolicy(scheduledDateTime) {
@@ -9297,7 +9272,7 @@ let WALKER_CREDENTIALS = {};
 let CUSTOM_WALKERS = [];
 
 // Returns the full merged walker list (built-in + custom), excluding deleted walkers
-function getAllWalkers(walkerProfilesArg) {
+function getAllWalkers() {
   return [...CUSTOM_WALKERS].sort((a, b) =>
     firstName(a.name).localeCompare(firstName(b.name))
   );
@@ -17640,7 +17615,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     // TODO: replace with Twilio SMS when ready
     // await fetch("/api/ping-walker", { method: "POST",
     //   body: JSON.stringify({ walkerId, walkerName, walkerPhone, adminName: admin.name }) });
-    console.log(`[PING] ${walkerName} (${walkerPhone}) pinged by ${admin.name} at ${new Date().toLocaleTimeString()}`);
+    // console.log(`[PING] ${walkerName} pinged by ${admin.name}`); // re-enable for local debug
   };
 
   // Reset all expanded/selected/drill-down state when switching tabs
