@@ -1294,11 +1294,30 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
         </div>
       </div>
 
-      {/* ── Row 2: scrolling tabs + locked logout ── */}
+      {/* ── Row 2: pinned Dashboard + scrolling rest ── */}
       <div style={{ display: "flex", alignItems: "stretch" }}>
+        {/* Pinned Dashboard tab */}
+        {(() => {
+          const t = clientTabs[0];
+          return (
+            <button onClick={() => { setPage(t.id); scrollTop(); }} style={{
+              padding: "10px 16px", border: "none", whiteSpace: "nowrap", background: "transparent",
+              borderBottom: page === t.id ? "3px solid #8B5E3C" : "3px solid transparent",
+              borderRight: "1px solid #8A754566",
+              color: page === t.id ? "#fff" : "#ffffff88",
+              fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+              fontWeight: page === t.id ? 600 : 400,
+              cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
+              display: "flex", alignItems: "center", gap: "5px", flexShrink: 0,
+            }}>
+              <span style={{ fontSize: "14px" }}>{t.icon}</span> {t.label}
+            </button>
+          );
+        })()}
+        {/* Scrollable remaining tabs + logout free-flowing at end */}
         <div style={{ flex: 1, overflowX: "auto", display: "flex",
           scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
-          {clientTabs.map(t => {
+          {clientTabs.slice(1).map(t => {
             const badge = notifCounts[t.id] || 0;
             return (
               <button key={t.id} onClick={() => { setPage(t.id); scrollTop(); }} style={{
@@ -1321,14 +1340,14 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
               </button>
             );
           })}
+          <button onClick={onLogout} style={{
+            padding: "10px 14px", border: "none", background: "transparent",
+            borderLeft: "1px solid #8A754566", borderBottom: "3px solid transparent",
+            color: "#ffffff55", fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+            cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
+            display: "flex", alignItems: "center", gap: "5px",
+          }}>↩ Log out</button>
         </div>
-        <button onClick={onLogout} style={{
-          padding: "10px 14px", border: "none", background: "transparent",
-          borderLeft: "1px solid #8A754566", borderBottom: "3px solid transparent",
-          color: "#ffffff55", fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-          cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
-          display: "flex", alignItems: "center", gap: "5px",
-        }}>↩ Log out</button>
       </div>
     </nav>
   );
@@ -9283,7 +9302,7 @@ function RoleSelectScreen({ onSelectRole, onBack }) {
         </div>
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff88",
           fontSize: "13px", letterSpacing: "3.5px", textTransform: "uppercase", marginBottom: "28px" }}>
-          Est. 2026 &nbsp;·&nbsp; Born Here. Walk Here. &nbsp;·&nbsp; Dallas, TX
+          Born Here. Walk Here. &nbsp;·&nbsp; Dallas, TX
         </div>
         <div style={{ display: "flex", justifyContent: "center" }}>
           <LogoBadge size={120} />
