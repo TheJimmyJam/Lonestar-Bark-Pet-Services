@@ -2113,153 +2113,93 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
         </div>
       )}
 
-      {/* 1. Client */}
-      <ScheduleWalkSection title="Client *">
-        <label style={labelStyle}>Select Client</label>
-        <select value={form.clientId}
-          onChange={e => {
-            const cId = e.target.value;
-            const c = cId ? clients[cId] : null;
-            const dogs = c ? (c.dogs || c.pets || []) : [];
-            const cats = c ? (c.cats || []) : [];
-            const firstDog = dogs[0] || "";
-            const firstCat = cats[0] || "";
-            setForm(f => ({ ...f, clientId: cId, pet: f.service === "cat" ? firstCat : firstDog, additionalDogs: [] }));
-          }}
-          style={{ ...iStyle(errors.client), color: form.clientId ? "#111827" : "#9ca3af" }}>
-          <option value="">— Choose a client —</option>
-          {Object.values(clients)
-            .filter(c => !clientFilter || clientFilter(c))
-            .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
-            .map(c => {
-              const pets = [...(c.dogs || c.pets || []), ...(c.cats || [])];
+      {/* ── Admin Schedule Walk Form — two-column grid layout ── */}
+
+      {/* Row 1: Client | Walker */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
+        {/* Client */}
+        <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "14px", padding: "18px" }}>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "13px",
+            letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px" }}>Client *</div>
+          <select value={form.clientId}
+            onChange={e => {
+              const cId = e.target.value;
+              const c = cId ? clients[cId] : null;
+              const dogs = c ? (c.dogs || c.pets || []) : [];
+              const cats = c ? (c.cats || []) : [];
+              setForm(f => ({ ...f, clientId: cId, pet: f.service === "cat" ? (cats[0] || "") : (dogs[0] || ""), additionalDogs: [] }));
+            }}
+            style={{ ...iStyle(errors.client), color: form.clientId ? "#111827" : "#9ca3af" }}>
+            <option value="">— Choose a client —</option>
+            {Object.values(clients)
+              .filter(c => !clientFilter || clientFilter(c))
+              .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+              .map(c => {
+                const pets = [...(c.dogs || c.pets || []), ...(c.cats || [])];
+                return (
+                  <option key={c.id} value={c.id}>
+                    {c.name || c.email}{pets.length > 0 ? ` — ${pets.join(", ")}` : ""}
+                  </option>
+                );
+              })}
+          </select>
+          {errMsg("client")}
+          {selectedClient && (
+            <div style={{ marginTop: "10px", background: "#f9fafb", border: "1px solid #e4e7ec",
+              borderRadius: "10px", padding: "10px 12px",
+              fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#6b7280", lineHeight: "1.8" }}>
+              {selectedClient.phone   && <div>📞 {selectedClient.phone}</div>}
+              {selectedClient.address && <div>📍 {selectedClient.address}</div>}
+              {clientPets.length > 0  && <div>🐾 {clientPets.join(", ")}</div>}
+            </div>
+          )}
+        </div>
+
+        {/* Walker */}
+        {!hideWalker && (
+        <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "14px", padding: "18px" }}>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "13px",
+            letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px" }}>Walker</div>
+          <select value={form.walker} onChange={e => setField("walker", e.target.value)}
+            style={{ ...iStyle(false), color: form.walker ? "#111827" : "#9ca3af" }}>
+            <option value="">— Assign later —</option>
+            {getAllWalkers(walkerProfiles).map(w => {
+              const hasAvailOnDate = form.date ? (walkerAvailability[w.id]?.[form.date] || []).length > 0 : true;
               return (
-                <option key={c.id} value={c.id}>
-                  {c.name || c.email}{pets.length > 0 ? ` — ${pets.join(", ")}` : ""}
+                <option key={w.id} value={w.name}>
+                  {w.avatar} {firstName(w.name)}{!hasAvailOnDate && form.date ? " (no avail.)" : ""}
                 </option>
               );
             })}
-        </select>
-        {errMsg("client")}
-        {selectedClient && (
-          <div style={{ marginTop: "12px", background: "#f9fafb", border: "1px solid #e4e7ec",
-            borderRadius: "10px", padding: "12px 14px",
-            fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#6b7280",
-            lineHeight: "1.8" }}>
-            {selectedClient.email  && <div>📧 {selectedClient.email}</div>}
-            {selectedClient.phone  && <div>📞 {selectedClient.phone}</div>}
-            {selectedClient.address && <div>📍 {selectedClient.address}</div>}
-            {clientPets.length > 0  && <div>🐾 {clientPets.join(", ")}</div>}
-          </div>
-        )}
-      </ScheduleWalkSection>
-
-      {/* 2. Walker */}
-      {!hideWalker && (
-      <ScheduleWalkSection title="Walker">
-        <label style={labelStyle}>Assign Walker</label>
-        <select value={form.walker} onChange={e => setField("walker", e.target.value)}
-          style={{ ...iStyle(false), color: form.walker ? "#111827" : "#9ca3af" }}>
-          <option value="">— Assign later —</option>
-          {getAllWalkers(walkerProfiles).map(w => {
-            const dateKey = form.date;
-            const hasAvailOnDate = dateKey
-              ? (walkerAvailability[w.id]?.[dateKey] || []).length > 0
-              : true;
-            return (
-              <option key={w.id} value={w.name}>
-                {w.avatar} {firstName(w.name)}{!hasAvailOnDate && form.date ? " (no availability set)" : ""}
-              </option>
+          </select>
+          {form.walker && form.date && (() => {
+            const w = getAllWalkers(walkerProfiles).find(w => w.name === form.walker);
+            const slots = w ? (walkerAvailability[w.id]?.[form.date] || []) : [];
+            if (slots.length === 0 && w) return (
+              <div style={{ marginTop: "8px", padding: "8px 10px", background: "#fff7ed",
+                border: "1.5px solid #fed7aa", borderRadius: "8px",
+                fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#b45309" }}>
+                ⚠️ {firstName(form.walker)} hasn't set availability for this date.
+              </div>
             );
-          })}
-        </select>
-        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-          color: "#9ca3af", marginTop: "5px" }}>
-          You can also assign a walker later from the Assign Walks tab.
-        </div>
-        {form.walker && form.date && (() => {
-          const w = getAllWalkers(walkerProfiles).find(w => w.name === form.walker);
-          const slots = w ? (walkerAvailability[w.id]?.[form.date] || []) : [];
-          if (slots.length === 0 && w) return (
-            <div style={{ marginTop: "8px", padding: "10px 14px", background: "#fff7ed",
-              border: "1.5px solid #fed7aa", borderRadius: "10px",
-              fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#b45309" }}>
-              ⚠️ {firstName(form.walker)} hasn't set availability for {new Date(form.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}. Select a different date or walker, or assign later.
-            </div>
-          );
-          return null;
-        })()}
-      </ScheduleWalkSection>
-      )}
-
-      {/* 3. Service & Date */}
-      <ScheduleWalkSection title="Service & Date">
-        {/* Service tiles */}
-        <label style={labelStyle}>Service</label>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginBottom: "14px" }}>
-          {[
-            { id: "dog",       label: "Dog-walking",    icon: "🐕", color: "#C4541A", bg: "#FDF5EC", border: "#D4A843" },
-            { id: "cat",       label: "Cat-sitting",    icon: "🐈", color: "#3D6B7A", bg: "#EBF4F6", border: "#8ECAD4" },
-            { id: "overnight", label: "Overnight Stay", icon: "🌙", color: "#7A4D6E", bg: "#F7F0F5", border: "#E8D0E0" },
-          ].map(svc => {
-            const active = form.service === svc.id;
-            const dogs = selectedClient ? (selectedClient.dogs || selectedClient.pets || []) : [];
-            const cats = selectedClient ? (selectedClient.cats || []) : [];
-            return (
-              <button key={svc.id} onClick={() => setForm(f => ({
-                ...f, service: svc.id,
-                pet: svc.id === "cat" ? (cats[0] || "") : (dogs[0] || ""),
-                additionalDogs: [],
-                duration: svc.id === "overnight" ? "1 Night" : (f.duration === "1 Night" ? "30 min" : f.duration),
-              }))} style={{
-                padding: "12px 8px", borderRadius: "10px", cursor: "pointer",
-                textAlign: "center", border: `1.5px solid ${active ? svc.border : "#e4e7ec"}`,
-                background: active ? svc.bg : "#f9fafb", transition: "all 0.12s",
-              }}>
-                <div style={{ fontSize: "22px", marginBottom: "4px" }}>{svc.icon}</div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-                  fontWeight: 600, color: active ? svc.color : "#6b7280" }}>{svc.label}</div>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Duration — hidden for overnight */}
-        {form.service !== "overnight" && (
-          <div style={{ marginBottom: "14px" }}>
-            <label style={labelStyle}>Duration</label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-              {[{ value: "30 min", label: "30 min", desc: "Quick walk" },
-                { value: "60 min", label: "60 min", desc: "Full walk" }].map(opt => {
-                const active = form.duration === opt.value;
-                return (
-                  <button key={opt.value} onClick={() => setField("duration", opt.value)} style={{
-                    padding: "12px 8px", borderRadius: "10px", cursor: "pointer",
-                    textAlign: "center", transition: "all 0.12s",
-                    border: `1.5px solid ${active ? "#D4A843" : "#e4e7ec"}`,
-                    background: active ? "#FDF5EC" : "#f9fafb",
-                  }}>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                      fontWeight: 700, color: active ? "#C4541A" : "#374151",
-                      marginBottom: "2px" }}>{opt.label}</div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-                      color: active ? "#b45309" : "#9ca3af" }}>{opt.desc}</div>
-                  </button>
-                );
-              })}
-            </div>
+            return null;
+          })()}
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#9ca3af", marginTop: "6px" }}>
+            Can also assign later from Assign Walks.
           </div>
+        </div>
         )}
-        {form.service === "overnight" && (
-          <div style={{ marginBottom: "14px", padding: "10px 14px", background: "#F7F0F5",
-            borderRadius: "10px", border: "1.5px solid #E8D0E0",
-            fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#7A4D6E", fontWeight: 600 }}>
-            🌙 Overnight Stay · $150/night · flat rate
-          </div>
-        )}
+        {hideWalker && <div />}
+      </div>
 
-        <div>
-          <label style={labelStyle}>Date *{isHistorical && <span style={{ color: "#b45309", fontWeight: 400, fontSize: "13px", textTransform: "none", letterSpacing: 0, marginLeft: "8px" }}>— any past date</span>}</label>
+      {/* Row 2: Date | Duration */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
+        {/* Date */}
+        <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "14px", padding: "18px" }}>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "13px",
+            letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px" }}>
+            Date *{isHistorical && <span style={{ color: "#b45309", fontWeight: 400, fontSize: "12px", textTransform: "none", letterSpacing: 0, marginLeft: "6px" }}>any past date</span>}
+          </div>
           <input type="date" value={form.date}
             {...(!isHistorical && { min: todayStr })}
             max={isHistorical ? todayStr : undefined}
@@ -2275,202 +2215,226 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
             }}
             style={iStyle(errors.date)} />
           {errMsg("date")}
-        </div>
-        {isHistorical && (
-          <div style={{ marginTop: "14px" }}>
-            <label style={labelStyle}>Price Override <span style={{ color: "#9ca3af", fontWeight: 400, fontSize: "13px", textTransform: "none", letterSpacing: 0 }}>(leave blank to use standard rate: ${price})</span></label>
-            <input type="number" min="0" step="1"
-              value={customPrice}
-              onChange={e => setCustomPrice(e.target.value)}
-              placeholder={`${price}`}
-              style={iStyle(false)} />
-          </div>
-        )}
-      </ScheduleWalkSection>
-
-      {/* 4 & 5: order depends on context — walkers see Start Time before Animal */}
-
-      {/* Start Time — shown 3rd for walkers */}
-      {hideWalker && (
-      <ScheduleWalkSection title={form.service === "overnight" ? "Check-in Time" : "Start Time *"}>
-        {errors.time && (
-          <div style={{ color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
-            fontSize: "15px", marginBottom: "8px" }}>{errors.time}</div>
-        )}
-        {(() => {
-          const selectedWalkerObj = getAllWalkers(walkerProfiles).find(w => w.name === form.walker);
-          const availSlotTimes = selectedWalkerObj && form.date
-            ? (walkerAvailability[selectedWalkerObj.id]?.[form.date] || null)
-            : null;
-          const now = new Date();
-          const visibleSlots = TIME_SLOTS.filter(slot => {
-            if (!isHistorical && form.date === todayStr) {
-              return !(slot.hour < now.getHours() ||
-                (slot.hour === now.getHours() && slot.minute <= now.getMinutes()));
-            }
-            return true;
-          });
-          return (
-            <>
-              <select
-                value={form.timeSlot?.id || ""}
-                onChange={e => {
-                  const slot = TIME_SLOTS.find(s => s.id === e.target.value);
-                  setField("timeSlot", slot || null);
-                  if (slot) setErrors(p => ({ ...p, time: "" }));
-                }}
-                style={{ ...iStyle(errors.time), color: form.timeSlot ? "#111827" : "#9ca3af" }}>
-                <option value="">{form.service === "overnight" ? "— Select check-in time (optional) —" : "— Select a time —"}</option>
-                {visibleSlots.map(slot => {
-                  const walkerUnavailable = availSlotTimes !== null && !availSlotTimes.includes(slot.label);
-                  return (
-                    <option key={slot.id} value={slot.id} disabled={walkerUnavailable}>
-                      {slot.label}{walkerUnavailable ? "  (walker unavailable)" : ""}
-                    </option>
-                  );
-                })}
-              </select>
-              {availSlotTimes !== null && availSlotTimes.length === 0 && (
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-                  color: "#b45309", marginTop: "8px", padding: "8px 12px",
-                  background: "#fff7ed", borderRadius: "8px", border: "1px solid #fed7aa" }}>
-                  ⚠️ {firstName(form.walker)} has no availability set for this date.
-                </div>
-              )}
-              {form.date === todayStr && !isHistorical && (
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-                  color: "#9ca3af", marginTop: "5px" }}>
-                  Past times for today are hidden.
-                </div>
-              )}
-            </>
-          );
-        })()}
-      </ScheduleWalkSection>
-      )}
-
-      {/* Animal */}
-      {selectedClient && relevantPets.length > 0 && (
-        <ScheduleWalkSection title={form.service === "cat" ? "Cat *" : form.service === "overnight" ? "Pet(s)" : "Dog(s) *"}>
-          {form.service === "cat" ? (
-            <select value={form.pet} onChange={e => setField("pet", e.target.value)} style={iStyle(false)}>
-              <option value="">— Select cat —</option>
-              {clientCats.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-            </select>
-          ) : form.service === "overnight" ? (
-            <select value={form.pet} onChange={e => setField("pet", e.target.value)} style={iStyle(false)}>
-              <option value="">— Select pet —</option>
-              {clientPets.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          ) : (
-            <>
-              <label style={labelStyle}>Primary Dog</label>
-              <select value={form.pet}
-                onChange={e => setForm(f => ({ ...f, pet: e.target.value, additionalDogs: f.additionalDogs.filter(d => d !== e.target.value) }))}
-                style={{ ...iStyle(false), marginBottom: clientDogs.length > 1 ? "14px" : 0 }}>
-                <option value="">— Select dog —</option>
-                {clientDogs.map(dog => <option key={dog} value={dog}>{dog}</option>)}
-              </select>
-              {clientDogs.length > 1 && (
-                <>
-                  <label style={labelStyle}>Additional Dogs <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#b45309" }}>+$10 each</span></label>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {clientDogs.filter(dog => dog !== form.pet).map(dog => {
-                      const checked = form.additionalDogs.includes(dog);
-                      return (
-                        <label key={dog} style={{ display: "flex", alignItems: "center", gap: "10px",
-                          padding: "10px 14px", borderRadius: "10px", cursor: "pointer",
-                          border: `1.5px solid ${checked ? amber : "#e4e7ec"}`,
-                          background: checked ? `${amber}0d` : "#fff",
-                          fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                          color: "#111827", transition: "all 0.12s" }}>
-                          <input type="checkbox" checked={checked}
-                            onChange={() => setForm(f => ({
-                              ...f,
-                              additionalDogs: checked
-                                ? f.additionalDogs.filter(d => d !== dog)
-                                : [...f.additionalDogs, dog],
-                            }))}
-                            style={{ width: "16px", height: "16px", accentColor: amber, cursor: "pointer" }} />
-                          {dog}
-                          {checked && <span style={{ marginLeft: "auto", color: amber, fontSize: "15px", fontWeight: 600 }}>+$10</span>}
-                        </label>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </>
+          {isHistorical && (
+            <div style={{ marginTop: "10px" }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "12px",
+                letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "6px" }}>
+                Price Override <span style={{ fontWeight: 400, fontSize: "12px", textTransform: "none", letterSpacing: 0 }}>(blank = ${price})</span>
+              </div>
+              <input type="number" min="0" step="1" value={customPrice}
+                onChange={e => setCustomPrice(e.target.value)}
+                placeholder={`${price}`} style={iStyle(false)} />
+            </div>
           )}
-        </ScheduleWalkSection>
-      )}
+        </div>
 
-      {/* Start Time — shown 5th for admins */}
-      {!hideWalker && (
-      <ScheduleWalkSection title={form.service === "overnight" ? "Check-in Time" : "Start Time *"}>
-        {errors.time && (
-          <div style={{ color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
-            fontSize: "15px", marginBottom: "8px" }}>{errors.time}</div>
-        )}
-        {(() => {
-          const selectedWalkerObj = getAllWalkers(walkerProfiles).find(w => w.name === form.walker);
-          const availSlotTimes = selectedWalkerObj && form.date
-            ? (walkerAvailability[selectedWalkerObj.id]?.[form.date] || null)
-            : null;
-          const now = new Date();
-          const visibleSlots = TIME_SLOTS.filter(slot => {
-            if (!isHistorical && form.date === todayStr) {
-              return !(slot.hour < now.getHours() ||
-                (slot.hour === now.getHours() && slot.minute <= now.getMinutes()));
-            }
-            return true;
-          });
-          return (
-            <>
-              <select
-                value={form.timeSlot?.id || ""}
-                onChange={e => {
-                  const slot = TIME_SLOTS.find(s => s.id === e.target.value);
-                  setField("timeSlot", slot || null);
-                  if (slot) setErrors(p => ({ ...p, time: "" }));
-                }}
-                style={{ ...iStyle(errors.time), color: form.timeSlot ? "#111827" : "#9ca3af" }}>
-                <option value="">{form.service === "overnight" ? "— Select check-in time (optional) —" : "— Select a time —"}</option>
-                {visibleSlots.map(slot => {
-                  const walkerUnavailable = availSlotTimes !== null && !availSlotTimes.includes(slot.label);
-                  return (
-                    <option key={slot.id} value={slot.id} disabled={walkerUnavailable}>
-                      {slot.label}{walkerUnavailable ? "  (walker unavailable)" : ""}
-                    </option>
-                  );
-                })}
+        {/* Duration */}
+        <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "14px", padding: "18px" }}>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "13px",
+            letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px" }}>Duration</div>
+          {form.service !== "overnight" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {[{ value: "30 min", label: "30 min", desc: "Quick walk" },
+                { value: "60 min", label: "60 min", desc: "Full walk" }].map(opt => {
+                const active = form.duration === opt.value;
+                return (
+                  <button key={opt.value} onClick={() => setField("duration", opt.value)} style={{
+                    padding: "10px 12px", borderRadius: "10px", cursor: "pointer",
+                    textAlign: "left", transition: "all 0.12s",
+                    border: `1.5px solid ${active ? "#D4A843" : "#e4e7ec"}`,
+                    background: active ? "#FDF5EC" : "#f9fafb",
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                  }}>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                      fontWeight: 700, color: active ? "#C4541A" : "#374151" }}>{opt.label}</span>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                      color: active ? "#b45309" : "#9ca3af" }}>{opt.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ padding: "10px 12px", background: "#F7F0F5",
+              borderRadius: "10px", border: "1.5px solid #E8D0E0",
+              fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#7A4D6E", fontWeight: 600 }}>
+              🌙 $150/night · flat rate
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Row 3: Start Time | Pet */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
+        {/* Start Time */}
+        <div style={{ background: "#fff", border: `1.5px solid ${errors.time ? "#ef4444" : "#e4e7ec"}`, borderRadius: "14px", padding: "18px" }}>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "13px",
+            letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px" }}>
+            {form.service === "overnight" ? "Check-in Time" : "Start Time *"}
+          </div>
+          {errors.time && (
+            <div style={{ color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
+              fontSize: "14px", marginBottom: "8px" }}>{errors.time}</div>
+          )}
+          {(() => {
+            const selectedWalkerObj = getAllWalkers(walkerProfiles).find(w => w.name === form.walker);
+            const availSlotTimes = selectedWalkerObj && form.date
+              ? (walkerAvailability[selectedWalkerObj.id]?.[form.date] || null)
+              : null;
+            const now = new Date();
+            const visibleSlots = TIME_SLOTS.filter(slot => {
+              if (!isHistorical && form.date === todayStr) {
+                return !(slot.hour < now.getHours() ||
+                  (slot.hour === now.getHours() && slot.minute <= now.getMinutes()));
+              }
+              return true;
+            });
+            return (
+              <>
+                <select value={form.timeSlot?.id || ""}
+                  onChange={e => {
+                    const slot = TIME_SLOTS.find(s => s.id === e.target.value);
+                    setField("timeSlot", slot || null);
+                    if (slot) setErrors(p => ({ ...p, time: "" }));
+                  }}
+                  style={{ ...iStyle(errors.time), color: form.timeSlot ? "#111827" : "#9ca3af" }}>
+                  <option value="">{form.service === "overnight" ? "— Optional —" : "— Select time —"}</option>
+                  {visibleSlots.map(slot => {
+                    const walkerUnavailable = availSlotTimes !== null && !availSlotTimes.includes(slot.label);
+                    return (
+                      <option key={slot.id} value={slot.id} disabled={walkerUnavailable}>
+                        {slot.label}{walkerUnavailable ? "  (unavailable)" : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+                {availSlotTimes !== null && availSlotTimes.length === 0 && (
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                    color: "#b45309", marginTop: "8px", padding: "8px 10px",
+                    background: "#fff7ed", borderRadius: "8px", border: "1px solid #fed7aa" }}>
+                    ⚠️ {firstName(form.walker)} has no availability for this date.
+                  </div>
+                )}
+                {form.date === todayStr && !isHistorical && (
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                    color: "#9ca3af", marginTop: "5px" }}>
+                    Past times are hidden.
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </div>
+
+        {/* Pet */}
+        <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "14px", padding: "18px" }}>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "13px",
+            letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px" }}>
+            {form.service === "cat" ? "Cat *" : form.service === "overnight" ? "Pet(s)" : "Dog(s) *"}
+          </div>
+          {selectedClient && relevantPets.length > 0 ? (
+            form.service === "cat" ? (
+              <select value={form.pet} onChange={e => setField("pet", e.target.value)} style={iStyle(false)}>
+                <option value="">— Select cat —</option>
+                {clientCats.map(cat => <option key={cat} value={cat}>{cat}</option>)}
               </select>
-              {availSlotTimes !== null && availSlotTimes.length === 0 && (
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-                  color: "#b45309", marginTop: "8px", padding: "8px 12px",
-                  background: "#fff7ed", borderRadius: "8px", border: "1px solid #fed7aa" }}>
-                  ⚠️ {firstName(form.walker)} has no availability set for this date.
-                </div>
-              )}
-              {form.date === todayStr && !isHistorical && (
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-                  color: "#9ca3af", marginTop: "5px" }}>
-                  Past times for today are hidden.
-                </div>
-              )}
-            </>
-          );
-        })()}
-      </ScheduleWalkSection>
-      )}
+            ) : form.service === "overnight" ? (
+              <select value={form.pet} onChange={e => setField("pet", e.target.value)} style={iStyle(false)}>
+                <option value="">— Select pet —</option>
+                {clientPets.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            ) : (
+              <>
+                <select value={form.pet}
+                  onChange={e => setForm(f => ({ ...f, pet: e.target.value, additionalDogs: f.additionalDogs.filter(d => d !== e.target.value) }))}
+                  style={{ ...iStyle(false), marginBottom: clientDogs.length > 1 ? "10px" : 0 }}>
+                  <option value="">— Select dog —</option>
+                  {clientDogs.map(dog => <option key={dog} value={dog}>{dog}</option>)}
+                </select>
+                {clientDogs.length > 1 && (
+                  <>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "12px",
+                      letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af",
+                      marginBottom: "6px" }}>
+                      Additional <span style={{ color: "#b45309" }}>+$10 each</span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {clientDogs.filter(dog => dog !== form.pet).map(dog => {
+                        const checked = form.additionalDogs.includes(dog);
+                        return (
+                          <label key={dog} style={{ display: "flex", alignItems: "center", gap: "8px",
+                            padding: "8px 10px", borderRadius: "8px", cursor: "pointer",
+                            border: `1.5px solid ${checked ? amber : "#e4e7ec"}`,
+                            background: checked ? `${amber}0d` : "#fff",
+                            fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#111827" }}>
+                            <input type="checkbox" checked={checked}
+                              onChange={() => setForm(f => ({
+                                ...f,
+                                additionalDogs: checked
+                                  ? f.additionalDogs.filter(d => d !== dog)
+                                  : [...f.additionalDogs, dog],
+                              }))}
+                              style={{ width: "16px", height: "16px", accentColor: amber }} />
+                            {dog}
+                            {checked && <span style={{ marginLeft: "auto", color: amber, fontSize: "13px", fontWeight: 600 }}>+$10</span>}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </>
+            )
+          ) : (
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+              color: "#d1d5db", fontStyle: "italic" }}>
+              {selectedClient ? "No pets on file." : "Select a client first."}
+            </div>
+          )}
+        </div>
+      </div>
 
-      {/* Notes */}
-      <ScheduleWalkSection title="Notes">
+      {/* Row 4: Service (full width) */}
+      <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "14px", padding: "18px", marginBottom: "14px" }}>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "13px",
+          letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "12px" }}>Service</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
+          {[
+            { id: "dog",       label: "Dog-walking",    icon: "🐕", color: "#C4541A", bg: "#FDF5EC", border: "#D4A843" },
+            { id: "cat",       label: "Cat-sitting",    icon: "🐈", color: "#3D6B7A", bg: "#EBF4F6", border: "#8ECAD4" },
+            { id: "overnight", label: "Overnight Stay", icon: "🌙", color: "#7A4D6E", bg: "#F7F0F5", border: "#E8D0E0" },
+          ].map(svc => {
+            const active = form.service === svc.id;
+            const dogs = selectedClient ? (selectedClient.dogs || selectedClient.pets || []) : [];
+            const cats = selectedClient ? (selectedClient.cats || []) : [];
+            return (
+              <button key={svc.id} onClick={() => setForm(f => ({
+                ...f, service: svc.id,
+                pet: svc.id === "cat" ? (cats[0] || "") : (dogs[0] || ""),
+                additionalDogs: [],
+                duration: svc.id === "overnight" ? "1 Night" : (f.duration === "1 Night" ? "30 min" : f.duration),
+              }))} style={{
+                padding: "14px 8px", borderRadius: "10px", cursor: "pointer",
+                textAlign: "center", border: `1.5px solid ${active ? svc.border : "#e4e7ec"}`,
+                background: active ? svc.bg : "#f9fafb", transition: "all 0.12s",
+              }}>
+                <div style={{ fontSize: "24px", marginBottom: "6px" }}>{svc.icon}</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                  fontWeight: 600, color: active ? svc.color : "#6b7280" }}>{svc.label}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Row 5: Notes (full width) */}
+      <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "14px", padding: "18px", marginBottom: "14px" }}>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "13px",
+          letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px" }}>Notes</div>
         <textarea value={form.notes} onChange={e => setField("notes", e.target.value)}
           placeholder="Gate code, pet instructions, special requests…"
           rows={3}
           style={{ ...iStyle(false), resize: "vertical", lineHeight: "1.6" }} />
-      </ScheduleWalkSection>
+      </div>
 
             {/* Pricing Preview */}
       {form.clientId && form.timeSlot && (
@@ -15572,7 +15536,7 @@ function StripePaymentModal({ invoice, client, onClose, onPaid }) {
 }
 
 // ─── Admin Invoices Tab ────────────────────────────────────────────────────────
-function AdminInvoicesTab({ clients, setClients }) {
+function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
   const [view, setView] = useState("list"); // "list" | "create"
   const [filterStatus, setFilterStatus] = useState("all");
   const [expandedInv, setExpandedInv] = useState(null);
@@ -15795,7 +15759,49 @@ function AdminInvoicesTab({ clients, setClients }) {
   const overdueCount = allInvoices.filter(inv => invoiceStatusMeta(inv.status, inv.dueDate).effectiveStatus === "overdue").length;
   const paidTotal = allInvoices.filter(inv => inv.status === "paid").reduce((s, inv) => s + (inv.total || 0), 0);
   const pendingTotal = allInvoices.filter(inv => inv.status === "sent").reduce((s, inv) => s + (inv.total || 0), 0);
-  const gratuityOwed = allInvoices.filter(inv => inv.status === "paid" && inv.gratuity > 0).reduce((s, inv) => s + (inv.gratuity || 0), 0);
+  // Gratuities owed = paid invoices with gratuity, MINUS any already disbursed via completed payroll
+  const gratuityOwed = allInvoices.filter(inv => {
+    if (inv.status !== "paid" || !inv.gratuity) return false;
+    const clientEntry = Object.values(clients).find(c =>
+      (c.invoices || []).some(i => i.id === inv.id)
+    );
+    const walkerName = clientEntry?.keyholder;
+    if (!walkerName) return true;
+    const paidDate = new Date(inv.paidAt);
+    const dow = paidDate.getDay();
+    const off = dow === 0 ? -6 : 1 - dow;
+    const weekMon = new Date(paidDate);
+    weekMon.setDate(paidDate.getDate() + off);
+    weekMon.setHours(0, 0, 0, 0);
+    const weekKey = weekMon.toISOString().slice(0, 10);
+    const alreadyDisbursed = completedPayrolls.some(
+      r => r.walkerName === walkerName && r.weekKey === weekKey
+    );
+    return !alreadyDisbursed;
+  }).reduce((s, inv) => s + (inv.gratuity || 0), 0);
+  // Gratuities paid lifetime = sum of all gratuities disbursed via completed payrolls
+  const gratuitiesPaidLifetime = (() => {
+    let total = 0;
+    allInvoices.forEach(inv => {
+      if (inv.status !== "paid" || !inv.gratuity) return;
+      const clientEntry = Object.values(clients).find(c =>
+        (c.invoices || []).some(i => i.id === inv.id)
+      );
+      const walkerName = clientEntry?.keyholder;
+      if (!walkerName) return;
+      const paidDate = new Date(inv.paidAt);
+      const dow = paidDate.getDay();
+      const off = dow === 0 ? -6 : 1 - dow;
+      const weekMon = new Date(paidDate);
+      weekMon.setDate(paidDate.getDate() + off);
+      weekMon.setHours(0, 0, 0, 0);
+      const weekKey = weekMon.toISOString().slice(0, 10);
+      if (completedPayrolls.some(r => r.walkerName === walkerName && r.weekKey === weekKey)) {
+        total += inv.gratuity;
+      }
+    });
+    return total;
+  })();
 
   return (
     <div className="fade-up">
@@ -15940,28 +15946,41 @@ function AdminInvoicesTab({ clients, setClients }) {
       {/* ══ LIST VIEW ══ */}
       {view === "list" && (
         <>
-          {/* KPI row */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))",
-            gap: "10px", marginBottom: "20px" }}>
-            {[
-              { label: "Pending", value: fmt(pendingTotal, true), sub: `${pendingCount} invoice${pendingCount !== 1 ? "s" : ""}`, color: amber, bg: "#fffbeb", border: "#fde68a" },
-              { label: "Overdue", value: `${overdueCount}`, sub: "unpaid past due", color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
-              { label: "Collected", value: fmt(paidTotal, true), sub: "total paid", color: green, bg: "#FDF5EC", border: "#D4A843" },
-              { label: "Uninvoiced", value: `${bulkWalkCount}`, sub: `${bulkClientCount} client${bulkClientCount !== 1 ? "s" : ""}`, color: "#3D6B7A", bg: "#EBF4F6", border: "#8ECAD4" },
-              { label: "🤝 Gratuities Owed", value: gratuityOwed > 0 ? fmt(gratuityOwed, true) : "—", sub: "to walkers", color: "#059669", bg: "#f0fdf4", border: "#a8d5bf" },
-            ].map(kpi => (
+          {/* KPI rows — 3 top, 3 bottom */}
+          {(() => {
+            const kpiCard = (kpi) => (
               <div key={kpi.label} style={{ background: kpi.bg, border: `1.5px solid ${kpi.border}`,
                 borderRadius: "14px", padding: "16px 18px" }}>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
                   fontWeight: 700, color: kpi.color, textTransform: "uppercase",
                   letterSpacing: "1px", marginBottom: "6px" }}>{kpi.label}</div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                  fontWeight: 600, color: "#111827", lineHeight: 1 }}>{kpi.value}</div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
+                  fontWeight: 700, color: "#111827", lineHeight: 1 }}>{kpi.value}</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
                   color: "#6b7280", marginTop: "3px" }}>{kpi.sub}</div>
               </div>
-            ))}
-          </div>
+            );
+            const row1 = [
+              { label: "Pending",    value: fmt(pendingTotal, true), sub: `${pendingCount} invoice${pendingCount !== 1 ? "s" : ""}`, color: amber,      bg: "#fffbeb", border: "#fde68a" },
+              { label: "Overdue",    value: `${overdueCount}`,       sub: "unpaid past due",                                         color: "#dc2626",  bg: "#fef2f2", border: "#fecaca" },
+              { label: "Collected",  value: fmt(paidTotal, true),    sub: "total paid",                                              color: green,      bg: "#FDF5EC", border: "#D4A843" },
+            ];
+            const row2 = [
+              { label: "Uninvoiced",             value: `${bulkWalkCount}`,                                          sub: `${bulkClientCount} client${bulkClientCount !== 1 ? "s" : ""}`, color: "#3D6B7A",  bg: "#EBF4F6", border: "#8ECAD4" },
+              { label: "🤝 Gratuities Owed",     value: gratuityOwed > 0 ? fmt(gratuityOwed, true) : "—",           sub: "unpaid to walkers",                                              color: "#059669",  bg: "#f0fdf4", border: "#a8d5bf" },
+              { label: "🤝 Gratuities Paid",     value: gratuitiesPaidLifetime > 0 ? fmt(gratuitiesPaidLifetime, true) : "—", sub: "lifetime disbursed",                               color: "#7A4D6E",  bg: "#F7F0F5", border: "#D8ABCF" },
+            ];
+            return (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "10px", marginBottom: "10px" }}>
+                  {row1.map(kpiCard)}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "10px", marginBottom: "20px" }}>
+                  {row2.map(kpiCard)}
+                </div>
+              </>
+            );
+          })()}
 
           {/* Search */}
           <div style={{ position: "relative", marginBottom: "12px" }}>
@@ -23865,6 +23884,18 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
           const historySorted = Object.entries(historyByWeek)
             .sort(([a], [b]) => b.localeCompare(a)); // newest first
 
+          // Helper: get gratuity paid to a walker in a given week from invoices
+          const getWalkerWeekGratuity = (walkerName, weekKey) => {
+            const weekMon = new Date(weekKey + "T00:00:00");
+            const weekSun = new Date(weekMon); weekSun.setDate(weekMon.getDate() + 6); weekSun.setHours(23,59,59,999);
+            return Object.values(clients).filter(c => c.keyholder === walkerName)
+              .flatMap(c => (c.invoices || []).filter(inv =>
+                inv.status === "paid" && inv.gratuity > 0 &&
+                inv.paidAt && new Date(inv.paidAt) >= weekMon && new Date(inv.paidAt) <= weekSun
+              ))
+              .reduce((s, inv) => s + (inv.gratuity || 0), 0);
+          };
+
           return (
             <div className="fade-up">
 
@@ -24168,6 +24199,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                   {historySorted.map(([wk, records]) => {
                     const wkLabel = records[0]?.weekLabel || wk;
                     const wkTotal = records.reduce((s, r) => s + r.total, 0);
+                    const wkGratuity = records.reduce((s, r) => s + getWalkerWeekGratuity(r.walkerName, wk), 0);
                     return (
                       <div key={wk} style={{ background: "#fff", border: "1.5px solid #e4e7ec",
                         borderRadius: "14px", marginBottom: "12px", overflow: "hidden" }}>
@@ -24186,14 +24218,16 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                             <button onClick={() => {
                               const esc = (v) => String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
                               const td = (val, style="") => `<td style="font-family:Arial,sans-serif;font-size:11px;padding:5px 10px;border:1px solid #e4e7ec;${style}">${esc(val)}</td>`;
-                              const colHeaders = ["Walk Date","Time","Duration","Client","Pet","Payout"];
+                              const colHeaders = ["Walk Date","Time","Duration","Client","Pet","Payout","Gratuity"];
                               const totalPayroll = records.reduce((s,r) => s + r.total, 0);
+                              const totalGrat    = records.reduce((s,r) => s + getWalkerWeekGratuity(r.walkerName, wk), 0);
                               let body = "";
                               records.forEach(r => {
+                                const rGrat = getWalkerWeekGratuity(r.walkerName, wk);
                                 const color = r.walkerColor || "#C4541A";
                                 const sorted = [...r.walks].sort((a,b) => new Date(a.scheduledDateTime) - new Date(b.scheduledDateTime));
-                                body += `<tr><td colspan="6" style="background-color:${color};color:#fff;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;padding:8px 12px;border:1px solid ${color};">${esc(r.walkerFullName)}</td></tr>`;
-                                body += `<tr><td colspan="6" style="background-color:#f0f0f0;color:#555;font-family:Arial,sans-serif;font-size:10px;padding:4px 12px;border:1px solid #ddd;font-style:italic;">${esc(r.walkerAddress)}</td></tr>`;
+                                body += `<tr><td colspan="7" style="background-color:${color};color:#fff;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;padding:8px 12px;border:1px solid ${color};">${esc(r.walkerFullName)}</td></tr>`;
+                                body += `<tr><td colspan="7" style="background-color:#f0f0f0;color:#555;font-family:Arial,sans-serif;font-size:10px;padding:4px 12px;border:1px solid #ddd;font-style:italic;">${esc(r.walkerAddress)}</td></tr>`;
                                 body += `<tr>${colHeaders.map(h => `<td style="background-color:#FDF0E4;color:#7A4E28;font-family:Arial,sans-serif;font-size:10px;font-weight:bold;padding:5px 10px;border:1px solid #E8CEAA;text-transform:uppercase;letter-spacing:0.5px;">${h}</td>`).join("")}</tr>`;
                                 sorted.forEach((w, idx) => {
                                   const dt = new Date(w.scheduledDateTime);
@@ -24205,25 +24239,40 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                                     ${td(w.clientName,`background:${bg};`)}
                                     ${td(w.pet,`background:${bg};`)}
                                     ${td(fmt((w.payout||0), true),`background:${bg};text-align:right;font-weight:600;`)}
+                                    ${td("",`background:${bg};`)}
                                   </tr>`;
                                 });
                                 body += `<tr>
-                                  <td colspan="5" style="background-color:${color}18;font-family:Arial,sans-serif;font-size:11px;font-weight:bold;padding:6px 10px;border:1px solid ${color}44;text-align:right;color:#374151;">Total for ${esc(r.walkerFullName)}</td>
+                                  <td colspan="5" style="background-color:${color}18;font-family:Arial,sans-serif;font-size:11px;font-weight:bold;padding:6px 10px;border:1px solid ${color}44;text-align:right;color:#374151;">Total walks for ${esc(r.walkerFullName)}</td>
                                   <td style="background-color:${color}18;font-family:Arial,sans-serif;font-size:12px;font-weight:bold;padding:6px 10px;border:1px solid ${color}44;text-align:right;color:${color};">${fmt(r.total, true)}</td>
+                                  <td style="background-color:${color}18;border:1px solid ${color}44;"></td>
                                 </tr>`;
-                                body += `<tr><td colspan="6" style="padding:6px;border:none;background:#fff;"></td></tr>`;
+                                if (rGrat > 0) {
+                                  body += `<tr>
+                                    <td colspan="5" style="background-color:#f0fdf4;font-family:Arial,sans-serif;font-size:11px;font-weight:bold;padding:6px 10px;border:1px solid #a8d5bf;text-align:right;color:#374151;">🤝 Gratuity for ${esc(r.walkerFullName)}</td>
+                                    <td style="background-color:#f0fdf4;border:1px solid #a8d5bf;"></td>
+                                    <td style="background-color:#f0fdf4;font-family:Arial,sans-serif;font-size:12px;font-weight:bold;padding:6px 10px;border:1px solid #a8d5bf;text-align:right;color:#059669;">${fmt(rGrat, true)}</td>
+                                  </tr>`;
+                                }
+                                body += `<tr><td colspan="7" style="padding:6px;border:none;background:#fff;"></td></tr>`;
                               });
                               body += `<tr>
                                 <td colspan="5" style="background-color:#4D2E10;color:#fff;font-family:Arial,sans-serif;font-size:13px;font-weight:bold;padding:8px 12px;border:1px solid #4D2E10;text-align:right;">TOTAL PAYROLL</td>
                                 <td style="background-color:#4D2E10;color:#4ade80;font-family:Arial,sans-serif;font-size:14px;font-weight:bold;padding:8px 12px;border:1px solid #4D2E10;text-align:right;">${fmt(totalPayroll, true)}</td>
+                                <td style="background-color:#4D2E10;border:1px solid #4D2E10;"></td>
                               </tr>`;
+                              if (totalGrat > 0) {
+                                body += `<tr>
+                                  <td colspan="5" style="background-color:#059669;color:#fff;font-family:Arial,sans-serif;font-size:13px;font-weight:bold;padding:8px 12px;border:1px solid #059669;text-align:right;">TOTAL GRATUITY</td>
+                                  <td style="background-color:#059669;border:1px solid #059669;"></td>
+                                  <td style="background-color:#059669;color:#fff;font-family:Arial,sans-serif;font-size:14px;font-weight:bold;padding:8px 12px;border:1px solid #059669;text-align:right;">${fmt(totalGrat, true)}</td>
+                                </tr>`;
+                              }
                               const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"></head><body><table>${body}</table></body></html>`;
                               const blob2 = new Blob([html],{type:"application/vnd.ms-excel;charset=utf-8"});
                               const url2  = URL.createObjectURL(blob2);
                               const a2    = document.createElement("a");
-                              a2.href     = url2;
-                              a2.download = `payroll-${wk}.xls`;
-                              a2.click();
+                              a2.href = url2; a2.download = `payroll-${wk}.xls`; a2.click();
                               URL.revokeObjectURL(url2);
                             }} style={{
                               padding: "6px 12px", borderRadius: "8px",
@@ -24232,21 +24281,25 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                               fontSize: "15px", fontWeight: 600, cursor: "pointer",
                             }}>⬇ Excel</button>
                             <button onClick={() => {
-                              const rows = [["Walker Name","Address","Walk Date","Time","Duration","Client","Pet","Payout ($)"]];
+                              const rows = [["Walker Name","Address","Walk Date","Time","Duration","Client","Pet","Payout ($)","Gratuity ($)"]];
                               records.forEach(r => {
-                                rows.push([`--- ${r.walkerFullName} ---`, r.walkerAddress,"","","","","",""]);
+                                const rGrat = getWalkerWeekGratuity(r.walkerName, wk);
+                                rows.push([`--- ${r.walkerFullName} ---`, r.walkerAddress,"","","","","","",""]);
                                 [...r.walks].sort((a,b)=>new Date(a.scheduledDateTime)-new Date(b.scheduledDateTime)).forEach(w => {
                                   const dt = new Date(w.scheduledDateTime);
                                   rows.push([r.walkerFullName, r.walkerAddress,
                                     dt.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}),
                                     w.slotTime||dt.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}),
-                                    w.duration, w.clientName, w.pet, (w.payout||0).toFixed(2)]);
+                                    w.duration, w.clientName, w.pet, (w.payout||0).toFixed(2), ""]);
                                 });
-                                rows.push(["","","","","","",`Total for ${r.walkerFullName}:`, r.total.toFixed(2)]);
-                                rows.push(["","","","","","","",""]);
+                                rows.push(["","","","","","",`Total walks for ${r.walkerFullName}:`, r.total.toFixed(2), ""]);
+                                if (rGrat > 0) rows.push(["","","","","","",`Gratuity for ${r.walkerFullName}:`, "", rGrat.toFixed(2)]);
+                                rows.push(["","","","","","","","",""]);
                               });
                               const grandTotal = records.reduce((s,r)=>s+r.total,0);
-                              rows.push(["","","","","","","TOTAL PAYROLL:", grandTotal.toFixed(2)]);
+                              const grandGrat  = records.reduce((s,r)=>s+getWalkerWeekGratuity(r.walkerName,wk),0);
+                              rows.push(["","","","","","","TOTAL PAYROLL:", grandTotal.toFixed(2), ""]);
+                              if (grandGrat > 0) rows.push(["","","","","","","TOTAL GRATUITY:", "", grandGrat.toFixed(2)]);
                               const csv3 = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
                               const b3 = new Blob([csv3],{type:"text/csv"});
                               const u3 = URL.createObjectURL(b3);
@@ -24259,14 +24312,25 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                               color: "#059669", fontFamily: "'DM Sans', sans-serif",
                               fontSize: "15px", fontWeight: 600, cursor: "pointer",
                             }}>⬇ CSV</button>
-                            <div style={{ fontFamily: "'DM Sans', sans-serif",
-                              fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600, color: "#059669" }}>
-                              ${wkTotal.toLocaleString()}
+                            <div style={{ textAlign: "right" }}>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif",
+                                fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600, color: "#059669" }}>
+                                ${wkTotal.toLocaleString()}
+                              </div>
+                              {wkGratuity > 0 && (
+                                <div style={{ fontFamily: "'DM Sans', sans-serif",
+                                  fontSize: "12px", fontWeight: 600, color: "#059669",
+                                  marginTop: "2px" }}>
+                                  🤝 +${wkGratuity.toFixed(2)} tips
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
                         {/* Per-walker rows */}
-                        {records.map((r, i) => (
+                        {records.map((r, i) => {
+                          const rGrat = getWalkerWeekGratuity(r.walkerName, wk);
+                          return (
                           <div key={r.id} style={{
                             padding: "11px 18px",
                             borderBottom: i < records.length - 1 ? "1px solid #f9fafb" : "none",
@@ -24282,12 +24346,20 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                                 {r.walkerAddress ? ` · ${r.walkerAddress}` : ""}
                               </div>
                             </div>
-                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
-                              fontSize: "15px", color: "#059669", flexShrink: 0 }}>
-                              ${r.total.toLocaleString()}
+                            <div style={{ textAlign: "right", flexShrink: 0 }}>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
+                                fontSize: "15px", color: "#059669" }}>
+                                ${(r.total + rGrat).toFixed(2)}
+                              </div>
+                              {rGrat > 0 && (
+                                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#9ca3af" }}>
+                                  walks ${r.total} + 🤝 ${rGrat.toFixed(2)}
+                                </div>
+                              )}
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     );
                   })}
@@ -24373,7 +24445,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
 
         {/* ── Invoices ── */}
         {tab === "invoices" && (
-          <AdminInvoicesTab key={invoicesKey} clients={clients} setClients={setClients} />
+          <AdminInvoicesTab key={invoicesKey} clients={clients} setClients={setClients} completedPayrolls={completedPayrolls} />
         )}
 
         {/* ── Map ── */}
