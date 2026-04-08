@@ -1218,69 +1218,118 @@ function Header({ client, onLogout }) {
 
 function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky = false }) {
   if (!client) return null;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
   const scrollTop = () => document.querySelector('[data-scroll-pane]')?.scrollTo({ top: 0, behavior: 'instant' });
   const clientTabs = [
-    { id: "overview", label: "Dashboard", icon: "🏠" },
-    { id: "book", label: "Book a Walk", icon: "🐾" },
-    { id: "mywalks", label: "My Walks", icon: "📅" },
-    { id: "invoices", label: "Invoices", icon: "🧾" },
-    { id: "pricing", label: "Pricing", icon: "💰" },
-    { id: "about", label: "Our Team", icon: "👥" },
+    { id: "overview", label: "Dashboard",   icon: "🏠" },
+    { id: "book",     label: "Book a Walk", icon: "🐾" },
+    { id: "mywalks",  label: "My Walks",    icon: "📅" },
+    { id: "invoices", label: "Invoices",    icon: "🧾" },
+    { id: "pricing",  label: "Pricing",     icon: "💰" },
+    { id: "about",    label: "Our Team",    icon: "👥" },
     ...(client.keyholder ? [{ id: "messages", label: "Messages", icon: "💬" }] : []),
-    { id: "myinfo", label: "My Info", icon: "👤" },
+    { id: "myinfo",   label: "My Info",     icon: "👤" },
   ];
-  const [pinned, ...rest] = clientTabs;
+  const activeTab = clientTabs.find(t => t.id === page) || clientTabs[0];
+  const totalBadges = Object.values(notifCounts).reduce((s, n) => s + n, 0);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
   return (
     <nav style={{ background: "#0B1423", borderBottom: "1px solid #8A7545",
       display: "flex", alignItems: "stretch",
-      ...(sticky ? { position: "sticky", top: 0, zIndex: 10 } : { flexShrink: 0 }) }}
+      ...(sticky ? { position: "sticky", top: 0, zIndex: 100 } : { flexShrink: 0 }) }}
       className={`nav-tabs${sticky ? " sticky-nav" : ""}`}>
-      <button onClick={() => { setPage(pinned.id); scrollTop(); }} style={{
-        padding: "10px 16px", border: "none", whiteSpace: "nowrap",
-        background: "transparent", flexShrink: 0,
-        borderBottom: page === pinned.id ? "3px solid #8B5E3C" : "3px solid transparent",
-        borderRight: "1px solid #8A7545",
-        color: page === pinned.id ? "#fff" : "#ffffff88",
-        fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-        fontWeight: page === pinned.id ? 600 : 400,
-        cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
-        display: "flex", alignItems: "center", gap: "5px",
-      }}>
-        <span style={{ fontSize: "15px" }}>{pinned.icon}</span> {pinned.label}
-      </button>
-      <div style={{ flex: 1, overflowX: "auto", display: "flex",
-        scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
-        {rest.map(t => {
-          const badge = notifCounts[t.id] || 0;
-          return (
-            <button key={t.id} onClick={() => { setPage(t.id); scrollTop(); }} style={{
-              padding: "10px 16px", border: "none", whiteSpace: "nowrap", background: "transparent",
-              borderBottom: page === t.id ? "3px solid #8B5E3C" : "3px solid transparent",
-              color: page === t.id ? "#fff" : "#ffffff88",
-              fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-              fontWeight: page === t.id ? 600 : 400,
-              cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
-              display: "flex", alignItems: "center", gap: "5px", flexShrink: 0,
+
+      {/* Active page label (left) */}
+      <div style={{ flex: 1, display: "flex", alignItems: "center",
+        padding: "0 16px", gap: "7px", borderRight: "1px solid #8A7545" }}>
+        <span style={{ fontSize: "16px" }}>{activeTab.icon}</span>
+        <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+          fontWeight: 600, color: "#fff", letterSpacing: "0.2px" }}>{activeTab.label}</span>
+      </div>
+
+      {/* Hamburger button (right) */}
+      <div ref={menuRef} style={{ position: "relative", flexShrink: 0 }}>
+        <button onClick={() => setMenuOpen(o => !o)} style={{
+          height: "100%", padding: "0 18px", border: "none", background: "transparent",
+          cursor: "pointer", display: "flex", alignItems: "center", gap: "6px",
+          color: menuOpen ? "#fff" : "#ffffff99",
+          transition: "color 0.15s",
+        }}>
+          {/* Badge dot if any notif */}
+          <div style={{ position: "relative" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <span style={{ display: "block", width: "18px", height: "2px", background: "currentColor", borderRadius: "2px" }} />
+              <span style={{ display: "block", width: "18px", height: "2px", background: "currentColor", borderRadius: "2px" }} />
+              <span style={{ display: "block", width: "18px", height: "2px", background: "currentColor", borderRadius: "2px" }} />
+            </div>
+            {totalBadges > 0 && !menuOpen && (
+              <span style={{ position: "absolute", top: "-5px", right: "-5px",
+                background: "#ef4444", color: "#fff", borderRadius: "50%",
+                width: "14px", height: "14px", fontSize: "9px", fontWeight: 700,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontFamily: "'DM Sans', sans-serif" }}>{totalBadges}</span>
+            )}
+          </div>
+        </button>
+
+        {/* Dropdown */}
+        {menuOpen && (
+          <div style={{
+            position: "absolute", top: "100%", right: 0,
+            background: "#0B1423", border: "1px solid #8A7545",
+            borderTop: "none", borderRadius: "0 0 14px 14px",
+            minWidth: "200px", zIndex: 200,
+            boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
+            overflow: "hidden",
+          }}>
+            {clientTabs.map(t => {
+              const badge = notifCounts[t.id] || 0;
+              const isActive = page === t.id;
+              return (
+                <button key={t.id} onClick={() => { setPage(t.id); scrollTop(); setMenuOpen(false); }} style={{
+                  width: "100%", padding: "13px 18px", border: "none",
+                  background: isActive ? "#1a2535" : "transparent",
+                  borderLeft: isActive ? "3px solid #8B5E3C" : "3px solid transparent",
+                  color: isActive ? "#fff" : "#ffffffcc",
+                  fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                  fontWeight: isActive ? 600 : 400,
+                  cursor: "pointer", display: "flex", alignItems: "center",
+                  gap: "10px", textAlign: "left", transition: "background 0.12s",
+                }}>
+                  <span style={{ fontSize: "16px", width: "20px", textAlign: "center" }}>{t.icon}</span>
+                  <span style={{ flex: 1 }}>{t.label}</span>
+                  {badge > 0 && (
+                    <span style={{ background: "#ef4444", color: "#fff", borderRadius: "10px",
+                      fontSize: "11px", fontWeight: 700, padding: "1px 6px",
+                      minWidth: "16px", textAlign: "center" }}>{badge}</span>
+                  )}
+                </button>
+              );
+            })}
+            {/* Divider */}
+            <div style={{ height: "1px", background: "#8A7545", margin: "4px 0" }} />
+            {/* Logout */}
+            <button onClick={() => { setMenuOpen(false); onLogout(); }} style={{
+              width: "100%", padding: "13px 18px", border: "none",
+              background: "transparent", color: "#ffffff66",
+              fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 400,
+              cursor: "pointer", display: "flex", alignItems: "center",
+              gap: "10px", textAlign: "left", transition: "background 0.12s",
             }}>
-              <span style={{ fontSize: "15px" }}>{t.icon}</span> {t.label}
-              {badge > 0 && (
-                <span style={{ background: "#ef4444", color: "#fff", borderRadius: "10px",
-                  fontSize: "16px", fontWeight: 700, padding: "1px 6px", lineHeight: "16px",
-                  minWidth: "16px", textAlign: "center", display: "inline-block" }}>
-                  {badge}
-                </span>
-              )}
+              <span style={{ fontSize: "16px", width: "20px", textAlign: "center" }}>↩</span>
+              Log out
             </button>
-          );
-        })}
-        <div style={{ flex: 1 }} />
-        <button onClick={onLogout} style={{
-          padding: "10px 14px", border: "none", background: "transparent",
-          color: "#ffffff99", fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-          cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
-          borderBottom: "3px solid transparent",
-          display: "flex", alignItems: "center", gap: "5px",
-        }}>↩ Log out</button>
+          </div>
+        )}
       </div>
     </nav>
   );
@@ -4253,7 +4302,15 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     try {
       const success = localStorage.getItem("dwi_payment_success");
       const cancelled = localStorage.getItem("dwi_payment_cancelled");
-      if (success) { localStorage.removeItem("dwi_payment_success"); return { type: "success", invoiceId: success }; }
+      if (success) {
+        localStorage.removeItem("dwi_payment_success");
+        try {
+          const parsed = JSON.parse(success);
+          if (parsed?.invoiceId) return { type: "success", ...parsed };
+        } catch {}
+        // legacy: plain invoiceId string
+        return { type: "success", invoiceId: success };
+      }
       if (cancelled) { localStorage.removeItem("dwi_payment_cancelled"); return { type: "cancelled" }; }
     } catch {}
     return null;
@@ -4273,6 +4330,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         });
         setClients(fresh);
       });
+      // Auto-dismiss success banner after 20 seconds
+      const timer = setTimeout(() => setPaymentBanner(null), 20000);
+      return () => clearTimeout(timer);
     }
   }, [paymentBanner]);
 
@@ -4877,27 +4937,71 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       })()}
 
       {/* Payment result banner */}
-      {paymentBanner && (
-        <div style={{
-          background: paymentBanner.type === "success" ? "#FDF5EC" : "#fef2f2",
-          border: `1.5px solid ${paymentBanner.type === "success" ? "#D4A87A" : "#fecaca"}`,
-          borderRadius: "12px", margin: "16px 16px 0",
-          padding: "14px 18px", display: "flex", alignItems: "center",
-          justifyContent: "space-between", gap: "12px",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <span style={{ fontSize: "20px" }}>{paymentBanner.type === "success" ? "✅" : "❌"}</span>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-              color: paymentBanner.type === "success" ? "#C4541A" : "#dc2626", fontWeight: 600 }}>
-              {paymentBanner.type === "success"
-                ? "Payment successful! Your invoice has been marked as paid."
-                : "Payment cancelled — you can try again from your invoices page."}
+      {paymentBanner && (() => {
+        // Look up the invoice amount from client data
+        const paidInvoice = paymentBanner.invoiceId
+          ? (client?.invoices || []).find(inv => inv.id === paymentBanner.invoiceId)
+          : null;
+        const amount   = paidInvoice?.total != null ? `$${paidInvoice.total}` : null;
+        const paidDate = paymentBanner.paidAt
+          ? new Date(paymentBanner.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+          : null;
+        const brandLabel = paymentBanner.brand
+          ? paymentBanner.brand.charAt(0).toUpperCase() + paymentBanner.brand.slice(1)
+          : "Card";
+        const cardLine = paymentBanner.last4
+          ? `${brandLabel} ending in ${paymentBanner.last4}`
+          : "Stripe";
+
+        return paymentBanner.type === "success" ? (
+          <div style={{
+            background: "#FDF5EC", border: "1.5px solid #D4A87A",
+            borderRadius: "12px", margin: "16px 16px 0",
+            padding: "14px 18px", display: "flex", alignItems: "flex-start",
+            justifyContent: "space-between", gap: "12px",
+          }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+              <span style={{ fontSize: "20px", marginTop: "1px" }}>✅</span>
+              <div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                  color: "#C4541A", fontWeight: 600, marginBottom: "4px" }}>
+                  Payment successful!{amount ? ` ${amount} paid.` : " Your invoice has been marked as paid."}
+                </div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#6b7280", display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ fontSize: "11px", background: "#635bff", color: "#fff",
+                      borderRadius: "4px", padding: "1px 5px", fontWeight: 700, letterSpacing: "0.5px" }}>
+                      STRIPE
+                    </span>
+                    {cardLine}
+                  </span>
+                  {paidDate && <span>· {paidDate}</span>}
+                  {paymentBanner.invoiceId && <span style={{ color: "#9ca3af" }}>· {paymentBanner.invoiceId}</span>}
+                </div>
+              </div>
             </div>
+            <button onClick={() => setPaymentBanner(null)} style={{ background: "none", border: "none",
+              cursor: "pointer", color: "#9ca3af", fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>✕</button>
           </div>
-          <button onClick={() => setPaymentBanner(null)} style={{ background: "none", border: "none",
-            cursor: "pointer", color: "#9ca3af", fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>✕</button>
-        </div>
-      )}
+        ) : (
+          <div style={{
+            background: "#fef2f2", border: "1.5px solid #fecaca",
+            borderRadius: "12px", margin: "16px 16px 0",
+            padding: "14px 18px", display: "flex", alignItems: "center",
+            justifyContent: "space-between", gap: "12px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "20px" }}>❌</span>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                color: "#dc2626", fontWeight: 600 }}>
+                Payment cancelled — you can try again from your invoices page.
+              </div>
+            </div>
+            <button onClick={() => setPaymentBanner(null)} style={{ background: "none", border: "none",
+              cursor: "pointer", color: "#9ca3af", fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>✕</button>
+          </div>
+        );
+      })()}
       {/* PRICING PAGE */}
       {/* ── OVERVIEW PAGE ── */}
       {page === "overview" && (() => {
@@ -8870,6 +8974,7 @@ export default function LonestarBark() {
     const token = params.get("verify");
     const payment = params.get("payment");
     const invoiceId = params.get("invoice");
+    const sessionId = params.get("session_id"); // populated once edge fn adds {CHECKOUT_SESSION_ID} to success_url
 
     // Handle Stripe payment return
     if (payment === "success" && invoiceId) {
@@ -8877,8 +8982,33 @@ export default function LonestarBark() {
       const now = new Date().toISOString();
       // Update invoices table directly
       updateInvoiceInDB(invoiceId, { status: "paid", paidAt: now });
-      // Store success banner flag
-      try { localStorage.setItem("dwi_payment_success", invoiceId); } catch {}
+
+      // Try to fetch card details from Stripe session (requires get-payment-details edge fn)
+      const fetchCardDetails = async () => {
+        if (!sessionId) return null;
+        try {
+          const res = await fetch(`${SUPABASE_URL}/functions/v1/get-payment-details`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId }),
+          });
+          if (!res.ok) return null;
+          const data = await res.json();
+          // expects { last4, brand } e.g. { last4: "4242", brand: "visa" }
+          return data?.last4 ? data : null;
+        } catch { return null; }
+      };
+
+      fetchCardDetails().then(cardDetails => {
+        // Store success banner data including card details if available
+        try {
+          localStorage.setItem("dwi_payment_success", JSON.stringify({
+            invoiceId, paidAt: now,
+            last4: cardDetails?.last4 || null,
+            brand: cardDetails?.brand || null,
+          }));
+        } catch {}
+      });
       // Retrieve stored client ID for auto-login
       let returnClientId = "";
       try { returnClientId = localStorage.getItem("dwi_stripe_return_clientId") || ""; localStorage.removeItem("dwi_stripe_return_clientId"); } catch {}
