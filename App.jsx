@@ -772,6 +772,13 @@ function fmt(n, dollars = false) {
   return dollars ? `$${formatted}` : formatted;
 }
 
+// Like fmt but preserves cents when the value isn't a whole number
+function fmtPrice(n) {
+  const num = typeof n === "string" ? parseFloat(n) : n;
+  if (isNaN(num)) return "$0";
+  return num % 1 === 0 ? `$${num}` : `$${num.toFixed(2)}`;
+}
+
 function formatPhone(raw) {
   const digits = (raw || "").replace(/\D/g, "").slice(0, 10);
   if (digits.length <= 3) return digits;
@@ -4353,17 +4360,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     return 0;
   })();
   const [weekOffset, setWeekOffset] = useState(minWeekOffset);
-  const [selectedDays, setSelectedDays] = useState(() => {
-    // Auto-select the first non-disabled day
-    const startDates = getWeekDates(minWeekOffset);
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(startDates[i]); d.setHours(0, 0, 0, 0);
-      if (d >= today && (!handoffMidnight || d >= handoffMidnight)) return new Set([i]);
-    }
-    return new Set([0]);
-  });
-  const [activeDay, setActiveDay] = useState(() => {
+  const [selectedDay, setSelectedDay] = useState(() => {
     const startDates = getWeekDates(minWeekOffset);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     for (let i = 0; i < 7; i++) {
@@ -4372,25 +4369,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     }
     return 0;
   });
-  // walksByDay: { [dayIndex]: [{slotId, duration}] }
-  const [walksByDay, setWalksByDay] = useState(() => {
-    const startDates = getWeekDates(minWeekOffset);
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(startDates[i]); d.setHours(0, 0, 0, 0);
-      if (d >= today && (!handoffMidnight || d >= handoffMidnight)) return { [i]: [{ slotId: "", duration: null }] };
-    }
-    return { 0: [{ slotId: "", duration: null }] };
-  });
-  // Convenience: selected walks for active day
-  const selectedWalks = walksByDay[activeDay] || [{ slotId: "", duration: null }];
-  const setSelectedWalks = (newWalksOrFn) => setWalksByDay(prev => {
-    const current = prev[activeDay] || [{ slotId: "", duration: null }];
-    const newWalks = typeof newWalksOrFn === "function" ? newWalksOrFn(current) : newWalksOrFn;
-    return { ...prev, [activeDay]: newWalks };
-  });
-  // Legacy alias for compatibility
-  const selectedDay = activeDay;
   const weekDates = getWeekDates(weekOffset);
   const dateStr = (i) => dateStrFromDate(weekDates[i]);
   const [selectedSlot, setSelectedSlot] = useState(null);
@@ -4400,6 +4378,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const savedPets = service === "dog" ? savedDogs : savedCats;
   const [form, setForm] = useState({ name: client.name || "", pet: (service === "dog" ? savedDogs : savedCats).slice(-1)[0] || "", email: client.email, phone: client.phone || "", address: client.address || "", addrObj: addrFromString(client.address || ""), walker: client.preferredWalker || "", notes: client.notes || "" });
   const [additionalDogs, setAdditionalDogs] = useState([]);
+  const [selectedWalks, setSelectedWalks] = useState([{ slotId: "", duration: null }]);
   const [isRecurring, setIsRecurring] = useState(false);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -4843,7 +4822,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               {renderKpiCard({
                 label: "Current Tier",
                 value: currentTier.label,
-                sub: `$${currentTier.prices["30 min"]}/30 min · $${currentTier.prices["60 min"]}/60 min`,
+                sub: `${fmtPrice(currentTier.prices["30 min"])}/30 min · ${fmtPrice(currentTier.prices["60 min"])}/60 min`,
                 accent: tierColor[currentTier.label],
                 onClick: () => setPage("pricing"),
               })}
@@ -4915,33 +4894,35 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
             border: `1.5px solid ${weekBookingCount >= 5 ? "#3D6B7A" : weekBookingCount >= 3 ? "#C4541A" : "#e4e7ec"}` }}>
             <div style={{ padding: "12px 14px",
               background: weekBookingCount >= 5 ? "#EBF4F6" : weekBookingCount >= 3 ? "#FDF5EC" : "#f9fafb",
-              display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                  fontSize: "15px", color: "#111827", marginBottom: "2px" }}>
-                  {currentTier.label} rate this week
-                  <span style={{ marginLeft: "8px", fontSize: "15px", fontWeight: 500,
+              display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "6px", marginBottom: "2px" }}>
+                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                    fontSize: "15px", color: "#111827", whiteSpace: "nowrap" }}>
+                    {currentTier.label} rate
+                  </span>
+                  <span style={{ fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap",
                     padding: "2px 8px", borderRadius: "20px",
                     background: weekBookingCount >= 5 ? "#3D6B7A" : weekBookingCount >= 3 ? "#C4541A" : "#e4e7ec",
                     color: weekBookingCount >= 1 ? "#fff" : "#6b7280" }}>
-                    {weekBookingCount} booked this week
+                    {weekBookingCount} this week
                   </span>
                 </div>
                 {bookingsUntilNextTier > 0 && (
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#6b7280" }}>
-                    {bookingsUntilNextTier} more walk{bookingsUntilNextTier !== 1 ? "s" : ""} to unlock <strong>{nextTier.label}</strong> pricing
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280" }}>
+                    {bookingsUntilNextTier} more to unlock <strong>{nextTier.label}</strong>
                   </div>
                 )}
                 {weekBookingCount >= 5 && (
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#3D6B7A" }}>
-                    Best rate active — saving vs. Easy Rider 🎉
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#3D6B7A" }}>
+                    Best rate active 🎉
                   </div>
                 )}
               </div>
               <div style={{ textAlign: "right", flexShrink: 0 }}>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                   fontWeight: 600, color: "#111827" }}>${currentTier.prices["30 min"]}</div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>30 min</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>30 min</div>
               </div>
             </div>
           </div>
@@ -4976,7 +4957,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       padding: "8px 12px", textAlign: "center" }}>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af", marginBottom: "2px" }}>{dur}</div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", textTransform: "uppercase", letterSpacing: "1px",
-                        fontWeight: 600, color: "#111827" }}>${price}</div>
+                        fontWeight: 600, color: "#111827" }}>{fmtPrice(price)}</div>
                     </div>
                   ))}
                 </div>
@@ -8151,7 +8132,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                       color: tier.durationFg }}>30 min</span>
                     <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
                       <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
-                        fontWeight: 500, color: tier.priceFg }}>${tier.price30}</span>
+                        fontWeight: 500, color: tier.priceFg }}>{fmtPrice(tier.price30)}</span>
                       {tier.save30 && <span style={{ fontFamily: "'DM Sans', sans-serif",
                         fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save30}</span>}
                     </div>
@@ -8162,7 +8143,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                       color: tier.durationFg }}>60 min</span>
                     <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
                       <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
-                        fontWeight: 500, color: tier.priceFg }}>${tier.price60}</span>
+                        fontWeight: 500, color: tier.priceFg }}>{fmtPrice(tier.price60)}</span>
                       {tier.save60 && <span style={{ fontFamily: "'DM Sans', sans-serif",
                         fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save60}</span>}
                     </div>
@@ -16551,23 +16532,39 @@ function ClientInvoicesPage({ client, clients, setClients }) {
   const [payingInv, setPayingInv] = useState(null);
   const [paidConfirm, setPaidConfirm] = useState(null);
   const [invSearch, setInvSearch] = useState("");
+  const [invFilter, setInvFilter] = useState("all"); // "all" | "pending" | "paid"
 
   const green = "#C4541A";
   const allInvoices = [...(client.invoices || [])].sort((a, b) =>
     new Date(b.createdAt) - new Date(a.createdAt)
   );
   const invQ = invSearch.toLowerCase();
+
+  const statusOf = (inv) => {
+    const { effectiveStatus } = invoiceStatusMeta(inv.status, inv.dueDate);
+    return effectiveStatus;
+  };
+
+  const filteredByStatus = invFilter === "all"
+    ? allInvoices
+    : invFilter === "paid"
+      ? allInvoices.filter(inv => statusOf(inv) === "paid")
+      : allInvoices.filter(inv => statusOf(inv) === "sent" || statusOf(inv) === "overdue");
+
   const myInvoices = invQ
-    ? allInvoices.filter(inv =>
+    ? filteredByStatus.filter(inv =>
         (inv.id || "").toLowerCase().includes(invQ) ||
         (inv.status || "").toLowerCase().includes(invQ) ||
         String(inv.total || "").includes(invQ) ||
         (inv.weekLabel || "").toLowerCase().includes(invQ) ||
         (inv.items || []).some(it => (it.description || "").toLowerCase().includes(invQ))
       )
-    : allInvoices;
+    : filteredByStatus;
 
-  const outstandingTotal = myInvoices
+  const pendingCount = allInvoices.filter(inv => statusOf(inv) === "sent" || statusOf(inv) === "overdue").length;
+  const paidCount = allInvoices.filter(inv => statusOf(inv) === "paid").length;
+
+  const outstandingTotal = allInvoices
     .filter(inv => inv.status === "sent")
     .reduce((s, inv) => s + (inv.total || 0), 0);
 
@@ -16628,6 +16625,35 @@ function ClientInvoicesPage({ client, clients, setClients }) {
             top: "50%", transform: "translateY(-50%)", background: "none", border: "none",
             cursor: "pointer", color: "#9ca3af", fontSize: "16px" }}>✕</button>
         )}
+      </div>
+
+      {/* Filter tabs */}
+      <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
+        {[
+          { id: "all",     label: "All",     count: allInvoices.length },
+          { id: "pending", label: "Pending", count: pendingCount },
+          { id: "paid",    label: "Paid",    count: paidCount },
+        ].map(tab => (
+          <button key={tab.id} onClick={() => setInvFilter(tab.id)}
+            style={{ flex: 1, padding: "9px 10px", borderRadius: "10px", cursor: "pointer",
+              border: invFilter === tab.id ? `2px solid ${green}` : "1.5px solid #e4e7ec",
+              background: invFilter === tab.id ? `${green}10` : "#fff",
+              color: invFilter === tab.id ? green : "#6b7280",
+              fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+              fontWeight: invFilter === tab.id ? 700 : 400,
+              transition: "all 0.15s",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+            {tab.label}
+            {tab.count > 0 && (
+              <span style={{ background: invFilter === tab.id ? green : "#e4e7ec",
+                color: invFilter === tab.id ? "#fff" : "#6b7280",
+                borderRadius: "20px", fontSize: "12px", fontWeight: 700,
+                padding: "1px 7px", transition: "all 0.15s" }}>
+                {tab.count}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
       {/* Paid confirm banner */}
