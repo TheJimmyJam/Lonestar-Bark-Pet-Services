@@ -7520,10 +7520,11 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             <em style={{ color: "#D4A843", fontStyle: "italic" }}>Done Right.</em>
           </div>
           <div className="lp-fade-3" style={{ fontFamily: "'DM Sans', sans-serif",
-            color: "#D4A843", fontSize: "clamp(10px, 1.5vw, 12px)", lineHeight: "2",
+            color: "rgba(255,255,255,0.55)", fontSize: "clamp(10px, 1.5vw, 11px)", lineHeight: "2.2",
             marginBottom: "40px", fontWeight: 500, maxWidth: "600px", margin: "0 auto 40px",
-            letterSpacing: "0.15em" }}>
-            INSURED & VETTED WALKERS &nbsp;·&nbsp; TRANSPARENT PRICING &nbsp;·&nbsp; FREE INITIAL MEET & GREET &nbsp;·&nbsp; PEACE OF MIND
+            letterSpacing: "0.15em", textAlign: "center" }}>
+            <div>INSURED & VETTED WALKERS &nbsp;·&nbsp; TRANSPARENT PRICING</div>
+            <div>FREE INITIAL MEET & GREET &nbsp;·&nbsp; YOUR PEACE OF MIND</div>
           </div>
           <div className="lp-fade-4 lp-hero-ctas">
             <button onClick={onSignUp} className="lp-cta-btn" style={{
@@ -7629,14 +7630,14 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           <div style={{ marginBottom: "40px" }} className="lp-pricing-grid">
             {[
               { label: "Easy Rider", freq: "1× per week", badge: null,
-                price30: 40, price60: 55, color: "#6b7280", borderColor: "#e4e7ec", bg: "#fff",
-                desc: "Perfect for a relaxed schedule or occasional walks." },
+                price30: 30, price60: 45, color: "#6b7280", borderColor: "#e4e7ec", bg: "#fff",
+                desc: "One walk a week — perfect for a laid-back pup who likes to take it easy." },
               { label: "Steady Stroll", freq: "3× per week", badge: "Popular",
-                price30: 35, price60: 50, color: "#C4541A", borderColor: "#C4541A", bg: "#fff",
-                desc: "A great balance — keeps your pet active and social." },
+                price30: 27.50, price60: 42.50, color: "#C4541A", borderColor: "#C4541A", bg: "#fff",
+                desc: "Three walks a week — a great rhythm that keeps your dog active and happy." },
               { label: "Full Gallop", freq: "5× per week", badge: "Best Value",
-                price30: 30, price60: 45, color: "#3D6B7A", borderColor: "#3D6B7A", bg: "#fff",
-                desc: "Ideal for high-energy dogs or busy owners who need daily care." },
+                price30: 25, price60: 40, color: "#3D6B7A", borderColor: "#3D6B7A", bg: "#fff",
+                desc: "Five walks a week — for the high-energy dog who lives for the leash." },
             ].map((tier, i) => (
               <div key={tier.label} className="lp-hover" style={{ background: tier.bg,
                 border: `${tier.badge ? "2px" : "1.5px"} solid ${tier.borderColor}`,
