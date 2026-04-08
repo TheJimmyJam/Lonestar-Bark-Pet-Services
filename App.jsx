@@ -699,6 +699,12 @@ function getWeekDates(weekOffset = 0) {
   });
 }
 // Parse a YYYY-MM-DD string as LOCAL midnight (not UTC) to avoid timezone-shift bugs
+// Returns just the first name of a walker — used in client-facing UI
+function firstName(fullName) {
+  if (!fullName) return "";
+  return fullName.trim().split(" ")[0];
+}
+
 function parseDateLocal(dateStr) {
   const [y, m, d] = dateStr.split("-").map(Number);
   return new Date(y, m - 1, d);
@@ -2081,7 +2087,7 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
               : true;
             return (
               <option key={w.id} value={w.name}>
-                {w.avatar} {w.name}{!hasAvailOnDate && form.date ? " (no availability set)" : ""}
+                {w.avatar} {firstName(w.name)}{!hasAvailOnDate && form.date ? " (no availability set)" : ""}
               </option>
             );
           })}
@@ -2097,7 +2103,7 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
             <div style={{ marginTop: "8px", padding: "10px 14px", background: "#fff7ed",
               border: "1.5px solid #fed7aa", borderRadius: "10px",
               fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#b45309" }}>
-              ⚠️ {form.walker} hasn't set availability for {new Date(form.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}. Select a different date or walker, or assign later.
+              ⚠️ {firstName(form.walker)} hasn't set availability for {new Date(form.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}. Select a different date or walker, or assign later.
             </div>
           );
           return null;
@@ -2247,7 +2253,7 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
                   color: "#b45309", marginTop: "8px", padding: "8px 12px",
                   background: "#fff7ed", borderRadius: "8px", border: "1px solid #fed7aa" }}>
-                  ⚠️ {form.walker} has no availability set for this date.
+                  ⚠️ {firstName(form.walker)} has no availability set for this date.
                 </div>
               )}
               {form.date === todayStr && !isHistorical && (
@@ -2362,7 +2368,7 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
                   color: "#b45309", marginTop: "8px", padding: "8px 12px",
                   background: "#fff7ed", borderRadius: "8px", border: "1px solid #fed7aa" }}>
-                  ⚠️ {form.walker} has no availability set for this date.
+                  ⚠️ {firstName(form.walker)} has no availability set for this date.
                 </div>
               )}
               {form.date === todayStr && !isHistorical && (
@@ -2891,7 +2897,7 @@ function AddLegacyClientForm({ clients, setClients, onDone, walkerProfiles = {},
               padding: "10px 13px", borderRadius: "9px",
               background: "#EBF4F6", border: "1.5px solid #3D6B7A33" }}>
               <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                fontWeight: 600, color: "#3D6B7A" }}>{lockedWalker}</span>
+                fontWeight: 600, color: "#3D6B7A" }}>{firstName(lockedWalker)}</span>
               <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                 color: "#3D6B7A", background: "#C8E4E8", border: "1px solid #3D6B7A33",
                 borderRadius: "5px", padding: "1px 7px", fontWeight: 600 }}>🗝️ keyholder</span>
@@ -2902,7 +2908,7 @@ function AddLegacyClientForm({ clients, setClients, onDone, walkerProfiles = {},
               style={{ ...iStyle(false), color: form.preferredWalker ? "#111827" : "#9ca3af" }}>
               <option value="">— No preference —</option>
               {getAllWalkers(walkerProfiles).map(w => (
-                <option key={w.id} value={w.name}>{w.avatar} {w.name}</option>
+                <option key={w.id} value={w.name}>{w.avatar} {firstName(w.name)}</option>
               ))}
             </select>
           )}
@@ -3242,7 +3248,7 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
                         fontSize: "22px", flexShrink: 0 }}>{walker.avatar}</div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                          fontWeight: 600, color: "#111827", marginBottom: "2px" }}>{walker.name}</div>
+                          fontWeight: 600, color: "#111827", marginBottom: "2px" }}>{firstName(walker.name)}</div>
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                           color: walker.color, fontWeight: 500 }}>{walker.role}</div>
                       </div>
@@ -5552,7 +5558,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                                   </div>
                                   {b.form?.walker && (
                                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                                      color: "#7A4D6E", marginTop: "2px" }}>Walker: {b.form.walker}</div>
+                                      color: "#7A4D6E", marginTop: "2px" }}>Walker: {firstName(b.form.walker)}</div>
                                   )}
                                 </div>
                                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
@@ -5777,7 +5783,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       borderRadius: "14px", overflow: "hidden", marginBottom: "20px" }}>
                       {[["Pet", b.form.pet], ["Owner", b.form.name], ["Email", b.form.email],
                         b.form.phone && ["Phone", b.form.phone], b.form.address && ["Address", b.form.address],
-                        b.form.walker && ["Preferred Walker", b.form.walker], b.form.notes && ["Notes", b.form.notes],
+                        b.form.walker && ["Walker", firstName(b.form.walker)], b.form.notes && ["Notes", b.form.notes],
                         b.price > 0 && ["Session Price", b.sameDayDiscount
                           ? `${fmt(b.price, true)} (${b.priceTier} rate · 20% same-day discount — was ${fmt(b.priceBeforeSameDayDiscount, true)})`
                           : `${fmt(b.price, true)} (${b.priceTier} rate)`],
@@ -5864,7 +5870,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       fontSize: "22px", flexShrink: 0 }}>{walker.avatar}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                        fontWeight: 600, color: "#111827", marginBottom: "2px" }}>{walker.name}</div>
+                        fontWeight: 600, color: "#111827", marginBottom: "2px" }}>{firstName(walker.name)}</div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                         color: walker.color, fontWeight: 500 }}>{walker.role}</div>
                     </div>
@@ -5921,7 +5927,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
             fontWeight: 600, color: "#111827", marginBottom: "4px" }}>Message Your Walker</div>
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
             marginBottom: "12px" }}>
-            Send a message directly to {client.keyholder} — your key holder and primary walker.
+            Send a message directly to {firstName(client.keyholder)} — your key holder and primary walker.
           </p>
 
           {/* Search bar */}
@@ -5968,7 +5974,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   <span style={{ fontSize: "32px" }}>💬</span>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af",
                     textAlign: "center" }}>
-                    No messages yet. Say hello to {client.keyholder}!
+                    No messages yet. Say hello to {firstName(client.keyholder)}!
                   </div>
                 </div>
               ) : (
@@ -6003,7 +6009,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               display: "flex", gap: "8px" }}>
               <input value={clientMsgInput} onChange={e => setClientMsgInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && sendClientMsg()}
-                placeholder={`Message ${client.keyholder}…`}
+                placeholder={`Message ${firstName(client.keyholder)}…`}
                 style={{ flex: 1, padding: "10px 14px", borderRadius: "10px",
                   border: "1.5px solid #e4e7ec", background: "#fff",
                   fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
@@ -6145,7 +6151,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       {[
                         ["Location", overnightLocation === "ours" ? "At our place" : "At your place"],
                         ["Rate", `${fmt(price, true)} / stay`],
-                        overnightWalker && ["Preferred Walker", overnightWalker],
+                        overnightWalker && ["Walker", firstName(overnightWalker)],
                         overnightNotes && ["Notes", overnightNotes],
                       ].filter(Boolean).map(([label, val]) => (
                         <div key={label} style={{ display: "flex", justifyContent: "space-between",
@@ -6310,7 +6316,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                               )}
                             </div>
                             <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                              fontSize: "15px", color: "#111827", marginBottom: "2px" }}>{w.name}</div>
+                              fontSize: "15px", color: "#111827", marginBottom: "2px" }}>{firstName(w.name)}</div>
                             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af" }}>
                               Subject to availability
                             </div>
@@ -6661,7 +6667,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                               fontWeight: 500, cursor: "pointer" }}>
                             {selectedWalks.length > 1
                               ? `Continue with ${selectedWalks.length} walks →`
-                              : form.walker ? `Continue booking with ${form.walker} →` : "Continue →"}
+                              : form.walker ? `Continue booking with ${firstName(form.walker)} →` : "Continue →"}
                           </button>
                         )}
                       </div>
@@ -6835,7 +6841,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                         ["Email", b.form.email],
                         b.form.phone && ["Phone", b.form.phone],
                         b.form.address && ["Address", b.form.address],
-                        b.form.walker && ["Preferred Walker", b.form.walker],
+                        b.form.walker && ["Walker", firstName(b.form.walker)],
                         b.form.notes && ["Notes", b.form.notes],
                         b.price > 0 && ["Session Price", b.sameDayDiscount
                           ? `${fmt(b.price, true)} (${b.priceTier} rate · 20% same-day discount — was ${fmt(b.priceBeforeSameDayDiscount, true)})`
@@ -7221,8 +7227,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                   fontWeight: 500, cursor: submitting ? "wait" : "pointer" }}>
                   {submitting ? "Confirming…" : isRecurring
-                    ? `Confirm Weekly ${svc.label}${form.walker ? ` with ${form.walker}` : ""}`
-                    : `Confirm ${svc.label} Appointment${form.walker ? ` with ${form.walker}` : ""}`}
+                    ? `Confirm Weekly ${svc.label}${form.walker ? ` with ${firstName(form.walker)}` : ""}`
+                    : `Confirm ${svc.label} Appointment${form.walker ? ` with ${firstName(form.walker)}` : ""}`}
                 </button>
               </div>
             )}
@@ -7327,7 +7333,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                         return [validWalks.length > 1 ? "Total Price" : "Session Price", `${fmt(finalPrice, true)} (${tierLabel}${dogNote}${discountNote})`];
                       })(),
                       additionalDogs.filter(d => d.trim()).length > 0 && ["Additional Dogs", additionalDogs.filter(d => d.trim()).join(", ")],
-                      form.walker && ["Preferred Walker", form.walker],
+                      form.walker && ["Walker", firstName(form.walker)],
                       form.notes && ["Notes", form.notes],
                     ].filter(Boolean).map(([label, val]) => (
                       <div key={label} style={{ display: "flex", justifyContent: "space-between",
@@ -7932,7 +7938,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                       fontSize: "22px", flexShrink: 0 }}>{walker.avatar}</div>
                     <div style={{ flex: 1, textAlign: "left" }}>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                        fontWeight: 600, color: "#111827", marginBottom: "2px" }}>{walker.name}</div>
+                        fontWeight: 600, color: "#111827", marginBottom: "2px" }}>{firstName(walker.name)}</div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                         color: walker.color, fontWeight: 500 }}>{walker.role}</div>
                     </div>
