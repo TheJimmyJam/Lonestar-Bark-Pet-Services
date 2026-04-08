@@ -1198,6 +1198,9 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
   if (!client) return null;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
+  const navRef  = useRef(null);
+  const [navBottom, setNavBottom] = useState(0);
+
   const scrollTop = () => document.querySelector('[data-scroll-pane]')?.scrollTo({ top: 0, behavior: 'instant' });
   const clientTabs = [
     { id: "overview", label: "Dashboard",   icon: "🏠" },
@@ -1211,6 +1214,14 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
   ];
   const totalBadges = Object.values(notifCounts).reduce((s, n) => s + n, 0);
 
+  // Measure nav bottom edge when menu opens so fixed dropdown lines up
+  useEffect(() => {
+    if (menuOpen && navRef.current) {
+      setNavBottom(navRef.current.getBoundingClientRect().bottom);
+    }
+  }, [menuOpen]);
+
+  // Close on outside click
   useEffect(() => {
     if (!menuOpen) return;
     const handler = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
@@ -1219,14 +1230,14 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
   }, [menuOpen]);
 
   return (
-    <nav style={{ background: "#0B1423", borderBottom: "1px solid #8A7545",
+    <nav ref={navRef} style={{ background: "#0B1423", borderBottom: "1px solid #8A7545",
       display: "flex", flexDirection: "column",
       ...(sticky ? { position: "sticky", top: 0, zIndex: 50 } : { flexShrink: 0 }) }}
       className={`nav-tabs${sticky ? " sticky-nav" : ""}`}>
 
       {/* ── Row 1: hamburger on the right ── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end",
-        borderBottom: "1px solid #8A754566", position: "relative", zIndex: 9999 }}>
+        borderBottom: "1px solid #8A754566" }}>
         <div ref={menuRef} style={{ position: "relative" }}>
           <button onClick={() => setMenuOpen(o => !o)} style={{
             padding: "8px 18px", border: "none", background: "transparent",
@@ -1249,13 +1260,16 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
             </div>
           </button>
 
+          {/* Fixed dropdown — escapes nav stacking context */}
           {menuOpen && (
             <div style={{
-              position: "absolute", top: "100%", right: 0,
+              position: "fixed", top: navBottom, right: 0,
               background: "#0B1423", border: "1px solid #8A7545",
               borderTop: "none", borderRadius: "0 0 14px 14px",
               minWidth: "210px", zIndex: 9999,
-              boxShadow: "0 16px 40px rgba(0,0,0,0.5)", overflow: "hidden",
+              boxShadow: "0 16px 40px rgba(0,0,0,0.5)",
+              maxHeight: `calc(100vh - ${navBottom}px - 16px)`,
+              overflowY: "auto",
             }}>
               {clientTabs.map(t => {
                 const badge = notifCounts[t.id] || 0;
@@ -11470,9 +11484,9 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
 
               {/* ── Gratuity KPI grid ── */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
-                {kpiCard("🤝", allTimeGratuity > 0 ? fmt(allTimeGratuity, true) : "—", "All-Time Gratuity",
-                  "#059669", "#f0fdf4", "#a8d5bf", null)}
                 {kpiCard("🤝", weekGratuity > 0 ? fmt(weekGratuity, true) : "—", "This Week's Gratuity",
+                  "#059669", "#f0fdf4", "#a8d5bf", null)}
+                {kpiCard("🤝", allTimeGratuity > 0 ? fmt(allTimeGratuity, true) : "—", "All-Time Gratuity",
                   "#059669", "#f0fdf4", "#a8d5bf", null)}
               </div>
 
@@ -16806,31 +16820,38 @@ function ClientInvoicesPage({ client, clients, setClients }) {
                           flexShrink: 0, marginLeft: "12px" }}>${it.amount}</span>
                       </div>
                     ))}
-                    <div style={{ display: "flex", justifyContent: "space-between",
-                      alignItems: "center", paddingTop: "10px",
-                      borderTop: "1.5px solid #e4e7ec", marginTop: "4px" }}>
-                      <span style={{ fontFamily: "'DM Sans', sans-serif",
-                        fontSize: "15px", fontWeight: 700, color: "#111827" }}>Total</span>
-                      <span style={{ fontFamily: "'DM Sans', sans-serif",
-                        fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600,
-                        color: meta.effectiveStatus === "paid" ? "#059669" : green }}>
-                        ${inv.total}
-                      </span>
-                    </div>
-                    {inv.gratuity > 0 && (
-                      <div style={{ display: "flex", justifyContent: "space-between",
-                        alignItems: "center", marginTop: "8px", padding: "8px 10px",
-                        background: "#FDF5EC", borderRadius: "8px", border: "1.5px solid #D4A87A" }}>
+                    <div style={{ borderTop: "1.5px solid #e4e7ec", marginTop: "4px", paddingTop: "10px",
+                      display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {/* Walk total */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span style={{ fontFamily: "'DM Sans', sans-serif",
-                          fontSize: "14px", fontWeight: 600, color: "#C4541A" }}>
-                          🤝 Gratuity (goes 100% to your walker)
-                        </span>
+                          fontSize: "14px", color: "#6b7280" }}>Walk Total</span>
                         <span style={{ fontFamily: "'DM Sans', sans-serif",
-                          fontSize: "14px", fontWeight: 700, color: "#C4541A" }}>
-                          +${Number(inv.gratuity).toFixed(2)}
+                          fontSize: "14px", fontWeight: 600, color: "#111827" }}>${inv.total}</span>
+                      </div>
+                      {/* Gratuity row */}
+                      {inv.gratuity > 0 && (
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontFamily: "'DM Sans', sans-serif",
+                            fontSize: "14px", color: "#C4541A", fontWeight: 500 }}>🤝 Gratuity</span>
+                          <span style={{ fontFamily: "'DM Sans', sans-serif",
+                            fontSize: "14px", fontWeight: 600, color: "#C4541A" }}>
+                            +${Number(inv.gratuity).toFixed(2)}
+                          </span>
+                        </div>
+                      )}
+                      {/* Grand total */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+                        borderTop: "1px solid #e4e7ec", paddingTop: "6px", marginTop: "2px" }}>
+                        <span style={{ fontFamily: "'DM Sans', sans-serif",
+                          fontSize: "15px", fontWeight: 700, color: "#111827" }}>Total</span>
+                        <span style={{ fontFamily: "'DM Sans', sans-serif",
+                          fontSize: "15px", fontWeight: 700,
+                          color: meta.effectiveStatus === "paid" ? "#059669" : green }}>
+                          ${(inv.total + (inv.gratuity || 0)).toFixed(2)}
                         </span>
                       </div>
-                    )}
+                    </div>
                   </div>
 
                   {inv.notes && (
