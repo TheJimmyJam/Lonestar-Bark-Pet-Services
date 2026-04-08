@@ -4810,10 +4810,52 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               <button disabled={!canSave} onClick={() => {
                 const newDate = new Date(wDates[handoffReschedDay]);
                 newDate.setHours(handoffReschedWindow.hour, handoffReschedWindow.minute, 0, 0);
+
+                // Compute new follow-on start time (meet & greet + 15 min)
+                const foTotalMins = handoffReschedWindow.hour * 60 + handoffReschedWindow.minute + 15;
+                const foH = Math.floor(foTotalMins / 60);
+                const foM = foTotalMins % 60;
+                const foHour12 = foH > 12 ? foH - 12 : foH === 0 ? 12 : foH;
+                const foAmpm = foH < 12 ? "AM" : "PM";
+                const foMStr = foM === 0 ? "00" : foM === 15 ? "15" : foM === 30 ? "30" : "45";
+                const foTimeLabel = `${foHour12}:${foMStr} ${foAmpm}`;
+                const foDate = new Date(newDate);
+                foDate.setHours(foH, foM, 0, 0);
+
+                // Update the isFirstWalk booking if one exists
+                const existingBookings = client.bookings || [];
+                const updatedBookings = existingBookings.map(b => {
+                  if (!b.isFirstWalk) return b;
+                  return {
+                    ...b,
+                    day: FULL_DAYS[handoffReschedDay],
+                    date: dateStrFromDate(foDate),
+                    slot: { ...b.slot, time: foTimeLabel },
+                    scheduledDateTime: foDate.toISOString(),
+                  };
+                });
+
+                // Also update followOnWalk metadata on handoffInfo
+                const existingFollowOn = client.handoffInfo?.followOnWalk;
+                const updatedFollowOn = existingFollowOn ? {
+                  ...existingFollowOn,
+                  slotTime: foTimeLabel,
+                  hour: foH,
+                  minute: foM,
+                  dayOfWeek: handoffReschedDay,
+                  date: foDate.toISOString(),
+                } : existingFollowOn;
+
                 const updated = {
                   ...client,
-                  handoffInfo: { ...client.handoffInfo, handoffDay: handoffReschedDay,
-                    handoffSlot: handoffReschedWindow, handoffDate: newDate.toISOString() },
+                  bookings: updatedBookings,
+                  handoffInfo: {
+                    ...client.handoffInfo,
+                    handoffDay: handoffReschedDay,
+                    handoffSlot: handoffReschedWindow,
+                    handoffDate: newDate.toISOString(),
+                    ...(updatedFollowOn !== undefined ? { followOnWalk: updatedFollowOn } : {}),
+                  },
                 };
                 const updatedClients = { ...clients, [client.id]: updated };
                 setClients(updatedClients);
