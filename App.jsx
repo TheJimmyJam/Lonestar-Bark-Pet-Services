@@ -35,12 +35,12 @@ const SERVICES = {
 // All walkers are managed through the admin portal — no hardcoded walkers.
 
 const PRICING_TIERS = [
-  { label: "Couch Pup", freq: "1x per week", badge: null,
-    prices: { "30 min": 40, "60 min": 55 }, description: "Perfect for occasional walks or a relaxed schedule." },
-  { label: "Park Regular", freq: "3x per week", badge: "Popular",
-    prices: { "30 min": 35, "60 min": 50 }, description: "A great balance — keeps your pet active and social." },
-  { label: "Zoomies Mode", freq: "5x per week", badge: "Best Value",
-    prices: { "30 min": 30, "60 min": 45 }, description: "Ideal for high-energy dogs or busy owners." },
+  { label: "Easy Rider", freq: "1x per week", badge: null,
+    prices: { "30 min": 30, "60 min": 45 }, description: "One walk a week — perfect for a laid-back pup who likes to take it easy." },
+  { label: "Steady Stroll", freq: "3x per week", badge: "Popular",
+    prices: { "30 min": 27.50, "60 min": 42.50 }, description: "Three walks a week — a great rhythm that keeps your dog active and happy." },
+  { label: "Full Gallop", freq: "5x per week", badge: "Best Value",
+    prices: { "30 min": 25, "60 min": 40 }, description: "Five walks a week — for the high-energy dog who lives for the leash." },
 ];
 
 const ADD_ONS = [
@@ -538,9 +538,9 @@ function toDateKey(date) {
 
 // ─── Pricing Helpers ──────────────────────────────────────────────────────────
 const PRICE_TIERS = [
-  { minBookings: 5, label: "Zoomies Mode", prices: { "30 min": 30, "60 min": 45 } },
-  { minBookings: 3, label: "Park Regular", prices: { "30 min": 35, "60 min": 50 } },
-  { minBookings: 1, label: "Couch Pup", prices: { "30 min": 40, "60 min": 55 } },
+  { minBookings: 5, label: "Full Gallop", prices: { "30 min": 25, "60 min": 40 } },
+  { minBookings: 3, label: "Steady Stroll", prices: { "30 min": 27.50, "60 min": 42.50 } },
+  { minBookings: 1, label: "Easy Rider", prices: { "30 min": 30, "60 min": 45 } },
 ];
 
 function getCurrentWeekRange() {
@@ -1490,11 +1490,11 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
   };
 
   const SCHEDULE_OPTIONS = [
-    { value: "1x", label: "Couch Pup", freq: "1× / week",
+    { value: "1x", label: "Easy Rider", freq: "1× / week",
       price: preferredDuration === "60 min" ? "$55" : "$40", color: "#6b7280" },
-    { value: "3x", label: "Park Regular", freq: "3× / week",
+    { value: "3x", label: "Steady Stroll", freq: "3× / week",
       price: preferredDuration === "60 min" ? "$50" : "$35", color: "#C4541A" },
-    { value: "5x", label: "Zoomies Mode", freq: "5× / week",
+    { value: "5x", label: "Full Gallop", freq: "5× / week",
       price: preferredDuration === "60 min" ? "$45" : "$30", color: "#3D6B7A" },
   ];
 
@@ -1877,7 +1877,7 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
 
   const calcPrice = () => {
     if (form.service === "overnight") return { price: 150, tier: "Overnight Stay", extraDogCharge: 0 };
-    if (!selectedClient || !form.date) return { price: 40, tier: "Couch Pup", extraDogCharge: 0 };
+    if (!selectedClient || !form.date) return { price: 30, tier: "Easy Rider", extraDogCharge: 0 };
     const apptDate = parseDateLocal(form.date);
     const dayOfWeek = apptDate.getDay();
     const offset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -2541,7 +2541,7 @@ function generateRecurringBookings(recurringSchedules, clientInfo) {
         additionalDogCount: rec.additionalDogCount || 0,
         additionalDogCharge: 0,
         price: getSessionPrice(rec.duration, 1),
-        priceTier: "Couch Pup",
+        priceTier: "Easy Rider",
         isRecurring: true,
         recurringId: rec.id,
       });
@@ -2598,7 +2598,7 @@ function extendRecurringBookings(clients) {
           additionalDogCount: rec.additionalDogCount || 0,
           additionalDogCharge: 0,
           price: getSessionPrice(rec.duration, 1),
-          priceTier: "Couch Pup",
+          priceTier: "Easy Rider",
           isRecurring: true,
           recurringId: rec.id,
         });
@@ -2663,7 +2663,7 @@ function spawnNextRecurringOccurrence(clientRecord, completedBooking) {
     additionalDogCount: rec.additionalDogCount || 0,
     additionalDogCharge: 0,
     price: getSessionPrice(rec.duration, 1),
-    priceTier: "Couch Pup",
+    priceTier: "Easy Rider",
     isRecurring: true,
     recurringId: rec.id,
   };
@@ -2988,9 +2988,9 @@ function AddLegacyClientForm({ clients, setClients, onDone, walkerProfiles = {},
               onChange={e => setField("walkSchedule", e.target.value || null)}
               style={{ ...iStyle(false), color: form.walkSchedule ? "#111827" : "#9ca3af" }}>
               <option value="">— Not set —</option>
-              <option value="1x">Couch Pup (1×/week)</option>
-              <option value="3x">Park Regular (3×/week)</option>
-              <option value="5x">Zoomies Mode (5×/week)</option>
+              <option value="1x">Easy Rider (1×/week)</option>
+              <option value="3x">Steady Stroll (3×/week)</option>
+              <option value="5x">Full Gallop (5×/week)</option>
             </select>
           </div>
           <div>
@@ -4762,8 +4762,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         const overdueInvoices = openInvoices.filter(inv => invoiceStatusMeta(inv.status, inv.dueDate).effectiveStatus === "overdue");
         const outstandingTotal = openInvoices.reduce((s, inv) => s + (inv.total || 0), 0);
 
-        const tierEmoji = { "Zoomies Mode": "⚡", "Park Regular": "🌳", "Couch Pup": "🛋️" };
-        const tierColor = { "Zoomies Mode": "#059669", "Park Regular": "#2563eb", "Couch Pup": "#9ca3af" };
+        const tierEmoji = { "Full Gallop": "⚡", "Steady Stroll": "🐾", "Easy Rider": "😌" };
+        const tierColor = { "Full Gallop": "#059669", "Steady Stroll": "#2563eb", "Easy Rider": "#9ca3af" };
 
         const renderKpiCard = ({ label, value, sub, onClick, accent, alert }) => (
           <div onClick={onClick} style={{
@@ -4936,7 +4936,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 )}
                 {weekBookingCount >= 5 && (
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#3D6B7A" }}>
-                    Best rate active — saving $10/session vs. Couch Pup 🎉
+                    Best rate active — saving vs. Easy Rider 🎉
                   </div>
                 )}
               </div>
@@ -5400,7 +5400,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   )}
                   {weekBookingCount >= 5 && (
                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#3D6B7A" }}>
-                      Best rate active — saving $10/session vs. Couch Pup 🎉
+                      Best rate active — saving vs. Easy Rider 🎉
                     </div>
                   )}
                 </div>
@@ -5457,11 +5457,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     const weekEnd = new Date(group.monday);
                     weekEnd.setDate(group.monday.getDate() + 6);
                     const isCurrentWeek = group.monday >= monday && group.monday <= sunday;
-                    // Savings = tier discount vs Couch Pup baseline + any same-day discounts
-                    const baselineTier = PRICE_TIERS[2]; // Couch Pup — always the most expensive
+                    // Savings = tier discount vs Easy Rider baseline + any same-day discounts
+                    const baselineTier = PRICE_TIERS[2]; // Easy Rider — always the most expensive
                     const weekSavings = group.bookings.reduce((sum, b) => {
                       if (b.cancelled || b.isRecurringInstance) return sum;
-                      // Tier savings: baseline Couch Pup price vs actual tier price (pre same-day discount)
+                      // Tier savings: baseline Easy Rider price vs actual tier price (pre same-day discount)
                       const baselinePrice = baselineTier.prices[b.slot?.duration] || baselineTier.prices["30 min"];
                       const priceBeforeAnyDiscount = b.sameDayDiscount && b.priceBeforeSameDayDiscount != null
                         ? b.priceBeforeSameDayDiscount - (b.additionalDogCharge || 0)
@@ -5559,9 +5559,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                                         fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>20% off same day</span>
                                     )}
                                     {(() => {
-                                      if (!b.priceTier || b.priceTier === "Couch Pup" || b.isRecurringInstance) return null;
-                                      const baseline = PRICE_TIERS.find(t => t.label === "Couch Pup");
-                                      const baselinePrice = baseline?.prices[b.slot?.duration] || 35;
+                                      if (!b.priceTier || b.priceTier === "Easy Rider" || b.isRecurringInstance) return null;
+                                      const baseline = PRICE_TIERS.find(t => t.label === "Easy Rider");
+                                      const baselinePrice = baseline?.prices[b.slot?.duration] || 30;
                                       // Use pre-discount price for accurate tier comparison
                                       const tierPrice = b.sameDayDiscount && b.priceBeforeSameDayDiscount
                                         ? b.priceBeforeSameDayDiscount - (b.additionalDogCharge || 0)
@@ -5813,7 +5813,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
             fontWeight: 600, color: "#111827", marginBottom: "6px" }}>Meet the Team</div>
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#6b7280",
             marginBottom: "24px", lineHeight: "1.6" }}>
-            Every walker at Lonestar Bark Co. is background-checked, pet first aid trained, and genuinely loves animals.
+            Every walker at Lonestar Bark Co. is vetted, pet first aid trained, and genuinely loves animals.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {getAllWalkers(walkerProfiles).filter(walker => (walkerProfiles[walker.id]?.showOnTeamPage ?? true) !== false).map(walker => {
@@ -7525,7 +7525,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           <div className="lp-fade-3" style={{ fontFamily: "'DM Sans', sans-serif",
             color: "#ffffffcc", fontSize: "clamp(14px, 2.5vw, 17px)", lineHeight: "1.75",
             marginBottom: "40px", fontWeight: 300, maxWidth: "520px", margin: "0 auto 40px" }}>
-            East Dallas raised. Dallas proud. Background-checked walkers,
+            East Dallas raised. Dallas proud. Vetted walkers,
             transparent pricing, and a personal meet & greet before your first walk.
           </div>
           <div className="lp-fade-4 lp-hero-ctas">
@@ -7557,39 +7557,18 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
       </section>
 
 
-      {/* ── Our Story ── */}
+      {/* ── Logo Section ── */}
       <section style={{ background: "#0B1423", padding: "80px clamp(16px,5vw,40px)" }}>
-        <div style={{ maxWidth: "820px", margin: "0 auto", display: "flex", alignItems: "center",
-          gap: "clamp(32px,6vw,72px)", flexWrap: "wrap", justifyContent: "center" }}>
-          {/* Logo mark */}
-          <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: "16px" }}>
-            <LogoBadge size={120} />
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#D4A843",
-              fontSize: "11px", letterSpacing: "0.45em", textTransform: "uppercase" }}>
-              East Dallas, Dallas ★
-            </div>
+        <div style={{ maxWidth: "820px", margin: "0 auto", display: "flex",
+          flexDirection: "column", alignItems: "center", gap: "16px" }}>
+          <LogoBadge size={140} />
+          <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#D4A843",
+            fontSize: "12px", letterSpacing: "0.5em", textTransform: "uppercase" }}>
+            East Dallas
           </div>
-          {/* Story text */}
-          <div style={{ flex: 1, minWidth: "260px" }}>
-            <div style={{ width: "40px", height: "2px", background: "#D4A843",
-              borderRadius: "2px", marginBottom: "20px" }} />
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#D4A843",
-              fontSize: "11px", letterSpacing: "0.45em", textTransform: "uppercase",
-              marginBottom: "18px" }}>Our Story</div>
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "clamp(17px,2.5vw,21px)",
-              color: "#F0E8D5", lineHeight: "1.85", fontWeight: 300, margin: 0 }}>
-              We grew up in East Dallas — technically Dallas, fiercely its own. The kind of place
-              where you know your neighbors, ride your bike to the lake, and never really leave it behind.
-            </p>
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "clamp(17px,2.5vw,21px)",
-              color: "#F0E8D5cc", lineHeight: "1.85", fontWeight: 300, margin: "20px 0 0" }}>
-              Lonestar Bark carries that same spirit: local to the bone, built on these streets,
-              and showing up for your dog every single day.
-            </p>
-            <div style={{ marginTop: "28px", fontFamily: "'DM Sans', sans-serif",
-              color: "#D4A843", fontSize: "15px", fontStyle: "italic", letterSpacing: "0.05em" }}>
-              Born Here. Walk Here.
-            </div>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#F0E8D5",
+            fontSize: "15px", letterSpacing: "0.2em", fontStyle: "italic" }}>
+            Born here. Walk here.
           </div>
         </div>
       </section>
@@ -7607,7 +7586,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           <div className="lp-services-grid">
             {[
               { icon: "🐕", color: "#C4541A", light: "#FDF5EC", border: "#D4A843",
-                title: "Dog-walking", desc: "30 or 60-minute walks with experienced, background-checked walkers. Flexible scheduling up to 5x per week with tiered pricing that rewards frequency." },
+                title: "Dog-walking", desc: "Your dog walks one-on-one with their dedicated walker — never in a large group, never rushed. Personalized 30 or 60-minute walks tailored to your dog's pace and personality, with flexible scheduling up to 5x per week and tiered pricing that rewards frequency." },
               { icon: "🐈", color: "#3D6B7A", light: "#EBF4F6", border: "#8EBCC6",
                 title: "Cat-sitting", desc: "30 or 60-minute in-home visits for your feline friend. Feeding, playtime, litter box care, and plenty of affection while you're away. Same pricing as dog-walking." },
               { icon: "🌙", color: "#7A4D6E", light: "#F5EFF3", border: "#C4A0B8",
@@ -7662,13 +7641,13 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           </div>
           <div style={{ marginBottom: "40px" }} className="lp-pricing-grid">
             {[
-              { label: "Couch Pup", freq: "1× per week", badge: null,
+              { label: "Easy Rider", freq: "1× per week", badge: null,
                 price30: 40, price60: 55, color: "#6b7280", borderColor: "#e4e7ec", bg: "#fff",
                 desc: "Perfect for a relaxed schedule or occasional walks." },
-              { label: "Park Regular", freq: "3× per week", badge: "Popular",
+              { label: "Steady Stroll", freq: "3× per week", badge: "Popular",
                 price30: 35, price60: 50, color: "#C4541A", borderColor: "#C4541A", bg: "#fff",
                 desc: "A great balance — keeps your pet active and social." },
-              { label: "Zoomies Mode", freq: "5× per week", badge: "Best Value",
+              { label: "Full Gallop", freq: "5× per week", badge: "Best Value",
                 price30: 30, price60: 45, color: "#3D6B7A", borderColor: "#3D6B7A", bg: "#fff",
                 desc: "Ideal for high-energy dogs or busy owners who need daily care." },
             ].map((tier, i) => (
@@ -7711,7 +7690,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
               color: "#374151", lineHeight: "1.6", textAlign: "left", margin: 0 }}>
               <strong>Retroactive repricing:</strong> Book your 3rd walk this week and all 3 sessions 
-              automatically reprice to the Park Regular rate — not just the new one.
+              automatically reprice to the Steady Stroll rate — not just the new one.
             </p>
           </div>
           <div style={{ textAlign: "center", marginTop: "48px" }}>
@@ -7902,7 +7881,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             fontWeight: 600, color: "#111827", marginBottom: "12px" }}>Meet the Team</div>
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
             marginBottom: "48px", lineHeight: "1.7", maxWidth: "480px", margin: "0 auto 48px" }}>
-            Every walker is background-checked, pet first aid trained, and genuinely loves animals.
+            Every walker is vetted, pet first aid trained, and genuinely loves animals.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "52px" }}>
             {getAllWalkers(walkerProfiles).filter(walker => (walkerProfiles[walker.id]?.showOnTeamPage ?? true) !== false).map(walker => {
@@ -8817,7 +8796,7 @@ export default function LonestarBark() {
         bookedAt: new Date().toISOString(),
         scheduledDateTime: apptDate.toISOString(),
         additionalDogCount: 0, additionalDogCharge: 0,
-        price: getSessionPrice(fw.duration, 1), priceTier: "Couch Pup", isFirstWalk: true,
+        price: getSessionPrice(fw.duration, 1), priceTier: "Easy Rider", isFirstWalk: true,
       };
       bookings = applySameDayDiscount(repriceWeekBookings([...bookings, followOnBooking]));
     }
@@ -16240,7 +16219,7 @@ function buildDemoData() {
     "Grew up on a farm surrounded by animals. Loves long walks and building trust with every pet.",
     "Marathon runner who brings the same energy to every walk. Dogs love to keep up!",
     "Cat whisperer and dog enthusiast. Gentle, patient, and always on time.",
-    "3 years of professional pet care experience in the Dallas area. Background checked and insured.",
+    "3 years of professional pet care experience in the Dallas area. Vetted and insured.",
     "Passionate about animal welfare and positive reinforcement training techniques.",
     "Retired teacher who now spends every day with the best students — dogs and cats.",
     "Nature lover who treats every walk like a mini adventure for your furry friend.",
@@ -16379,7 +16358,7 @@ function buildDemoData() {
     const hour = pick([7,8,9,10,11,14,15,16,17]);
     d.setHours(hour, 0, 0, 0);
     const duration = pick(["30 min","30 min","60 min"]);
-    const price = duration === "60 min" ? 55 : 40;
+    const price = duration === "60 min" ? 45 : 30;
     const dateLabel = `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
     const dayName = DAY_NAMES[d.getDay()];
     const slotTime = hour < 12 ? `${hour}:00 AM` : hour === 12 ? "12:00 PM" : `${hour-12}:00 PM`;
@@ -16394,7 +16373,7 @@ function buildDemoData() {
       bookedAt: new Date(d.getTime() - 86400000 * randomInt(1,7)).toISOString(),
       scheduledDateTime: d.toISOString(),
       additionalDogCount: 0, additionalDogCharge: 0,
-      price, priceTier: "Couch Pup",
+      price, priceTier: "Easy Rider",
       adminScheduled: true, isDemo: true,
       ...(isCompleted ? {
         adminCompleted: true, walkerMarkedComplete: true,
@@ -19849,7 +19828,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
             const activeBookings = (c.bookings || []).filter(b => !b.cancelled && !b.adminCompleted);
             const completedClientBookings = (c.bookings || []).filter(b => b.adminCompleted);
             const recurringSchedules = c.recurringSchedules || [];
-            const walkScheduleLabel = { "1x": "Couch Pup (1×/week)", "3x": "Park Regular (3×/week)", "5x": "Zoomies Mode (5×/week)" };
+            const walkScheduleLabel = { "1x": "Easy Rider (1×/week)", "3x": "Steady Stroll (3×/week)", "5x": "Full Gallop (5×/week)" };
             const totalSpend = completedClientBookings.reduce((s, b) => s + effectivePrice(b), 0);
             const memberSince = c.createdAt
               ? new Date(c.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
@@ -20180,9 +20159,9 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                         {sel(d.walkSchedule, e => setClientEditDraft(p => ({ ...p, walkSchedule: e.target.value })),
                           <>
                             <option value="">— Not set —</option>
-                            <option value="1x">Couch Pup (1×/week)</option>
-                            <option value="3x">Park Regular (3×/week)</option>
-                            <option value="5x">Zoomies Mode (5×/week)</option>
+                            <option value="1x">Easy Rider (1×/week)</option>
+                            <option value="3x">Steady Stroll (3×/week)</option>
+                            <option value="5x">Full Gallop (5×/week)</option>
                           </>
                         )}
                         <label style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
