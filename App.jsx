@@ -38,7 +38,7 @@ const PRICING_TIERS = [
   { label: "Easy Rider", freq: "1x per week", badge: null,
     prices: { "30 min": 30, "60 min": 45 }, description: "One walk a week — perfect for a laid-back pup who likes to take it easy." },
   { label: "Steady Stroll", freq: "3x per week", badge: "Popular",
-    prices: { "30 min": 27.50, "60 min": 42.50 }, description: "Three walks a week — a great rhythm that keeps your dog active and happy." },
+    prices: { "30 min": 27.50, "60 min": 47.50 }, description: "Three walks a week — a great rhythm that keeps your dog active and happy." },
   { label: "Full Gallop", freq: "5x per week", badge: "Best Value",
     prices: { "30 min": 25, "60 min": 40 }, description: "Five walks a week — for the high-energy dog who lives for the leash." },
 ];
@@ -83,19 +83,12 @@ const WALKER_SERVICES = [
   { id: "overnight-stays",    label: "Overnight Stays",    icon: "🌙", color: "#7A4D6E", bg: "#F7F0F5", border: "#E8D0E0" },
 ];
 // Generate 30-min meet & greet slots 8:00 AM – 7:00 PM
-function generateHandoffSlots() {
-  const slots = [];
-  for (let h = 8; h <= 18; h++) {
-    ["00", "15", "30", "45"].forEach(m => {
-      if (h === 18 && m !== "00") return; // stop at 6:15 PM
-      const hour12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
-      const ampm = h < 12 ? "AM" : "PM";
-      slots.push({ id: `h${h}${m}`, time: `${hour12}:${m} ${ampm}`, hour: h, minute: parseInt(m) });
-    });
-  }
-  return slots;
-}
-const ALL_HANDOFF_SLOTS = generateHandoffSlots();
+const ALL_HANDOFF_SLOTS = [
+  { id: "morning",   label: "8am – 11am",  time: "8am – 11am",  hour: 8,  minute: 0 },
+  { id: "midday",    label: "11am – 2pm",  time: "11am – 2pm",  hour: 11, minute: 0 },
+  { id: "afternoon", label: "2pm – 5pm",   time: "2pm – 5pm",   hour: 14, minute: 0 },
+  { id: "evening",   label: "5pm – 8pm",   time: "5pm – 8pm",   hour: 17, minute: 0 },
+];
 // ─── Supabase Configuration ───────────────────────────────────────────────────
 // !! PASTE YOUR VALUES BELOW — replace the placeholder strings !!
 const SUPABASE_URL = "https://mvkmxmhsudqwxrsiifms.supabase.co";
@@ -552,7 +545,7 @@ function toDateKey(date) {
 // ─── Pricing Helpers ──────────────────────────────────────────────────────────
 const PRICE_TIERS = [
   { minBookings: 5, label: "Full Gallop", prices: { "30 min": 25, "60 min": 40 } },
-  { minBookings: 3, label: "Steady Stroll", prices: { "30 min": 27.50, "60 min": 42.50 } },
+  { minBookings: 3, label: "Steady Stroll", prices: { "30 min": 27.50, "60 min": 47.50 } },
   { minBookings: 1, label: "Easy Rider", prices: { "30 min": 30, "60 min": 45 } },
 ];
 
@@ -3071,15 +3064,9 @@ function getInitialHandoff() {
   const now = new Date();
   for (let w = 0; w <= 8; w++) {
     const wDates = getWeekDates(w);
-    for (let d = 0; d < 5; d++) { // Mon–Fri only (indices 0–4)
+    for (let d = 0; d < 5; d++) { // Mon–Fri only
       const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      if (wDates[d] < midnight) continue; // past day
-      for (const slot of ALL_HANDOFF_SLOTS) {
-        const slotDt = new Date(wDates[d]);
-        slotDt.setHours(slot.hour, slot.minute, 0, 0);
-        if (slotDt > now) return [w, d, slot]; // first future slot found
-      }
-      // All slots on this day are past — try next day
+      if (wDates[d] >= midnight) return [w, d, null];
     }
   }
   return [0, 0, null];
@@ -3382,36 +3369,33 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
               </div>
             </div>
 
-            {/* Slot selector — 30-min windows 8am–7pm, past slots grayed */}
+            {/* Time window selector */}
             {selDay !== null && (
               <div ref={slotSectionRef} style={{ marginBottom: "24px" }}>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
-                  letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px" }}>
-                  {FULL_DAYS[selDay]}, {dateStrFromDate(weekDates[selDay])} — Available Times
+                  letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "6px" }}>
+                  {FULL_DAYS[selDay]}, {dateStrFromDate(weekDates[selDay])} — Appointment Window
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                  color: "#9ca3af", marginBottom: "14px", lineHeight: "1.5" }}>
+                  Your walker will reach out prior to confirm their arrival time within your window.
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                   {ALL_HANDOFF_SLOTS.map(slot => {
                     const active = selSlot?.id === slot.id;
-                    const now = new Date();
-                    const slotDate = new Date(weekDates[selDay]);
-                    slotDate.setHours(slot.hour, slot.minute, 0, 0);
-                    const isPast = slotDate <= now;
                     return (
-                      <button key={slot.id} className="slot-btn"
-                        onClick={() => !isPast && setSelSlot(slot)}
-                        disabled={isPast}
+                      <button key={slot.id} onClick={() => setSelSlot(slot)}
                         style={{
-                          padding: "12px 8px", borderRadius: "10px",
-                          border: active ? `2px solid ${accentColor}` : isPast ? "1.5px solid #f0f0f0" : "1.5px solid #e4e7ec",
-                          background: active ? "#FDF5EC" : isPast ? "#fafafa" : "#fff",
-                          color: active ? accentColor : isPast ? "#d1d5db" : "#374151",
-                          cursor: isPast ? "default" : "pointer", textAlign: "center",
-                          fontFamily: "'DM Sans', sans-serif",
-                          boxShadow: isPast ? "none" : "0 2px 6px rgba(0,0,0,0.04)",
+                          padding: "16px 12px", borderRadius: "12px", cursor: "pointer",
+                          border: active ? `2px solid ${accentColor}` : "1.5px solid #e4e7ec",
+                          background: active ? "#FDF5EC" : "#fff",
+                          color: active ? accentColor : "#374151",
+                          textAlign: "center", fontFamily: "'DM Sans', sans-serif",
+                          boxShadow: active ? `0 2px 12px ${accentColor}22` : "0 2px 6px rgba(0,0,0,0.04)",
+                          transition: "all 0.15s",
                         }}>
-                        <div style={{ fontWeight: 600, fontSize: "15px" }}>{slot.time}</div>
-                        <div style={{ fontSize: "15px", color: active ? accentColor : isPast ? "#e4e7ec" : "#9ca3af",
-                          marginTop: "2px" }}>30 min</div>
+                        <div style={{ fontWeight: 700, fontSize: "16px", marginBottom: "4px" }}>{slot.label}</div>
+                        <div style={{ fontSize: "13px", color: active ? accentColor : "#9ca3af" }}>15-min meet & greet</div>
                       </button>
                     );
                   })}
@@ -3526,7 +3510,7 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
                       </div>
                       <div style={{ marginTop: "10px", fontFamily: "'DM Sans', sans-serif",
                         fontSize: "16px", color: "#6b7280", lineHeight: "1.5" }}>
-                        🤝 Meet & Greet: {selSlot?.time} — {followOn.time}
+                        🤝 Meet & Greet: {selSlot?.label} window
                         <span style={{ marginLeft: "8px", color: "#D4A843" }}>·</span>
                         <span style={{ marginLeft: "8px" }}>
                           🐕 Walk: {followOn.time} ({followOnDuration})
@@ -3570,8 +3554,9 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
               color: "#6b7280", lineHeight: "1.7", marginBottom: "24px" }}>
               Your meet & greet appointment is confirmed for{" "}
-              <strong style={{ color: "#374151" }}>{FULL_DAYS[selDay]}, {dateStrFromDate(weekDates[selDay])} at {selSlot?.time}</strong>.
-              We'll see you then!
+              <strong style={{ color: "#374151" }}>{FULL_DAYS[selDay]}, {dateStrFromDate(weekDates[selDay])}</strong>{" "}
+              during the <strong style={{ color: "#374151" }}>{selSlot?.time}</strong> window.
+              Your walker will reach out before the appointment to confirm their arrival time. We'll see you then!
             </div>
 
             {/* Show both appointments if follow-on walk was added */}
@@ -3582,7 +3567,7 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
                   fontSize: "16px", color: "#C4541A", letterSpacing: "1px",
                   textTransform: "uppercase", marginBottom: "12px" }}>Your bookings</div>
                 {[
-                  { icon: "🤝", label: "Meet & Greet", time: selSlot?.time, dur: "15 min", price: null },
+                  { icon: "🤝", label: "Meet & Greet", time: selSlot?.label + " window", dur: "15 min", price: null },
                   { icon: "🐕", label: "First Walk", time: getFollowOnTime().time, dur: followOnDuration, price: fmt(getSessionPrice(followOnDuration, 1), true) },
                 ].map((row, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px",
@@ -7708,7 +7693,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                 nameFg: "#6b7280", lineFg: "#f3f4f6",
                 durationFg: "#9ca3af", priceFg: "#111827", saveFg: null },
               { label: "Steady Stroll", freq: "3× per week", badge: "POPULAR", badgeColor: "#C4541A",
-                price30: 27.50, price60: 42.50, save30: "save $2.50", save60: "save $2.50",
+                price30: 27.50, price60: 47.50, save30: "save $2.50", save60: null,
                 bannerBg: "#C4541A", bannerFg: "#fff",
                 cardBorder: "#1A1A1A", cardBg: "#1A1A1A",
                 nameFg: "rgba(255,255,255,0.5)", lineFg: "rgba(255,255,255,0.1)",
@@ -7801,7 +7786,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
               { step: "01", icon: "✍️", title: "Create Your Account",
                 desc: "Sign up with your email and set a secure PIN. Takes under a minute." },
               { step: "02", icon: "🗓️", title: "Schedule Your Meet & Greet",
-                desc: "Pick a day and time for your free 15-minute in-home Meet & Greet. Monday–Friday, 8am–7pm." },
+                desc: "Choose a day and 3-hour window for your free 15-minute in-home Meet & Greet. Your walker will reach out to confirm their exact arrival time." },
               { step: "03", icon: "🤝", title: "We Meet Your Pet",
                 desc: "Your walker comes to you. We meet your dog or cat, learn their personality, and get comfortable together." },
               { step: "04", icon: "📋", title: "Share the Details",
