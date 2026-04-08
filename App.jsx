@@ -838,8 +838,7 @@ function AddressFields({ value, onChange, errors = {}, inputBaseStyle = {}, labe
       <div style={{ display: "grid", gridTemplateColumns: "1fr 80px", gap: "8px", marginBottom: "10px" }}>
         <div>
           <label style={baseLabel}>
-            City{autoFilled && <span style={{ marginLeft: "6px", color: "#D4A843", fontWeight: 400,
-              letterSpacing: 0, textTransform: "none", fontSize: "16px" }}>auto-filled</span>}
+            City
           </label>
           <input
             value={addr.city}
@@ -855,8 +854,7 @@ function AddressFields({ value, onChange, errors = {}, inputBaseStyle = {}, labe
         </div>
         <div>
           <label style={baseLabel}>
-            State{autoFilled && <span style={{ marginLeft: "6px", color: "#D4A843", fontWeight: 400,
-              letterSpacing: 0, textTransform: "none", fontSize: "16px" }}>auto-filled</span>}
+            State
           </label>
           <input
             value={addr.state}
@@ -7427,7 +7425,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       fontFamily: "'DM Sans', sans-serif", cursor: "pointer", appearance: "none",
                       color: form.walker ? "#111827" : "#9ca3af" }}>
                     <option value="">No preference</option>
-                    {getAllWalkers(walkerProfiles).map(w => <option key={w.id} value={w.name}>{w.name} — {w.role}</option>)}
+                    {getAllWalkers(walkerProfiles).map(w => <option key={w.id} value={w.name}>{w.name} — {w.role.replace(/ & /g, " / ")}</option>)}
                   </select>
                   <div style={{ marginTop: "6px", fontFamily: "'DM Sans', sans-serif",
                     fontSize: "15px", color: "#9ca3af", lineHeight: "1.5" }}>
@@ -13187,6 +13185,17 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
           }).reduce((s, inv) => s + (inv.gratuity || 0), 0);
           const allTimeGratuity = paidInvsWithGrat.reduce((s, inv) => s + (inv.gratuity || 0), 0);
 
+          // Build a map from bookingKey → gratuity amount (split evenly across walks in invoice)
+          const gratByWalkKey = {};
+          paidInvsWithGrat.forEach(inv => {
+            const walkItems = (inv.items || []).filter(it => it.bookingKey);
+            if (walkItems.length === 0) return;
+            const perWalk = (inv.gratuity || 0) / walkItems.length;
+            walkItems.forEach(it => {
+              gratByWalkKey[it.bookingKey] = (gratByWalkKey[it.bookingKey] || 0) + perWalk;
+            });
+          });
+
           return (
           <div className="fade-up">
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
@@ -13248,6 +13257,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               ).map((b, i) => {
                 const isOpen = expandedWalkKey === `pay_${b.key || i}`;
                 const payout = Math.round(getWalkerPayout(b));
+                const walkGrat = gratByWalkKey[b.key] || 0;
                 return (
                   <div key={b.key || i} style={{
                     borderBottom: i < completedWalks.length - 1 ? "1px solid #f3f4f6" : "none" }}>
@@ -13274,6 +13284,14 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                             fontWeight: 600, color: "#C4541A" }}>+${payout}</div>
                           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
                             color: "#9ca3af" }}>of ${effectivePrice(b)}</div>
+                          {walkGrat > 0 && (
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                              fontWeight: 600, color: "#059669",
+                              background: "#f0fdf4", border: "1px solid #a8d5bf",
+                              borderRadius: "5px", padding: "1px 6px", marginTop: "3px" }}>
+                              🤝 +${walkGrat.toFixed(2)} tip
+                            </div>
+                          )}
                         </div>
                         <span style={{ color: "#9ca3af", fontSize: "13px",
                           transform: isOpen ? "rotate(180deg)" : "none",
@@ -13295,6 +13313,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                             ["Time", b.slot?.time || "—"],
                             ["Session Rate", `$${effectivePrice(b)}`],
                             ["Your Payout", `$${payout}`],
+                            ...(walkGrat > 0 ? [["🤝 Gratuity", `$${walkGrat.toFixed(2)}`]] : []),
                           ].map(([label, val]) => (
                             <div key={label}>
                               <div style={{ fontSize: "11px", fontWeight: 600, color: "#9ca3af",
@@ -14084,7 +14103,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
                           fontSize: "16px", color: "#111827" }}>{w.name}</div>
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af" }}>
-                          {w.role || "Walker"}
+                          {(w.role || "Walker").replace(/ & /g, " / ")}
                         </div>
                       </div>
                       <span style={{ color: "#d1d5db", fontSize: "18px" }}>›</span>
@@ -19535,7 +19554,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                         fontWeight: 600, color: "#111827" }}>{w.name}</div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
-                        {w.role} · {walkerTotal} total walk{walkerTotal !== 1 ? "s" : ""}
+                        {w.role.replace(/ & /g, " / ")} · {walkerTotal} total walk{walkerTotal !== 1 ? "s" : ""}
                       </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
@@ -22561,8 +22580,8 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                           color: w.color, marginBottom: "4px" }}>
                           {(prof.services || []).length > 0
-                            ? WALKER_SERVICES.filter(s => prof.services.includes(s.id)).map(s => s.icon).join(" ")
-                            : w.role
+                            ? WALKER_SERVICES.filter(s => prof.services.includes(s.id)).map(s => s.label).join(" / ")
+                            : w.role.replace(/ & /g, " / ")
                           } · {w.years} yrs
                         </div>
                         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
