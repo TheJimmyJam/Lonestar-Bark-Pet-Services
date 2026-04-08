@@ -1196,8 +1196,6 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
   if (!client) return null;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
-  const navRef  = useRef(null);
-  const [navBottom, setNavBottom] = useState(0);
 
   const scrollTop = () => document.querySelector('[data-scroll-pane]')?.scrollTo({ top: 0, behavior: 'instant' });
   const clientTabs = [
@@ -1212,13 +1210,6 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
   ];
   const totalBadges = Object.values(notifCounts).reduce((s, n) => s + n, 0);
 
-  // Measure nav bottom edge when menu opens so fixed dropdown lines up
-  useEffect(() => {
-    if (menuOpen && navRef.current) {
-      setNavBottom(navRef.current.getBoundingClientRect().bottom);
-    }
-  }, [menuOpen]);
-
   // Close on outside click
   useEffect(() => {
     if (!menuOpen) return;
@@ -1228,7 +1219,7 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
   }, [menuOpen]);
 
   return (
-    <nav ref={navRef} style={{ background: "#0B1423", borderBottom: "1px solid #8A7545",
+    <nav style={{ background: "#0B1423", borderBottom: "1px solid #8A7545",
       display: "flex", flexDirection: "column",
       ...(sticky ? { position: "sticky", top: 0, zIndex: 50 } : { flexShrink: 0 }) }}
       className={`nav-tabs${sticky ? " sticky-nav" : ""}`}>
@@ -1258,51 +1249,64 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
             </div>
           </button>
 
-          {/* Fixed dropdown — escapes nav stacking context */}
+          {/* Fixed drawer — full left-side slide-in with backdrop */}
           {menuOpen && (
-            <div style={{
-              position: "fixed", top: navBottom, right: 0,
-              background: "#0B1423", border: "1px solid #8A7545",
-              borderTop: "none", borderRadius: "0 0 14px 14px",
-              minWidth: "210px", zIndex: 9999,
-              boxShadow: "0 16px 40px rgba(0,0,0,0.5)",
-              maxHeight: `calc(100vh - ${navBottom}px - 16px)`,
-              overflowY: "auto",
-            }}>
-              {clientTabs.map(t => {
-                const badge = notifCounts[t.id] || 0;
-                const isActive = page === t.id;
-                return (
-                  <button key={t.id} onClick={() => { setPage(t.id); scrollTop(); setMenuOpen(false); }} style={{
-                    width: "100%", padding: "13px 18px", border: "none",
-                    background: isActive ? "#1a2535" : "transparent",
-                    borderLeft: isActive ? "3px solid #8B5E3C" : "3px solid transparent",
-                    color: isActive ? "#fff" : "#ffffffcc",
-                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                    fontWeight: isActive ? 600 : 400,
-                    cursor: "pointer", display: "flex", alignItems: "center",
-                    gap: "10px", textAlign: "left",
-                  }}>
-                    <span style={{ fontSize: "16px", width: "20px", textAlign: "center" }}>{t.icon}</span>
-                    <span style={{ flex: 1 }}>{t.label}</span>
-                    {badge > 0 && (
-                      <span style={{ background: "#ef4444", color: "#fff", borderRadius: "10px",
-                        fontSize: "11px", fontWeight: 700, padding: "1px 6px",
-                        minWidth: "16px", textAlign: "center" }}>{badge}</span>
-                    )}
-                  </button>
-                );
-              })}
-              <div style={{ height: "1px", background: "#8A7545", margin: "4px 0" }} />
-              <button onClick={() => { setMenuOpen(false); onLogout(); }} style={{
-                width: "100%", padding: "13px 18px", border: "none",
-                background: "transparent", color: "#ffffff66",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 400,
-                cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", textAlign: "left",
-              }}>
-                <span style={{ fontSize: "16px", width: "20px", textAlign: "center" }}>↩</span>
-                Log out
-              </button>
+            <div style={{ position: "fixed", inset: 0, zIndex: 9999 }}>
+              {/* Backdrop */}
+              <div onClick={() => setMenuOpen(false)}
+                style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)" }} />
+              {/* Drawer */}
+              <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: "280px",
+                background: "#0B1423", display: "flex", flexDirection: "column",
+                boxShadow: "4px 0 28px rgba(0,0,0,0.4)", overflowY: "auto" }}>
+                {/* Drawer header */}
+                <div style={{ padding: "24px 20px 16px", borderBottom: "1px solid #1E4A32",
+                  display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <LogoBadge size={28} />
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
+                      fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "1px" }}>
+                      Lonestar Bark Co.
+                    </div>
+                  </div>
+                  <button onClick={() => setMenuOpen(false)} style={{ background: "none",
+                    border: "none", color: "#9B7444", fontSize: "22px", cursor: "pointer", lineHeight: 1 }}>✕</button>
+                </div>
+                {/* Tab list */}
+                <div style={{ flex: 1, padding: "12px 0" }}>
+                  {clientTabs.map(t => {
+                    const badge = notifCounts[t.id] || 0;
+                    const isActive = page === t.id;
+                    return (
+                      <button key={t.id} onClick={() => { setPage(t.id); scrollTop(); setMenuOpen(false); }} style={{
+                        width: "100%", padding: "13px 20px", border: "none",
+                        background: isActive ? "rgba(139,94,60,0.18)" : "transparent",
+                        borderLeft: isActive ? "3px solid #8B5E3C" : "3px solid transparent",
+                        display: "flex", alignItems: "center", gap: "14px", cursor: "pointer",
+                      }}>
+                        <span style={{ fontSize: "18px", width: "24px", textAlign: "center" }}>{t.icon}</span>
+                        <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                          fontWeight: isActive ? 600 : 400,
+                          color: isActive ? "#fff" : "rgba(255,255,255,0.75)", flex: 1 }}>{t.label}</span>
+                        {badge > 0 && (
+                          <span style={{ background: "#ef4444", color: "#fff", borderRadius: "10px",
+                            fontSize: "11px", fontWeight: 700, padding: "1px 6px",
+                            minWidth: "16px", textAlign: "center" }}>{badge}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* Logout */}
+                <div style={{ padding: "16px 20px", borderTop: "1px solid #1E4A32" }}>
+                  <button onClick={() => { setMenuOpen(false); onLogout(); }} style={{
+                    width: "100%", padding: "11px", borderRadius: "10px",
+                    border: "1px solid #8A7545", background: "transparent",
+                    color: "#9B7444", fontFamily: "'DM Sans', sans-serif",
+                    fontSize: "15px", cursor: "pointer",
+                  }}>↩ Log out</button>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -16868,7 +16872,7 @@ function ClientInvoicesPage({ client, clients, setClients }) {
                   <div style={{ flexShrink: 0, textAlign: "right" }}>
                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                       fontWeight: 600, color: meta.effectiveStatus === "paid" ? "#059669" : "#111827" }}>
-                      ${inv.total}
+                      ${(inv.total + (inv.gratuity || 0)).toFixed(2)}
                     </div>
                     <div style={{ fontSize: "16px", color: isExpanded ? green : "#d1d5db",
                       transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>⌄</div>
