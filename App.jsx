@@ -13176,12 +13176,23 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
         )}
 
         {/* ── Payouts ── */}
-        {tab === "payouts" && (
+        {tab === "payouts" && (() => {
+          // Gratuity from paid invoices on this walker's key clients
+          const { monday: wMonG, sunday: wSunG } = getCurrentWeekRange();
+          const paidInvsWithGrat = myKeyClients.flatMap(c =>
+            (c.invoices || []).filter(inv => inv.status === "paid" && inv.gratuity > 0)
+          );
+          const weekGratuity    = paidInvsWithGrat.filter(inv => {
+            const d = new Date(inv.paidAt); return d >= wMonG && d <= wSunG;
+          }).reduce((s, inv) => s + (inv.gratuity || 0), 0);
+          const allTimeGratuity = paidInvsWithGrat.reduce((s, inv) => s + (inv.gratuity || 0), 0);
+
+          return (
           <div className="fade-up">
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
               fontWeight: 600, color: "#111827", marginBottom: "20px" }}>Payouts & Earnings</div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "24px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
               {[
                 { label: "Week's Earnings", value: fmt(weekEarned, true), icon: "📅", color: accentBlue },
                 { label: "All-Time Earnings", value: fmt(totalEarned, true), icon: "💵", color: "#C4541A" },
@@ -13197,6 +13208,28 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                     color: "#9ca3af", marginTop: "4px" }}>{s.label}</div>
                 </div>
               ))}
+            </div>
+
+            {/* Gratuity section */}
+            <div style={{ background: "#FDF5EC", border: "1.5px solid #D4A87A",
+              borderRadius: "14px", padding: "16px 18px", marginBottom: "20px" }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 700,
+                letterSpacing: "1.5px", textTransform: "uppercase", color: "#C4541A", marginBottom: "12px" }}>
+                🤝 Gratuities (100% yours)
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                {[
+                  { label: "This Week's Gratuity", value: weekGratuity > 0 ? fmt(weekGratuity, true) : "—" },
+                  { label: "All-Time Gratuity",    value: allTimeGratuity > 0 ? fmt(allTimeGratuity, true) : "—" },
+                ].map(s => (
+                  <div key={s.label}>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "22px",
+                      fontWeight: 700, color: "#C4541A" }}>{s.value}</div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                      color: "#9ca3af", marginTop: "3px" }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
@@ -13400,7 +13433,8 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               );
             })()}
           </div>
-        )}
+          );
+        })()}
 
         {/* ── Shift Trades ── */}
         {tab === "trades" && (() => {
@@ -22454,7 +22488,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       const newId = Math.max(...existingIds, 100) + 1;
 
                       const derivedRole = (wf.services || []).length > 0
-                        ? WALKER_SERVICES.filter(s => (wf.services || []).includes(s.id)).map(s => s.label).join(" & ")
+                        ? WALKER_SERVICES.filter(s => (wf.services || []).includes(s.id)).map(s => s.label).join(" / ")
                         : "Dog Walker";
 
                       const newProf = {
@@ -23573,16 +23607,30 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
           // Build per-walker payroll entries
           const walkerPayrollMap = {};
           getAllWalkers(walkerProfiles).forEach(w => {
-            walkerPayrollMap[w.name] = { walker: w, walks: [], total: 0 };
+            walkerPayrollMap[w.name] = { walker: w, walks: [], total: 0, gratuity: 0 };
           });
           weekCompleted.forEach(b => {
             const name = b.form?.walker || "Unassigned";
             if (!walkerPayrollMap[name]) {
-              walkerPayrollMap[name] = { walker: { name, id: null, avatar: "❓", color: "#9ca3af" }, walks: [], total: 0 };
+              walkerPayrollMap[name] = { walker: { name, id: null, avatar: "❓", color: "#9ca3af" }, walks: [], total: 0, gratuity: 0 };
             }
             const payout = getWalkerPayout(b);
             walkerPayrollMap[name].walks.push({ ...b, payout });
             walkerPayrollMap[name].total += payout;
+          });
+
+          // Add gratuity from paid invoices in this week for each walker's key clients
+          Object.values(clients).forEach(c => {
+            if (c.deleted) return;
+            const walkerName = c.keyholder;
+            if (!walkerName || !walkerPayrollMap[walkerName]) return;
+            (c.invoices || []).forEach(inv => {
+              if (inv.status !== "paid" || !inv.gratuity) return;
+              const paidDate = new Date(inv.paidAt);
+              if (paidDate >= payMon && paidDate <= paySun) {
+                walkerPayrollMap[walkerName].gratuity += inv.gratuity;
+              }
+            });
           });
 
           const activeEntries = Object.values(walkerPayrollMap)
@@ -23590,6 +23638,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
             .sort((a, b) => b.total - a.total);
 
           const grandTotal = activeEntries.reduce((s, e) => s + e.total, 0);
+          const grandGratuity = activeEntries.reduce((s, e) => s + (e.gratuity || 0), 0);
 
           const weekLabel =
             payMon.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
@@ -23645,13 +23694,13 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
           };
 
           const downloadCSV = (entriesToExport) => {
-            const rows = [["Walker Name","Address","Walk Date","Time","Duration","Client","Pet","Payout ($)"]];
-            entriesToExport.forEach(({ walker: w, walks }) => {
+            const rows = [["Walker Name","Address","Walk Date","Time","Duration","Client","Pet","Payout ($)","Gratuity ($)"]];
+            entriesToExport.forEach(({ walker: w, walks, gratuity: walkerGrat }) => {
               const prof = walkerProfiles[w.id] || {};
               const name = prof.preferredName || w.name;
               const address = prof.address || addrToString(prof.addrObj) || "No address on file";
               const sorted = [...walks].sort((a,b) => new Date(a.scheduledDateTime||a.bookedAt) - new Date(b.scheduledDateTime||b.bookedAt));
-              rows.push([`--- ${name} ---`, address, "", "", "", "", "", ""]);
+              rows.push([`--- ${name} ---`, address, "", "", "", "", "", "", ""]);
               sorted.forEach(b => {
                 const dt = new Date(b.scheduledDateTime || b.bookedAt);
                 rows.push([
@@ -23659,15 +23708,18 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                   dt.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}),
                   b.slot?.time || dt.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}),
                   b.slot?.duration || "", b.clientName || "", b.form?.pet || "",
-                  (b.payout||0).toFixed(2),
+                  (b.payout||0).toFixed(2), "",
                 ]);
               });
               const walkerTotal = walks.reduce((s,b) => s + (b.payout||0), 0);
-              rows.push(["", "", "", "", "", "", `Total for ${name}:`, walkerTotal.toFixed(2)]);
-              rows.push(["","","","","","","",""]);
+              rows.push(["", "", "", "", "", "", `Total walks for ${name}:`, walkerTotal.toFixed(2), ""]);
+              if (walkerGrat > 0) rows.push(["", "", "", "", "", "", `Gratuity for ${name}:`, "", walkerGrat.toFixed(2)]);
+              rows.push(["","","","","","","","",""]);
             });
             const grandTotal = entriesToExport.reduce((s,e) => s + e.walks.reduce((ws,b) => ws+(b.payout||0),0), 0);
-            rows.push(["","","","","","","TOTAL PAYROLL:", grandTotal.toFixed(2)]);
+            const grandGrat  = entriesToExport.reduce((s,e) => s + (e.gratuity||0), 0);
+            rows.push(["","","","","","","TOTAL PAYROLL:", grandTotal.toFixed(2), ""]);
+            if (grandGrat > 0) rows.push(["","","","","","","TOTAL GRATUITY:", "", grandGrat.toFixed(2)]);
             const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
             const blob = new Blob([csv], { type: "text/csv" });
             const url = URL.createObjectURL(blob);
@@ -23857,6 +23909,12 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600, color: "#fff" }}>
                       ${grandTotal.toLocaleString()}
                     </div>
+                    {grandGratuity > 0 && (
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                        fontWeight: 600, color: "#a8d5bf" }}>
+                        + ${grandGratuity.toFixed(2)} gratuity
+                      </div>
+                    )}
                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#a07040" }}>
                       total payroll this week
                     </div>
@@ -23881,7 +23939,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
               )}
 
               {/* ── Pending walker cards ── */}
-              {pendingEntries.map(({ walker: w, walks, total }) => {
+              {pendingEntries.map(({ walker: w, walks, total, gratuity }) => {
                 const prof = walkerProfiles[w.id] || {};
                 const fullName  = prof.preferredName || w.name;
                 const address   = prof.address || addrToString(prof.addrObj) || "";
@@ -23930,6 +23988,14 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                         <div>
                           <div style={{ fontFamily: "'DM Sans', sans-serif",
                             fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600, color }}>${total.toLocaleString()}</div>
+                          {gratuity > 0 && (
+                            <div style={{ fontFamily: "'DM Sans', sans-serif",
+                              fontSize: "12px", fontWeight: 600, color: "#059669",
+                              background: "#f0fdf4", border: "1px solid #a8d5bf",
+                              borderRadius: "5px", padding: "1px 6px", marginTop: "3px" }}>
+                              🤝 +${gratuity.toFixed(2)} tip
+                            </div>
+                          )}
                         </div>
                         <div style={{ fontSize: "16px", color: "#9ca3af",
                           transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
@@ -23979,11 +24045,19 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                     <div style={{ padding: "14px 20px", background: hasAddress ? "#f9fafb" : "#fffbeb",
                       borderTop: "1px solid #f3f4f6" }}>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                        color: hasAddress ? "#9ca3af" : "#b45309", marginBottom: "12px" }}>
+                        color: hasAddress ? "#9ca3af" : "#b45309", marginBottom: gratuity > 0 ? "6px" : "12px" }}>
                         {hasAddress
                           ? `📬 Send $${total.toLocaleString()} check to: ${address}`
                           : "📬 Ask this walker to add their mailing address in My Info before cutting a check."}
                       </div>
+                      {gratuity > 0 && (
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                          color: "#059669", fontWeight: 500, marginBottom: "12px",
+                          background: "#f0fdf4", border: "1px solid #a8d5bf",
+                          borderRadius: "8px", padding: "7px 12px" }}>
+                          🤝 Gratuity to pass along: ${gratuity.toFixed(2)} (from client — goes 100% to walker)
+                        </div>
+                      )}
                       {isPending ? (
                         <div className="fade-up">
                           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
