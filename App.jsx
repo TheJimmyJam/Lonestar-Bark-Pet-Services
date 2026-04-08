@@ -63,6 +63,19 @@ function effectivePrice(b) {
   }
   return Math.max(0, base - b.adminDiscount.amount);
 }
+
+// Walker payout: flat rates based on duration and pricing tier
+function getWalkerPayout(b) {
+  const duration = b.slot?.duration || "30 min";
+  const tier = b.priceTier || "Easy Rider";
+  const is60 = duration === "60 min";
+  // Full Gallop (5x/week) gets slightly lower flat rate
+  if (tier === "Full Gallop") {
+    return is60 ? 32 : 18;
+  }
+  // Easy Rider and Steady Stroll
+  return is60 ? 35 : 20;
+}
 const WALKER_SERVICES = [
   { id: "dog-walking",        label: "Dog Walker",         icon: "🐕", color: "#C4541A", bg: "#FDF5EC", border: "#D4A843" },
   { id: "cat-sitting",        label: "Cat Sitter",         icon: "🐈", color: "#3D6B7A", bg: "#EBF4F6", border: "#8ECAD4" },
@@ -4140,6 +4153,7 @@ function QuickRebookBanner({ client, service, myBookings, clients, setClients, o
 
   // ── Colours ────────────────────────────────────────────────────────────────
   const green = "#C4541A", lightGreen = "#FDF5EC", borderGreen = "#D4A843";
+  const svcColor = service === "cat" ? "#3D6B7A" : "#C4541A";
 
   // ── Confirmed state ────────────────────────────────────────────────────────
   if (confirmed) return (
@@ -4185,90 +4199,63 @@ function QuickRebookBanner({ client, service, myBookings, clients, setClients, o
       </div>
 
       {/* Week navigator */}
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
         <button
           onClick={() => { if (weekOffset > 0) { setWeekOffset(w => w - 1); setSelected(new Set(usualRecs.map(r => r.id))); } }}
           disabled={weekOffset === 0}
-          style={{ border: "1.5px solid #e4e7ec", borderRadius: "8px", padding: "6px 12px",
-            background: weekOffset === 0 ? "#f9fafb" : "#fff",
+          style={{ width: "30px", height: "30px", borderRadius: "8px",
+            border: "1.5px solid #e4e7ec", background: weekOffset === 0 ? "#f9fafb" : "#fff",
             color: weekOffset === 0 ? "#d1d5db" : "#374151",
             cursor: weekOffset === 0 ? "default" : "pointer",
-            fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500 }}>‹</button>
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}>‹</button>
         <div style={{ flex: 1, textAlign: "center" }}>
           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
             fontWeight: 600, color: "#111827" }}>{weekLabel}</div>
-          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
             color: "#9ca3af", marginTop: "1px" }}>{rangeLabel}</div>
         </div>
         <button
           onClick={() => { if (weekOffset < 8) { setWeekOffset(w => w + 1); setSelected(new Set(usualRecs.map(r => r.id))); } }}
           disabled={weekOffset >= 8}
-          style={{ border: "1.5px solid #e4e7ec", borderRadius: "8px", padding: "6px 12px",
-            background: weekOffset >= 8 ? "#f9fafb" : "#fff",
+          style={{ width: "30px", height: "30px", borderRadius: "8px",
+            border: "1.5px solid #e4e7ec", background: weekOffset >= 8 ? "#f9fafb" : "#fff",
             color: weekOffset >= 8 ? "#d1d5db" : "#374151",
             cursor: weekOffset >= 8 ? "default" : "pointer",
-            fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500 }}>›</button>
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}>›</button>
       </div>
 
-      {/* Day cards */}
+      {/* Day cards — match Select Date style */}
       {displayEntries.length === 0 ? (
         <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af",
           textAlign: "center", padding: "12px 0 16px", fontStyle: "italic" }}>
           All walks already booked for this week.
         </div>
       ) : (
-      <div style={{ display: "grid",
-        gridTemplateColumns: `repeat(${Math.min(displayEntries.length, 5)}, 1fr)`,
-        gap: "8px", marginBottom: "16px" }}>
-        {displayEntries.map(entry => {
-          const isSel     = selected.has(entry.id);
-          const disabled  = entry.isPast;
-          const cardBg    = isSel && !disabled ? lightGreen : "#f9fafb";
-          const cardBorder= isSel && !disabled ? `2px solid ${borderGreen}` : "1.5px solid #e4e7ec";
-          const dayColor  = disabled ? "#9ca3af" : isSel ? green : "#9ca3af";
-
-          return (
-            <button key={entry.id} onClick={() => !disabled && toggleDay(entry.id)}
-              style={{ background: cardBg, border: cardBorder, borderRadius: "12px",
-                padding: "12px 6px 10px", cursor: disabled ? "default" : "pointer",
-                textAlign: "center", transition: "all 0.15s ease", outline: "none",
-                boxShadow: isSel && !disabled ? "0 2px 8px rgba(26,107,74,0.10)" : "none" }}>
-
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                fontWeight: 700, color: dayColor, letterSpacing: "0.5px",
-                textTransform: "uppercase", marginBottom: "3px" }}>
-                {SHORT[entry.dayOfWeek]}
-              </div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                color: disabled ? "#d1d5db" : "#6b7280", marginBottom: "7px" }}>
-                {entry.dateLabel}
-              </div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                fontWeight: 500, color: disabled ? "#9ca3af" : "#374151", marginBottom: "1px" }}>
-                {entry.slotTime}
-              </div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                color: disabled ? "#d1d5db" : "#9ca3af", marginBottom: "9px" }}>
-                {entry.duration}
-              </div>
-
-              {/* Status badge */}
-              {entry.isPast ? (
-                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                  color: "#d1d5db" }}>past</span>
-              ) : isSel ? (
-                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                  fontWeight: 600, color: green, background: "#FDEBD4",
-                  borderRadius: "20px", padding: "2px 7px" }}>✓ on</span>
-              ) : (
-                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                  fontWeight: 500, color: "#9ca3af", background: "#f3f4f6",
-                  borderRadius: "20px", padding: "2px 7px" }}>off</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+        <div className="day-selector" style={{ marginBottom: "14px" }}>
+          {displayEntries.map(entry => {
+            const isSel    = selected.has(entry.id);
+            const disabled = entry.isPast;
+            return (
+              <button key={entry.id} onClick={() => !disabled && toggleDay(entry.id)}
+                disabled={disabled}
+                style={{
+                  minWidth: "52px", padding: "10px 6px", borderRadius: "10px",
+                  border: isSel && !disabled ? `2px solid ${svcColor}` : "2px solid #e4e7ec",
+                  background: isSel && !disabled ? svcColor : disabled ? "#f9fafb" : "#fff",
+                  color: isSel && !disabled ? "#fff" : disabled ? "#d1d5db" : "#374151",
+                  cursor: disabled ? "default" : "pointer",
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: "3px",
+                  fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s" }}>
+                <span style={{ fontSize: "16px", fontWeight: 600, textTransform: "uppercase" }}>
+                  {SHORT[entry.dayOfWeek]}
+                </span>
+                <span style={{ fontSize: "17px", fontWeight: 700 }}>
+                  {entry.targetDate.getDate()}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       )}
 
       {/* Footer */}
@@ -4295,8 +4282,8 @@ function QuickRebookBanner({ client, service, myBookings, clients, setClients, o
           {submitting
             ? "Booking…"
             : bookableSelected.length
-              ? `Book ${bookableSelected.length} Walk${bookableSelected.length !== 1 ? "s" : ""} →`
-              : "Select days to book"}
+              ? `Rebook These ${bookableSelected.length > 1 ? `${bookableSelected.length} Days` : "Day"} →`
+              : "Select days to rebook"}
         </button>
       </div>
     </div>
@@ -6718,7 +6705,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                             )}
                           </div>
                           <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                            fontSize: "15px", color: "#111827", marginBottom: "2px" }}>{w.name}</div>
+                            fontSize: "15px", color: "#111827", marginBottom: "2px" }}>{firstName(w.name)}</div>
                           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                             color: hasAvail ? "#059669" : "#9ca3af" }}>
                             {hasAvail ? `${walkerDateSlots.length} slots open` : "No availability set"}
@@ -10298,13 +10285,13 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
   });
 
   // Compute earnings
-  const totalEarned = completedWalks.reduce((sum, b) => sum + effectivePrice(b) * 0.6, 0);
+  const totalEarned = completedWalks.reduce((sum, b) => sum + getWalkerPayout(b), 0);
   const thisWeek = completedWalks.filter(b => {
     const appt = new Date(b.scheduledDateTime || b.bookedAt);
     const { monday, sunday } = getCurrentWeekRange();
     return appt >= monday && appt <= sunday;
   });
-  const weekEarned = thisWeek.reduce((sum, b) => sum + effectivePrice(b) * 0.6, 0);
+  const weekEarned = thisWeek.reduce((sum, b) => sum + getWalkerPayout(b), 0);
 
   const accentBlue = "#3D6B7A";
 
@@ -11038,8 +11025,8 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
           const monthCompleted = completedWalks.filter(b => {
             const d = new Date(b.scheduledDateTime || b.bookedAt); return d >= monthStart && d <= monthEnd;
           });
-          const weekPayout  = weekCompleted.reduce((s, b)  => s + Math.round(effectivePrice(b) * 0.6), 0);
-          const monthPayout = monthCompleted.reduce((s, b) => s + Math.round(effectivePrice(b) * 0.6), 0);
+          const weekPayout  = weekCompleted.reduce((s, b)  => s + Math.round(getWalkerPayout(b)), 0);
+          const monthPayout = monthCompleted.reduce((s, b) => s + Math.round(getWalkerPayout(b)), 0);
           const allTimePayout = Math.round(totalEarned);
 
           // Invoice KPIs (key clients)
@@ -11197,7 +11184,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                       </div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                         fontWeight: 600, color: "#374151", flexShrink: 0 }}>
-                        ${Math.round(effectivePrice(b) * 0.6)}
+                        ${Math.round(getWalkerPayout(b))}
                       </div>
                     </div>
                   );
@@ -11449,7 +11436,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                     <div style={{ flexShrink: 0, textAlign: "right" }}>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                         fontWeight: 600, color: justClaimed ? "#059669" : accentBlue, marginBottom: "8px" }}>
-                        ${Math.round(effectivePrice(b) * 0.6)}
+                        ${Math.round(getWalkerPayout(b))}
                       </div>
                       {justClaimed ? (
                         <button
@@ -11806,7 +11793,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                       flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                         fontWeight: 600, color: confirmed ? "#059669" : accentBlue }}>
-                        ${Math.round(effectivePrice(b) * 0.6)}
+                        ${Math.round(getWalkerPayout(b))}
                       </div>
                       {b.walkerMarkedComplete ? (
                         /* Already marked complete */
@@ -12230,7 +12217,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
             return bTotal - aTotal;
           });
 
-          const totalAllTime = completedWalks.reduce((s, b) => s + Math.round(effectivePrice(b) * 0.6), 0);
+          const totalAllTime = completedWalks.reduce((s, b) => s + Math.round(getWalkerPayout(b)), 0);
 
           return (
             <div className="fade-up">
@@ -12254,7 +12241,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                   </div>
                 </div>
               ) : sortedClients.map(([clientName, { walks }]) => {
-                const clientTotal = walks.reduce((s, w) => s + Math.round(effectivePrice(w) * 0.6), 0);
+                const clientTotal = walks.reduce((s, w) => s + Math.round(getWalkerPayout(w)), 0);
                 const clientGross = walks.reduce((s, w) => s + effectivePrice(w), 0);
                 const isOpen = expandedWalkKey === `client_${clientName}`;
                 return (
@@ -12302,7 +12289,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                           const completedDate = w.completedAt
                             ? new Date(w.completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
                             : w.date || "—";
-                          const payout = Math.round(effectivePrice(w) * 0.6);
+                          const payout = Math.round(getWalkerPayout(w));
                           return (
                             <div key={w.key || i} style={{
                               display: "flex", alignItems: "center", gap: "12px",
@@ -12818,7 +12805,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               borderRadius: "16px", padding: "20px" }}>
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
                 fontSize: "15px", color: "#374151", marginBottom: "14px" }}>
-                Payout Rate: 60% of session price
+                Payout Rates: $20 · 30 min | $35 · 60 min (Full Gallop: $18 · 30 min | $32 · 60 min)
               </div>
               {completedWalks.length === 0 ? (
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
@@ -12829,7 +12816,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                 new Date(b.completedAt || b.scheduledDateTime || b.bookedAt) - new Date(a.completedAt || a.scheduledDateTime || a.bookedAt)
               ).map((b, i) => {
                 const isOpen = expandedWalkKey === `pay_${b.key || i}`;
-                const payout = Math.round(effectivePrice(b) * 0.6);
+                const payout = Math.round(getWalkerPayout(b));
                 return (
                   <div key={b.key || i} style={{
                     borderBottom: i < completedWalks.length - 1 ? "1px solid #f3f4f6" : "none" }}>
@@ -12876,7 +12863,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                             ["Date", `${b.day}, ${b.date}`],
                             ["Time", b.slot?.time || "—"],
                             ["Session Rate", `$${effectivePrice(b)}`],
-                            ["Your Payout (60%)", `$${payout}`],
+                            ["Your Payout", `$${payout}`],
                           ].map(([label, val]) => (
                             <div key={label}>
                               <div style={{ fontSize: "11px", fontWeight: 600, color: "#9ca3af",
@@ -12923,7 +12910,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                 Service:           b.form?.service === "cat" ? "Cat-sitting" : "Dog-walking",
                 Duration:          b.slot?.duration || "",
                 "Total Price ($)": effectivePrice(b),
-                "Your Payout ($)": Math.round(effectivePrice(b) * 0.6),
+                "Your Payout ($)": Math.round(getWalkerPayout(b)),
               }));
 
               const exportCSV = () => {
@@ -12960,7 +12947,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                   ["Lonestar Bark Co. — Earnings Summary"],
                   [],
                   ["Walker",        walker.name],
-                  ["Payout Rate",   "60%"],
+                  ["Payout Rate",   "$20/30 min · $35/60 min (Full Gallop: $18/$32)"],
                   ["Walks Total",   completedWalks.length],
                   ["Total Earned",  fmt(totalEarned, true)],
                   ["Week's Earnings",     fmt(weekEarned, true)],
@@ -17691,16 +17678,15 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     .filter(b => new Date(b.completedAt || b.scheduledDateTime || b.bookedAt) >= wMon)
     .reduce((s, b) => s + effectivePrice(b), 0);
 
-  // Profit: revenue minus walker payout (60% of price goes to walkers, 40% is profit)
-  const WALKER_PAYOUT_RATE = 0.6;
-  const totalWalkerPayout = Math.round(totalRevenue * WALKER_PAYOUT_RATE);
-  const weekWalkerPayout = Math.round(weekRevenue * WALKER_PAYOUT_RATE);
+  // Profit: revenue minus walker payout (flat rates per duration/tier)
+  const totalWalkerPayout = completedBookings.reduce((s, b) => s + getWalkerPayout(b), 0);
+  const weekWalkerPayout = weekCompleted.reduce((s, b) => s + getWalkerPayout(b), 0);
   const totalProfit = totalRevenue - totalWalkerPayout;
   const weekProfit = weekRevenue - weekWalkerPayout;
 
   // Pipeline: expected revenue & profit from all upcoming uncompleted walks
   const pipelineRevenue = upcoming.filter(b => !b.isOvernight).reduce((s, b) => s + effectivePrice(b), 0);
-  const pipelineWalkerPayout = Math.round(pipelineRevenue * WALKER_PAYOUT_RATE);
+  const pipelineWalkerPayout = upcoming.filter(b => !b.isOvernight).reduce((s, b) => s + getWalkerPayout(b), 0);
   const pipelineProfit = pipelineRevenue - pipelineWalkerPayout;
 
   // Group completed walks by client, sorted most recent first within each
@@ -17999,15 +17985,16 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 const byWalker = {};
                 bookingSet.forEach(b => {
                   const name = b.form?.walker || "Unassigned";
-                  if (!byWalker[name]) byWalker[name] = { revenue: 0, count: 0 };
+                  if (!byWalker[name]) byWalker[name] = { revenue: 0, payout: 0, count: 0 };
                   byWalker[name].revenue += effectivePrice(b);
+                  byWalker[name].payout += getWalkerPayout(b);
                   byWalker[name].count += 1;
                 });
                 return Object.entries(byWalker).sort((a, b) => b[1].revenue - a[1].revenue).map(([name, d]) => ({
                   name,
                   revenue: d.revenue,
-                  payout: Math.round(d.revenue * 0.6),
-                  profit: Math.round(d.revenue * 0.4),
+                  payout: Math.round(d.payout),
+                  profit: Math.round(d.revenue - d.payout),
                   count: d.count,
                   walker: getAllWalkers(walkerProfiles).find(w => w.name === name),
                 }));
@@ -18535,7 +18522,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                                       color: "#059669", marginBottom: "10px", fontWeight: 500 }}>
                                       💸 Effective price: ${effectivePrice({ price: d.price, adminDiscount: { type: d.discountType, amount: d.discountAmount } })}
-                                      {" "}· Walker payout: ${Math.round(effectivePrice({ price: d.price, adminDiscount: { type: d.discountType, amount: d.discountAmount } }) * 0.6)}
+                                      
                                     </div>
                                   )}
                                   <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
@@ -18797,16 +18784,17 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                   const byWalker = {};
                   upcomingWalks.forEach(b => {
                     const name = b.form?.walker || "Unassigned";
-                    if (!byWalker[name]) byWalker[name] = { revenue: 0, count: 0 };
+                    if (!byWalker[name]) byWalker[name] = { revenue: 0, payout: 0, count: 0 };
                     byWalker[name].revenue += effectivePrice(b);
+                    byWalker[name].payout += getWalkerPayout(b);
                     byWalker[name].count += 1;
                   });
                   const walkerBreakdown = Object.entries(byWalker)
                     .sort((a, b) => b[1].revenue - a[1].revenue)
                     .map(([name, d]) => ({
                       name, revenue: d.revenue,
-                      payout: Math.round(d.revenue * 0.6),
-                      profit: Math.round(d.revenue * 0.4),
+                      payout: Math.round(d.payout),
+                      profit: Math.round(d.revenue - d.payout),
                       count: d.count,
                       walker: getAllWalkers(walkerProfiles).find(w => w.name === name),
                     }));
@@ -20913,7 +20901,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
             const prof = selProfile;
             const walkerUpcoming = upcoming.filter(b => b.form?.walker === w.name);
             const walkerCompleted = completedBookings.filter(b => b.form?.walker === w.name);
-            const totalEarnings = Math.round(walkerCompleted.reduce((s, b) => s + effectivePrice(b) * 0.6, 0));
+            const totalEarnings = Math.round(walkerCompleted.reduce((s, b) => s + getWalkerPayout(b), 0));
             const draft = editingWalker || prof;
             const isEditing = !!editingWalker;
 
@@ -21214,7 +21202,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                                 <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
                                   <div style={{ fontFamily: "'DM Sans', sans-serif",
                                     fontSize: "16px", fontWeight: 600, color: w.color }}>
-                                    ${Math.round(effectivePrice(b) * 0.6)}
+                                    ${Math.round(getWalkerPayout(b))}
                                   </div>
                                   <span style={{ color: "#9ca3af", fontSize: "16px",
                                     transform: isOpen ? "rotate(180deg)" : "none",
@@ -21300,7 +21288,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                                       color: "#059669", marginBottom: "10px", fontWeight: 500 }}>
                                       💸 Effective price: ${effectivePrice({ price: d.price, adminDiscount: { type: d.discountType, amount: d.discountAmount } })}
-                                      {" "}· Walker payout: ${Math.round(effectivePrice({ price: d.price, adminDiscount: { type: d.discountType, amount: d.discountAmount } }) * 0.6)}
+                                      
                                     </div>
                                   )}
                                   <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
@@ -21429,11 +21417,11 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                                 <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
                                   <div style={{ fontFamily: "'DM Sans', sans-serif",
                                     fontSize: "16px", fontWeight: 600, color: "#059669" }}>
-                                    ${Math.round(ep * 0.6)}
+                                    ${getWalkerPayout(b)}
                                     {b.adminDiscount?.amount > 0 && (
                                       <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                                         color: "#9ca3af", fontWeight: 400, marginLeft: "4px",
-                                        textDecoration: "line-through" }}>${Math.round((b.price || 0) * 0.6)}</span>
+                                        textDecoration: "line-through" }}>${getWalkerPayout({ ...b, adminDiscount: null })}</span>
                                     )}
                                   </div>
                                   <span style={{ color: "#9ca3af", fontSize: "16px",
@@ -21489,7 +21477,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                                           color: "#059669", marginBottom: "10px", fontWeight: 500 }}>
                                           💸 Effective price: ${effectivePrice({ price: d.price, adminDiscount: { type: d.discountType, amount: d.discountAmount } })}
-                                          {" "}· Walker payout: ${Math.round(effectivePrice({ price: d.price, adminDiscount: { type: d.discountType, amount: d.discountAmount } }) * 0.6)}
+                                          
                                         </div>
                                       )}
                                       <div style={{ display: "flex", gap: "8px" }}>
@@ -21562,7 +21550,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                         ) : weeks.map(([key, { mon, walks }], i) => {
                           const sun = new Date(mon);
                           sun.setDate(mon.getDate() + 6);
-                          const weekTotal = Math.round(walks.reduce((s, b) => s + effectivePrice(b) * 0.6, 0));
+                          const weekTotal = Math.round(walks.reduce((s, b) => s + getWalkerPayout(b), 0));
                           const label =
                             mon.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
                             " – " +
@@ -21597,7 +21585,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                                   </div>
                                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                                     fontWeight: 600, color: "#7A4D6E", flexShrink: 0 }}>
-                                    ${Math.round(effectivePrice(b) * 0.6)}
+                                    ${Math.round(getWalkerPayout(b))}
                                   </div>
                                 </div>
                               ))}
@@ -22087,7 +22075,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 const prof = walkerProfiles[w.id] || {};
                 const walkerUpcoming = upcoming.filter(b => b.form?.walker === w.name);
                 const walkerCompleted = completedBookings.filter(b => b.form?.walker === w.name);
-                const earnings = Math.round(walkerCompleted.reduce((s, b) => s + effectivePrice(b) * 0.6, 0));
+                const earnings = Math.round(walkerCompleted.reduce((s, b) => s + getWalkerPayout(b), 0));
                 const hasPhone = !!(prof.phone);
                 const hasAddress = !!(prof.address);
                 return (
@@ -23164,7 +23152,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
             if (!walkerPayrollMap[name]) {
               walkerPayrollMap[name] = { walker: { name, id: null, avatar: "❓", color: "#9ca3af" }, walks: [], total: 0 };
             }
-            const payout = Math.round(effectivePrice(b) * WALKER_PAYOUT_RATE);
+            const payout = getWalkerPayout(b);
             walkerPayrollMap[name].walks.push({ ...b, payout });
             walkerPayrollMap[name].total += payout;
           });
