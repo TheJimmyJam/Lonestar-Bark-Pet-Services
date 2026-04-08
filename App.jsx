@@ -9274,15 +9274,19 @@ function RoleSelectScreen({ onSelectRole, onBack }) {
       justifyContent: "center", padding: "clamp(24px,5vw,56px) 20px",
     }}>
       <style>{GLOBAL_STYLES}</style>
-      <div style={{ textAlign: "center", marginBottom: "40px" }}>
-        <LogoBadge size={88} />
+
+      {/* Header block */}
+      <div style={{ textAlign: "center", marginBottom: "36px" }}>
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
-          fontSize: "clamp(26px,6vw,36px)", fontWeight: 600, letterSpacing: "2px", marginBottom: "6px" }}>
+          fontSize: "clamp(28px,7vw,42px)", fontWeight: 700, letterSpacing: "2px", marginBottom: "8px" }}>
           Lonestar Bark Co.
         </div>
-        <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
-          fontSize: "15px", letterSpacing: "3px", textTransform: "uppercase" }}>
-          Professional Pet Care · Dallas, TX
+        <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff88",
+          fontSize: "13px", letterSpacing: "3.5px", textTransform: "uppercase", marginBottom: "28px" }}>
+          Est. 2026 &nbsp;·&nbsp; Born Here. Walk Here. &nbsp;·&nbsp; Dallas, TX
+        </div>
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <LogoBadge size={120} />
         </div>
       </div>
 
@@ -9294,21 +9298,21 @@ function RoleSelectScreen({ onSelectRole, onBack }) {
 
         {[
           {
-            role: "customer", icon: "🐶", label: "Client",
+            role: "customer", label: "Client",
             sub: "Book walks & manage your pets",
             color: "#C4541A", bg: "#FDF5EC", accent: "#D4A843",
           },
           {
-            role: "walker", icon: "🦺", label: "Walker",
+            role: "walker", label: "Walker",
             sub: "Claim walks, track pay & availability",
             color: "#1A3A42", bg: "#EBF4F6", accent: "#3D6B7A",
           },
           {
-            role: "admin", icon: "🛡️", label: "Admin",
+            role: "admin", label: "Admin",
             sub: "Manage all clients, walkers & bookings",
             color: "#7C3A00", bg: "#fffbeb", accent: "#b45309",
           },
-        ].map(({ role, icon, label, sub, color, bg, accent }) => (
+        ].map(({ role, label, sub, color, bg, accent }) => (
           <button key={role} onClick={() => onSelectRole(role)}
             className="hover-card"
             style={{
@@ -9320,18 +9324,8 @@ function RoleSelectScreen({ onSelectRole, onBack }) {
             }}>
             {/* Colored left accent bar */}
             <div style={{ width: "6px", background: accent, flexShrink: 0 }} />
-            {/* Icon */}
-            <div style={{ padding: "20px 16px 20px 18px", display: "flex",
-              alignItems: "center", flexShrink: 0 }}>
-              <div style={{ fontSize: "30px", width: "48px", height: "48px",
-                borderRadius: "12px", background: `${accent}22`,
-                border: `1.5px solid ${accent}44`,
-                display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {icon}
-              </div>
-            </div>
             {/* Text */}
-            <div style={{ flex: 1, padding: "20px 16px 20px 0",
+            <div style={{ flex: 1, padding: "20px 18px",
               display: "flex", flexDirection: "column", justifyContent: "center" }}>
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "17px",
                 fontWeight: 700, color: color, marginBottom: "3px",
