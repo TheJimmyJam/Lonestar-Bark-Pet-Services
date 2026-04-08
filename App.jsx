@@ -39,7 +39,7 @@ const PRICING_TIERS = [
   { label: "Easy Rider", freq: "1x per week", badge: null,
     prices: { "30 min": 30, "60 min": 45 }, description: "One walk a week — perfect for a laid-back pup who likes to take it easy." },
   { label: "Steady Stroll", freq: "3x per week", badge: "Popular",
-    prices: { "30 min": 27.50, "60 min": 47.50 }, description: "Three walks a week — a great rhythm that keeps your dog active and happy." },
+    prices: { "30 min": 27.50, "60 min": 42.50 }, description: "Three walks a week — a great rhythm that keeps your dog active and happy." },
   { label: "Full Gallop", freq: "5x per week", badge: "Best Value",
     prices: { "30 min": 25, "60 min": 40 }, description: "Five walks a week — for the high-energy dog who lives for the leash." },
 ];
@@ -547,7 +547,7 @@ function toDateKey(date) {
 // ─── Pricing Helpers ──────────────────────────────────────────────────────────
 const PRICE_TIERS = [
   { minBookings: 5, label: "Full Gallop", prices: { "30 min": 25, "60 min": 40 } },
-  { minBookings: 3, label: "Steady Stroll", prices: { "30 min": 27.50, "60 min": 47.50 } },
+  { minBookings: 3, label: "Steady Stroll", prices: { "30 min": 27.50, "60 min": 42.50 } },
   { minBookings: 1, label: "Easy Rider", prices: { "30 min": 30, "60 min": 45 } },
 ];
 
@@ -7984,7 +7984,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                 nameFg: "#6b7280", lineFg: "#f3f4f6",
                 durationFg: "#9ca3af", priceFg: "#111827", saveFg: null },
               { label: "Steady Stroll", freq: "3× per week", badge: "POPULAR", badgeColor: "#C4541A",
-                price30: 27.50, price60: 47.50, save30: "save $2.50", save60: null,
+                price30: 27.50, price60: 42.50, save30: "save $2.50", save60: "save $2.50",
                 bannerBg: "#C4541A", bannerFg: "#fff",
                 cardBorder: "#1A1A1A", cardBg: "#1A1A1A",
                 nameFg: "rgba(255,255,255,0.5)", lineFg: "rgba(255,255,255,0.1)",
@@ -8024,7 +8024,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                       color: tier.durationFg }}>30 min</span>
                     <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
                       <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
-                        fontWeight: 500, color: tier.priceFg }}>${tier.price30}</span>
+                        fontWeight: 500, color: tier.priceFg }}>${tier.price30.toFixed(2)}</span>
                       {tier.save30 && <span style={{ fontFamily: "'DM Sans', sans-serif",
                         fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save30}</span>}
                     </div>
@@ -8035,7 +8035,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                       color: tier.durationFg }}>60 min</span>
                     <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
                       <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
-                        fontWeight: 500, color: tier.priceFg }}>${tier.price60}</span>
+                        fontWeight: 500, color: tier.priceFg }}>${tier.price60.toFixed(2)}</span>
                       {tier.save60 && <span style={{ fontFamily: "'DM Sans', sans-serif",
                         fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save60}</span>}
                     </div>
@@ -11450,9 +11450,9 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
 
               {/* ── Gratuity KPI grid ── */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
-                {kpiCard("🤝", weekGratuity > 0 ? fmt(weekGratuity, true) : "—", "This Week's Gratuity",
+                {kpiCard("", weekGratuity > 0 ? fmt(weekGratuity, true) : "—", "This Week's Gratuity",
                   "#059669", "#f0fdf4", "#a8d5bf", null)}
-                {kpiCard("🤝", allTimeGratuity > 0 ? fmt(allTimeGratuity, true) : "—", "All-Time Gratuity",
+                {kpiCard("", allTimeGratuity > 0 ? fmt(allTimeGratuity, true) : "—", "All-Time Gratuity",
                   "#059669", "#f0fdf4", "#a8d5bf", null)}
               </div>
 
@@ -13192,7 +13192,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               borderRadius: "14px", padding: "16px 18px", marginBottom: "20px" }}>
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 700,
                 letterSpacing: "1.5px", textTransform: "uppercase", color: "#C4541A", marginBottom: "12px" }}>
-                🤝 Gratuities (100% yours)
+                Gratuities (100% yours)
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 {[
@@ -13257,7 +13257,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                               fontWeight: 600, color: "#059669",
                               background: "#f0fdf4", border: "1px solid #a8d5bf",
                               borderRadius: "5px", padding: "1px 6px", marginTop: "3px" }}>
-                              🤝 +${walkGrat.toFixed(2)} tip
+                              +${walkGrat.toFixed(2)} tip
                             </div>
                           )}
                         </div>
@@ -13281,7 +13281,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                             ["Time", b.slot?.time || "—"],
                             ["Session Rate", `$${effectivePrice(b)}`],
                             ["Your Payout", `$${payout}`],
-                            ...(walkGrat > 0 ? [["🤝 Gratuity", `$${walkGrat.toFixed(2)}`]] : []),
+                            ...(walkGrat > 0 ? [["Gratuity", `$${walkGrat.toFixed(2)}`]] : []),
                           ].map(([label, val]) => (
                             <div key={label}>
                               <div style={{ fontSize: "11px", fontWeight: 600, color: "#9ca3af",
@@ -14925,7 +14925,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                               </div>
                               {inv.gratuity > 0 && (
                                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px" }}>
-                                  <span style={{ color: "#C4541A", fontWeight: 500 }}>🤝 Gratuity (to walker)</span>
+                                  <span style={{ color: "#C4541A", fontWeight: 500 }}>Gratuity (to walker)</span>
                                   <span style={{ fontWeight: 600, color: "#C4541A" }}>+${Number(inv.gratuity).toFixed(2)}</span>
                                 </div>
                               )}
@@ -15967,8 +15967,8 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
             ];
             const row2 = [
               { label: "Uninvoiced",             value: `${bulkWalkCount}`,                                          sub: `${bulkClientCount} client${bulkClientCount !== 1 ? "s" : ""}`, color: "#3D6B7A",  bg: "#EBF4F6", border: "#8ECAD4" },
-              { label: "🤝 Gratuities Owed",     value: gratuityOwed > 0 ? fmt(gratuityOwed, true) : "—",           sub: "unpaid to walkers",                                              color: "#059669",  bg: "#f0fdf4", border: "#a8d5bf" },
-              { label: "🤝 Gratuities Paid",     value: gratuitiesPaidLifetime > 0 ? fmt(gratuitiesPaidLifetime, true) : "—", sub: "lifetime disbursed",                               color: "#7A4D6E",  bg: "#F7F0F5", border: "#D8ABCF" },
+              { label: "Gratuities Owed",     value: gratuityOwed > 0 ? fmt(gratuityOwed, true) : "—",           sub: "unpaid to walkers",                                              color: "#059669",  bg: "#f0fdf4", border: "#a8d5bf" },
+              { label: "Gratuities Paid",     value: gratuitiesPaidLifetime > 0 ? fmt(gratuitiesPaidLifetime, true) : "—", sub: "lifetime disbursed",                               color: "#7A4D6E",  bg: "#F7F0F5", border: "#D8ABCF" },
             ];
             return (
               <>
@@ -16120,7 +16120,7 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
                             {inv.gratuity > 0 && (
                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                 <span style={{ fontFamily: "'DM Sans', sans-serif",
-                                  fontSize: "14px", color: "#C4541A", fontWeight: 500 }}>🤝 Gratuity (to walker)</span>
+                                  fontSize: "14px", color: "#C4541A", fontWeight: 500 }}>Gratuity (to walker)</span>
                                 <span style={{ fontFamily: "'DM Sans', sans-serif",
                                   fontSize: "14px", fontWeight: 600, color: "#C4541A" }}>+${Number(inv.gratuity).toFixed(2)}</span>
                               </div>
@@ -16928,7 +16928,7 @@ function ClientInvoicesPage({ client, clients, setClients }) {
                       {inv.gratuity > 0 && (
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                           <span style={{ fontFamily: "'DM Sans', sans-serif",
-                            fontSize: "14px", color: "#C4541A", fontWeight: 500 }}>🤝 Gratuity</span>
+                            fontSize: "14px", color: "#C4541A", fontWeight: 500 }}>Gratuity</span>
                           <span style={{ fontFamily: "'DM Sans', sans-serif",
                             fontSize: "14px", fontWeight: 600, color: "#C4541A" }}>
                             +${Number(inv.gratuity).toFixed(2)}
@@ -24044,7 +24044,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                             <>
                               <div style={{ fontFamily: "'DM Sans', sans-serif",
                                 fontSize: "13px", color: "#9ca3af", marginBottom: "2px" }}>
-                                Walks ${total.toLocaleString()} + 🤝 ${gratuity.toFixed(2)}
+                                Walks ${total.toLocaleString()} + ${gratuity.toFixed(2)} tip
                               </div>
                               <div style={{ fontFamily: "'DM Sans', sans-serif",
                                 fontSize: "17px", fontWeight: 700, color: "#059669",
@@ -24117,7 +24117,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                           color: "#059669", fontWeight: 500, marginBottom: "12px",
                           background: "#f0fdf4", border: "1px solid #a8d5bf",
                           borderRadius: "8px", padding: "7px 12px" }}>
-                          🤝 Gratuity to pass along: ${gratuity.toFixed(2)} (from client — goes 100% to walker)
+                          Gratuity to pass along: ${gratuity.toFixed(2)} (from client — goes 100% to walker)
                         </div>
                       )}
                       {isPending ? (
@@ -24249,7 +24249,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                                 </tr>`;
                                 if (rGrat > 0) {
                                   body += `<tr>
-                                    <td colspan="5" style="background-color:#f0fdf4;font-family:Arial,sans-serif;font-size:11px;font-weight:bold;padding:6px 10px;border:1px solid #a8d5bf;text-align:right;color:#374151;">🤝 Gratuity for ${esc(r.walkerFullName)}</td>
+                                    <td colspan="5" style="background-color:#f0fdf4;font-family:Arial,sans-serif;font-size:11px;font-weight:bold;padding:6px 10px;border:1px solid #a8d5bf;text-align:right;color:#374151;">Gratuity for ${esc(r.walkerFullName)}</td>
                                     <td style="background-color:#f0fdf4;border:1px solid #a8d5bf;"></td>
                                     <td style="background-color:#f0fdf4;font-family:Arial,sans-serif;font-size:12px;font-weight:bold;padding:6px 10px;border:1px solid #a8d5bf;text-align:right;color:#059669;">${fmt(rGrat, true)}</td>
                                   </tr>`;
@@ -24321,7 +24321,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                                 <div style={{ fontFamily: "'DM Sans', sans-serif",
                                   fontSize: "12px", fontWeight: 600, color: "#059669",
                                   marginTop: "2px" }}>
-                                  🤝 +${wkGratuity.toFixed(2)} tips
+                                  +${wkGratuity.toFixed(2)} tips
                                 </div>
                               )}
                             </div>
@@ -24353,7 +24353,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                               </div>
                               {rGrat > 0 && (
                                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#9ca3af" }}>
-                                  walks ${r.total} + 🤝 ${rGrat.toFixed(2)}
+                                  walks ${r.total} + ${rGrat.toFixed(2)} tip
                                 </div>
                               )}
                             </div>
