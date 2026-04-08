@@ -3326,7 +3326,7 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                           fontWeight: 600, color: "#111827", marginBottom: "2px" }}>{firstName(walker.name)}</div>
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                          color: walker.color, fontWeight: 500 }}>{walker.role}</div>
+                          color: walker.color, fontWeight: 500 }}>{(walker.role || "").replace(/ & /g, " / ")}</div>
                       </div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                         color: "#9ca3af", textAlign: "right" }}>
@@ -6137,7 +6137,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                         fontWeight: 600, color: "#111827", marginBottom: "2px" }}>{firstName(walker.name)}</div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                        color: walker.color, fontWeight: 500 }}>{walker.role}</div>
+                        color: walker.color, fontWeight: 500 }}>{(walker.role || "").replace(/ & /g, " / ")}</div>
                     </div>
                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                       color: "#9ca3af", textAlign: "right" }}>
@@ -8267,7 +8267,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                         fontWeight: 600, color: "#111827", marginBottom: "2px" }}>{firstName(walker.name)}</div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                        color: walker.color, fontWeight: 500 }}>{walker.role}</div>
+                        color: walker.color, fontWeight: 500 }}>{(walker.role || "").replace(/ & /g, " / ")}</div>
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
@@ -15213,7 +15213,7 @@ function AdminMapView({ clients, walkerProfiles, geoCache, setGeoCache }) {
             <div style="font-weight:700;font-size:14px;color:#111827;margin-bottom:3px">
               ${w.avatar} ${prof.preferredName || w.name}
             </div>
-            <div style="font-size:12px;color:${w.color};margin-bottom:4px">${w.role}</div>
+            <div style="font-size:12px;color:${w.color};margin-bottom:4px">${(w.role||"").replace(/ & /g, " / ")}</div>
             <div style="font-size:11px;color:#6b7280;line-height:1.4">🏠 ${addr}</div>
           </div>
         `);
@@ -21484,7 +21484,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       {prof.preferredName || w.name}
                     </div>
                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                      color: w.color, fontWeight: 500 }}>{w.role}</div>
+                      color: w.color, fontWeight: 500 }}>{(w.role || "").replace(/ & /g, " / ")}</div>
                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                       color: "#9ca3af", marginTop: "3px" }}>{w.years}+ years experience</div>
                   </div>
@@ -24009,14 +24009,22 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       <div style={{ textAlign: "right", flexShrink: 0, display: "flex",
                         alignItems: "center", gap: "10px" }}>
                         <div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif",
-                            fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600, color }}>${total.toLocaleString()}</div>
-                          {gratuity > 0 && (
+                          {gratuity > 0 ? (
+                            <>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif",
+                                fontSize: "13px", color: "#9ca3af", marginBottom: "2px" }}>
+                                Walks ${total.toLocaleString()} + 🤝 ${gratuity.toFixed(2)}
+                              </div>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif",
+                                fontSize: "17px", fontWeight: 700, color: "#059669",
+                                letterSpacing: "0.5px" }}>
+                                ${(total + gratuity).toFixed(2)} total due
+                              </div>
+                            </>
+                          ) : (
                             <div style={{ fontFamily: "'DM Sans', sans-serif",
-                              fontSize: "12px", fontWeight: 600, color: "#059669",
-                              background: "#f0fdf4", border: "1px solid #a8d5bf",
-                              borderRadius: "5px", padding: "1px 6px", marginTop: "3px" }}>
-                              🤝 +${gratuity.toFixed(2)} tip
+                              fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600, color }}>
+                              ${total.toLocaleString()}
                             </div>
                           )}
                         </div>
@@ -24070,7 +24078,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                         color: hasAddress ? "#9ca3af" : "#b45309", marginBottom: gratuity > 0 ? "6px" : "12px" }}>
                         {hasAddress
-                          ? `📬 Send $${total.toLocaleString()} check to: ${address}`
+                          ? `📬 Send ${gratuity > 0 ? `$${(total + gratuity).toFixed(2)}` : `$${total.toLocaleString()}`} to: ${address}`
                           : "📬 Ask this walker to add their mailing address in My Info before cutting a check."}
                       </div>
                       {gratuity > 0 && (
