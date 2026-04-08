@@ -16000,7 +16000,14 @@ function AdminInvoicesTab({ clients, setClients }) {
                         </div>
                         <div style={{ flexShrink: 0, textAlign: "right" }}>
                           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                            fontWeight: 600, color: "#111827" }}>${inv.total}</div>
+                            fontWeight: 600, color: "#111827" }}>${(inv.total + (inv.gratuity || 0)).toFixed(2)}</div>
+                          {inv.gratuity > 0 && (
+                            <div style={{ fontSize: "12px", fontWeight: 600, color: "#C4541A",
+                              background: "#FDF5EC", border: "1px solid #D4A87A",
+                              borderRadius: "6px", padding: "1px 6px", marginTop: "3px", whiteSpace: "nowrap" }}>
+                              +${Number(inv.gratuity).toFixed(2)} tip
+                            </div>
+                          )}
                           <div style={{ fontSize: "16px", color: isExpanded ? green : "#d1d5db",
                             transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>⌄</div>
                         </div>
@@ -16026,13 +16033,32 @@ function AdminInvoicesTab({ clients, setClients }) {
                                 flexShrink: 0 }}>${it.amount}</span>
                             </div>
                           ))}
-                          <div style={{ display: "flex", justifyContent: "space-between",
-                            alignItems: "center", paddingTop: "10px",
-                            borderTop: "1.5px solid #e4e7ec", marginTop: "4px" }}>
-                            <span style={{ fontFamily: "'DM Sans', sans-serif",
-                              fontSize: "15px", fontWeight: 600, color: "#111827" }}>Total</span>
-                            <span style={{ fontFamily: "'DM Sans', sans-serif",
-                              fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600, color: green }}>${inv.total}</span>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "6px",
+                            borderTop: "1.5px solid #e4e7ec", marginTop: "4px", paddingTop: "10px" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif",
+                                fontSize: "14px", color: "#9ca3af" }}>Walk Total</span>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif",
+                                fontSize: "14px", fontWeight: 600, color: "#111827" }}>${inv.total}</span>
+                            </div>
+                            {inv.gratuity > 0 && (
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span style={{ fontFamily: "'DM Sans', sans-serif",
+                                  fontSize: "14px", color: "#C4541A", fontWeight: 500 }}>🤝 Gratuity (to walker)</span>
+                                <span style={{ fontFamily: "'DM Sans', sans-serif",
+                                  fontSize: "14px", fontWeight: 600, color: "#C4541A" }}>+${Number(inv.gratuity).toFixed(2)}</span>
+                              </div>
+                            )}
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+                              borderTop: "1px solid #e4e7ec", paddingTop: "6px" }}>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif",
+                                fontSize: "15px", fontWeight: 700, color: "#111827" }}>Total</span>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif",
+                                fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
+                                fontWeight: 600, color: green }}>
+                                ${(inv.total + (inv.gratuity || 0)).toFixed(2)}
+                              </span>
+                            </div>
                           </div>
                         </div>
 
