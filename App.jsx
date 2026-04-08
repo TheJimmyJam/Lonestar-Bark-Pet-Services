@@ -1485,14 +1485,7 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
     color: "#ffffffaa", marginBottom: "6px",
   };
 
-  const SCHEDULE_OPTIONS = [
-    { value: "1x", label: "Easy Rider", freq: "1× / week",
-      price: preferredDuration === "60 min" ? "$55" : "$40", color: "#6b7280" },
-    { value: "3x", label: "Steady Stroll", freq: "3× / week",
-      price: preferredDuration === "60 min" ? "$50" : "$35", color: "#C4541A" },
-    { value: "5x", label: "Full Gallop", freq: "5× / week",
-      price: preferredDuration === "60 min" ? "$45" : "$30", color: "#3D6B7A" },
-  ];
+  
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(135deg,#0a1220 0%,#0B1423 50%,#0a1220 100%)",
@@ -7560,67 +7553,71 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             The more you book, the less you pay — and your whole week reprices when you unlock a new tier.
           </p>
 
-          {/* Pricing table */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1px",
-            background: "#e4e7ec", borderRadius: "14px", overflow: "hidden", marginBottom: "28px" }}>
+          {/* Pricing cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px", marginBottom: "28px" }}>
             {[
               { label: "Easy Rider", freq: "1× per week", badge: null, badgeColor: null,
                 price30: 30, price60: 45, save30: null, save60: null,
-                bg: "#fff", nameFg: "#6b7280", freqFg: "#9ca3af", lineFg: "#f3f4f6",
+                bannerBg: "#f5f6f8", bannerFg: "#9ca3af",
+                cardBorder: "#e4e7ec", cardBg: "#fff",
+                nameFg: "#6b7280", lineFg: "#f3f4f6",
                 durationFg: "#9ca3af", priceFg: "#111827", saveFg: null },
-              { label: "Steady Stroll", freq: "3× per week", badge: "Popular", badgeColor: "#C4541A",
+              { label: "Steady Stroll", freq: "3× per week", badge: "POPULAR", badgeColor: "#C4541A",
                 price30: 27.50, price60: 42.50, save30: "save $2.50", save60: "save $2.50",
-                bg: "#1A1A1A", nameFg: "rgba(255,255,255,0.5)", freqFg: "rgba(255,255,255,0.35)",
-                lineFg: "rgba(255,255,255,0.1)", durationFg: "rgba(255,255,255,0.35)",
-                priceFg: "#fff", saveFg: "#C4541A" },
-              { label: "Full Gallop", freq: "5× per week", badge: "Best Value", badgeColor: "#3D6B7A",
+                bannerBg: "#C4541A", bannerFg: "#fff",
+                cardBorder: "#1A1A1A", cardBg: "#1A1A1A",
+                nameFg: "rgba(255,255,255,0.5)", lineFg: "rgba(255,255,255,0.1)",
+                durationFg: "rgba(255,255,255,0.35)", priceFg: "#fff", saveFg: "#C4541A" },
+              { label: "Full Gallop", freq: "5× per week", badge: "BEST VALUE", badgeColor: "#3D6B7A",
                 price30: 25, price60: 40, save30: "save $5", save60: "save $5",
-                bg: "#fff", nameFg: "#6b7280", freqFg: "#9ca3af", lineFg: "#f3f4f6",
+                bannerBg: "#3D6B7A", bannerFg: "#fff",
+                cardBorder: "#3D6B7A", cardBg: "#fff",
+                nameFg: "#6b7280", lineFg: "#f3f4f6",
                 durationFg: "#9ca3af", priceFg: "#111827", saveFg: "#3D6B7A" },
             ].map(tier => (
-              <div key={tier.label} style={{ background: tier.bg, padding: "20px 20px 24px",
-                display: "flex", flexDirection: "column" }}>
-                {/* Badge row — always present for height consistency */}
-                <div style={{ height: "29px", display: "flex", alignItems: "center", marginBottom: "0" }}>
+              <div key={tier.label} style={{ borderRadius: "16px", overflow: "hidden",
+                border: `2px solid ${tier.cardBorder}` }}>
+                {/* Banner */}
+                <div style={{ background: tier.bannerBg, padding: "10px 16px",
+                  display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px",
+                    fontWeight: 600, letterSpacing: "0.1em", color: tier.bannerFg }}>
+                    {tier.freq}
+                  </span>
                   {tier.badge && (
-                    <span style={{ display: "inline-block", fontSize: "10px", fontWeight: 600,
-                      letterSpacing: "0.1em", textTransform: "uppercase", padding: "3px 10px",
-                      borderRadius: "20px", background: tier.badgeColor, color: "#fff" }}>
-                      {tier.badge}
-                    </span>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "9px",
+                      fontWeight: 600, letterSpacing: "0.1em", color: tier.bannerFg,
+                      background: "rgba(255,255,255,0.2)", padding: "2px 8px",
+                      borderRadius: "20px" }}>{tier.badge}</span>
                   )}
                 </div>
-                {/* Tier name */}
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", fontWeight: 600,
-                  letterSpacing: "0.12em", textTransform: "uppercase", color: tier.nameFg,
-                  marginBottom: "6px" }}>{tier.label}</div>
-                {/* Frequency */}
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-                  color: tier.freqFg, marginBottom: "0" }}>{tier.freq}</div>
-                {/* Divider */}
-                <div style={{ height: "0.5px", background: tier.lineFg, margin: "14px 0" }} />
-                {/* 30 min row */}
-                <div style={{ display: "flex", justifyContent: "space-between",
-                  alignItems: "center", padding: "5px 0" }}>
-                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
-                    color: tier.durationFg }}>30 min</span>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
-                      fontWeight: 500, color: tier.priceFg }}>${tier.price30}</span>
-                    {tier.save30 && <span style={{ fontFamily: "'DM Sans', sans-serif",
-                      fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save30}</span>}
+                {/* Card body */}
+                <div style={{ background: tier.cardBg, padding: "18px 18px 22px" }}>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", fontWeight: 600,
+                    letterSpacing: "0.12em", textTransform: "uppercase", color: tier.nameFg,
+                    marginBottom: "14px" }}>{tier.label}</div>
+                  <div style={{ height: "0.5px", background: tier.lineFg, marginBottom: "14px" }} />
+                  <div style={{ display: "flex", justifyContent: "space-between",
+                    alignItems: "center", padding: "5px 0" }}>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                      color: tier.durationFg }}>30 min</span>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
+                        fontWeight: 500, color: tier.priceFg }}>${tier.price30}</span>
+                      {tier.save30 && <span style={{ fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save30}</span>}
+                    </div>
                   </div>
-                </div>
-                {/* 60 min row */}
-                <div style={{ display: "flex", justifyContent: "space-between",
-                  alignItems: "center", padding: "5px 0" }}>
-                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
-                    color: tier.durationFg }}>60 min</span>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
-                      fontWeight: 500, color: tier.priceFg }}>${tier.price60}</span>
-                    {tier.save60 && <span style={{ fontFamily: "'DM Sans', sans-serif",
-                      fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save60}</span>}
+                  <div style={{ display: "flex", justifyContent: "space-between",
+                    alignItems: "center", padding: "5px 0" }}>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                      color: tier.durationFg }}>60 min</span>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
+                        fontWeight: 500, color: tier.priceFg }}>${tier.price60}</span>
+                      {tier.save60 && <span style={{ fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save60}</span>}
+                    </div>
                   </div>
                 </div>
               </div>
