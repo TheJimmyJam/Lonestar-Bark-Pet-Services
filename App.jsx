@@ -6632,7 +6632,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                               setStep("form");
                             }}
                             style={{ width: "100%", padding: "14px", borderRadius: "12px",
-                              border: "none", background: svc.color, color: "#fff",
+                              border: "none", background: "#059669", color: "#fff",
                               fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                               fontWeight: 500, cursor: "pointer" }}>
                             {selectedWalks.length > 1
