@@ -1206,7 +1206,7 @@ function Header({ client, onLogout }) {
       </div>
       <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff99",
         fontSize: "16px", letterSpacing: "3px", textTransform: "uppercase", fontWeight: 300 }}>
-        Professional Pet Care · Book Online
+        Professional Pet Care
       </div>
       {client && (
         <div style={{ marginTop: "12px", display: "flex", alignItems: "center",
@@ -4892,26 +4892,22 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     fontWeight: 600, letterSpacing: "1px", textTransform: "uppercase",
                     padding: "4px 12px", borderRadius: "20px" }}>{tier.badge}</div>
                 )}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
-                  <div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                      fontWeight: 600, color: "#111827", marginBottom: "2px" }}>{tier.label}</div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                      color: "#6b7280", marginBottom: "4px" }}>{tier.freq}</div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#9ca3af" }}>
-                      {tier.description}
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
+                  fontWeight: 600, color: "#111827", marginBottom: "2px" }}>{tier.label}</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                  color: "#6b7280", marginBottom: "4px" }}>{tier.freq}</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af", marginBottom: "14px" }}>
+                  {tier.description}
+                </div>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  {Object.entries(tier.prices).map(([dur, price]) => (
+                    <div key={dur} style={{ flex: 1, background: "#f5f6f8", borderRadius: "10px",
+                      padding: "8px 12px", textAlign: "center" }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af", marginBottom: "2px" }}>{dur}</div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", textTransform: "uppercase", letterSpacing: "1px",
+                        fontWeight: 600, color: "#111827" }}>${price}</div>
                     </div>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-end" }}>
-                    {Object.entries(tier.prices).map(([dur, price]) => (
-                      <div key={dur} style={{ background: "#f5f6f8", borderRadius: "10px",
-                        padding: "8px 12px", textAlign: "right", minWidth: "100px" }}>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>{dur}</div>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                          fontWeight: 600, color: "#111827" }}>${price}</div>
-                      </div>
-                    ))}
-                  </div>
+                  ))}
                 </div>
               </div>
             ))}
