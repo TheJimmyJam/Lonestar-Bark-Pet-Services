@@ -7755,19 +7755,14 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             gap: "24px", marginBottom: "48px" }}>
             {[
               {
+                icon: "📍",
+                title: "Start & End Confirmation",
+                desc: "Every walk starts with a short arrival video so you can see us greet your pup at the door. When we're done, we confirm the walk is complete — so you always know your pet is in good hands, even when you're in a meeting.",
+              },
+              {
                 icon: "📸",
                 title: "Photo Updates",
                 desc: "Your walker sends candid photos during the walk so you can see exactly what your pet is up to — tail wags and all.",
-              },
-              {
-                icon: "🎥",
-                title: "Video Clips",
-                desc: "Short video updates straight from the trail. Watch your pup sprint through the park or your cat enjoy their afternoon nap.",
-              },
-              {
-                icon: "📍",
-                title: "Start & End Confirmation",
-                desc: "We confirm when we arrive and when we're done, so you always know your pet is in good hands — even when you're in a meeting.",
               },
             ].map((item, i) => (
               <div key={i} style={{ background: "#f9fafb", borderRadius: "16px",
@@ -7785,24 +7780,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             ))}
           </div>
 
-          {/* Callout */}
-          <div style={{ background: "#FDF5EC", border: "1.5px solid #D4A87A",
-            borderRadius: "20px", padding: "32px", display: "flex",
-            gap: "20px", alignItems: "flex-start", flexWrap: "wrap" }}>
-            <div style={{ fontSize: "36px", flexShrink: 0 }}>🐾</div>
-            <div style={{ flex: 1, minWidth: "240px" }}>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase",
-                letterSpacing: "1.5px", fontWeight: 600, color: "#C4541A", marginBottom: "8px" }}>
-                Your Pet, Your Peace of Mind
-              </div>
-              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                color: "#374151", lineHeight: "1.75", margin: 0 }}>
-                Every walker on our team understands that your pet isn't just an animal — they're family. 
-                We take the trust you place in us seriously, and we show it through consistent communication, 
-                thoughtful care, and the kind of updates that make you smile mid-workday.
-              </p>
-            </div>
-          </div>
+
         </div>
       </section>
 
@@ -7814,7 +7792,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             fontWeight: 600, color: "#111827", marginBottom: "12px" }}>Meet the Team</div>
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
             marginBottom: "48px", lineHeight: "1.7", maxWidth: "480px", margin: "0 auto 48px" }}>
-            Every walker is vetted, pet first aid trained, and genuinely loves animals.
+            Here's your East Dallas dog walking team.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "52px" }}>
             {getAllWalkers(walkerProfiles).filter(walker => (walkerProfiles[walker.id]?.showOnTeamPage ?? true) !== false).map(walker => {
