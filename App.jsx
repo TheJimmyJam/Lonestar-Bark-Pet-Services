@@ -4604,19 +4604,24 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     setTimeout(() => {
       const newBookings = [];
 
+      console.log("[handleSubmit] selectedDays:", Array.from(selectedDays));
+      console.log("[handleSubmit] walksByDay:", JSON.stringify(walksByDay));
+      console.log("[handleSubmit] weekOffset:", weekOffset);
+
       // Loop over every selected day and its walks
       Array.from(selectedDays).sort((a, b) => a - b).forEach(dayIdx => {
         const dayWalks = (walksByDay[dayIdx] || []).filter(w => w.slotId && w.duration);
+        console.log(`[handleSubmit] day ${dayIdx} walks:`, JSON.stringify(dayWalks));
         dayWalks.forEach(w => {
           const slot = svc.slots.find(s => s.id === w.slotId);
-          if (!slot) return;
+          if (!slot) { console.warn("[handleSubmit] slot not found for slotId:", w.slotId); return; }
           const apptDate = new Date(weekDates[dayIdx]);
           const [timePart, meridiem] = slot.time.split(" ");
           let [hours, minutes] = timePart.split(":").map(Number);
           if (meridiem === "PM" && hours !== 12) hours += 12;
           if (meridiem === "AM" && hours === 12) hours = 0;
           apptDate.setHours(hours, minutes || 0, 0, 0);
-          newBookings.push({
+          const booking = {
             key: bookingKey(service, dayIdx, slot.id),
             service, day: FULL_DAYS[dayIdx], date: dateStrFromDate(weekDates[dayIdx]),
             slot: { ...slot, duration: w.duration },
@@ -4625,9 +4630,13 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
             additionalDogCount: additionalDogs.length,
             additionalDogCharge: additionalDogs.length * 10,
             price: 0, priceTier: "",
-          });
+          };
+          console.log("[handleSubmit] booking created:", booking.key, booking.scheduledDateTime);
+          newBookings.push(booking);
         });
       });
+
+      console.log("[handleSubmit] total newBookings:", newBookings.length);
 
       // Append new bookings then reprice
       const allBookings = applySameDayDiscount(repriceWeekBookings([...myBookings, ...newBookings]));
