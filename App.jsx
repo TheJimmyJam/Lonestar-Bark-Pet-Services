@@ -1390,7 +1390,8 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
   const [email, setEmail] = useState(savedEmail);
   const [emailError, setEmailError] = useState("");
   const [pinError, setPinError] = useState("");
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [dogs, setDogs] = useState([""]);
   const [cats, setCats] = useState([""]);
   
@@ -1464,7 +1465,7 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
 
   const validDogs = dogs.map(d => d.trim()).filter(Boolean);
   const validCats = cats.map(c => c.trim()).filter(Boolean);
-  const canSubmit = name.trim() && (validDogs.length > 0 || validCats.length > 0);
+  const canSubmit = firstName.trim() && lastName.trim() && (validDogs.length > 0 || validCats.length > 0);
 
   const handleFinishRegister = () => {
     if (!canSubmit) return;
@@ -1472,7 +1473,7 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
       id: `c_${Date.now()}`,
       email: email.trim().toLowerCase(),
       pin: pendingPin,
-      name: name.trim(),
+      name: `${firstName.trim()} ${lastName.trim()}`,
       dogs: validDogs,
       cats: validCats,
       walkSchedule: null,
@@ -1644,11 +1645,21 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
               Almost done! Tell us about yourself and your pets.
             </div>
 
-            {/* Your Name */}
-            <label style={labelStyle}>Your Name</label>
-            <input type="text" placeholder="Full name" value={name}
-              onChange={e => setName(e.target.value)}
-              style={{ ...inputStyle, marginBottom: "20px" }} />
+            {/* First & Last Name */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
+              <div>
+                <label style={labelStyle}>First Name</label>
+                <input type="text" placeholder="First name" value={firstName}
+                  onChange={e => setFirstName(e.target.value)}
+                  style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Last Name</label>
+                <input type="text" placeholder="Last name" value={lastName}
+                  onChange={e => setLastName(e.target.value)}
+                  style={inputStyle} />
+              </div>
+            </div>
 
             {/* Dogs — mandatory */}
             <div style={{ marginBottom: "20px" }}>
@@ -1724,7 +1735,7 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
               fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
               fontWeight: 500, cursor: canSubmit ? "pointer" : "default", letterSpacing: "0.3px",
             }}>Create Account →</button>
-            {!canSubmit && name.trim() && (
+            {!canSubmit && firstName.trim() && lastName.trim() && (
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                 color: "#ffffffaa", textAlign: "center", marginTop: "8px" }}>
                 Add at least one pet name to continue.
@@ -10505,14 +10516,22 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     const cid = handoff.clientId;
     if (!cid || !clients[cid]) return;
     setClaimedKeys(prev => new Set([...prev, handoff.key]));
+    const clientRecord = clients[cid];
+    // Auto-assign this walker to all unassigned bookings for this client
+    const updatedBookings = (clientRecord.bookings || []).map(b => {
+      if (b.cancelled || b.adminCompleted) return b;
+      if (b.form?.walker && b.form.walker !== "") return b; // already assigned
+      return { ...b, form: { ...b.form, walker: walker.name } };
+    });
     const updated = {
       ...clients,
       [cid]: {
-        ...clients[cid],
+        ...clientRecord,
         keyholder: walker.name,
         preferredWalker: walker.name,
+        bookings: updatedBookings,
         handoffInfo: {
-          ...clients[cid].handoffInfo,
+          ...clientRecord.handoffInfo,
           handoffWalker: walker.name,
         },
       },
@@ -11456,8 +11475,13 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                               </div>
                               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                                 color: "#E8D0E0", lineHeight: "1.4" }}>
-                                This is a 30-minute meet-and-greet — no charge. Claim it and you'll
+                                This is a 15-minute meet-and-greet — no charge. Claim it and you'll
                                 become their dedicated walker and keyholder.
+                              </div>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                                color: "#E8D0E0cc", lineHeight: "1.4", marginTop: "6px",
+                                borderTop: "1px solid rgba(255,255,255,0.15)", paddingTop: "6px" }}>
+                                📞 You must call this client prior to their scheduled appointment to confirm your estimated arrival time.
                               </div>
                             </div>
                           </div>
