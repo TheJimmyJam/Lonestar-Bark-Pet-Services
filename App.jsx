@@ -221,6 +221,7 @@ async function loadInvoicesFromDB() {
       items: typeof r.items === "string" ? JSON.parse(r.items) : (r.items || []),
       subtotal: r.subtotal,
       total: r.total,
+      gratuity: r.gratuity || 0,
       notes: r.notes || "",
       status: r.status,
       createdAt: r.created_at,
@@ -269,11 +270,12 @@ async function updateInvoiceInDB(invoiceId, updates) {
   try {
     // Map JS camelCase fields to DB snake_case
     const mapped = {};
-    if (updates.status  !== undefined) mapped.status   = updates.status;
-    if (updates.paidAt  !== undefined) mapped.paid_at  = updates.paidAt;
-    if (updates.sentAt  !== undefined) mapped.sent_at  = updates.sentAt;
-    if (updates.notes   !== undefined) mapped.notes    = updates.notes;
-    if (updates.dueDate !== undefined) mapped.due_date = updates.dueDate;
+    if (updates.status   !== undefined) mapped.status    = updates.status;
+    if (updates.paidAt   !== undefined) mapped.paid_at   = updates.paidAt;
+    if (updates.sentAt   !== undefined) mapped.sent_at   = updates.sentAt;
+    if (updates.notes    !== undefined) mapped.notes     = updates.notes;
+    if (updates.dueDate  !== undefined) mapped.due_date  = updates.dueDate;
+    if (updates.gratuity !== undefined) mapped.gratuity  = updates.gratuity;
     await sbFetch(`invoices?id=eq.${encodeURIComponent(invoiceId)}`, {
       method: "PATCH",
       headers: { "Prefer": "return=minimal" },
@@ -7619,6 +7621,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
   const [expandedWalker, setExpandedWalker] = useState(null);
   const [navScrolled, setNavScrolled] = useState(false);
   const [landingMenuOpen, setLandingMenuOpen] = useState(false);
+  const [faqOpen, setFaqOpen] = useState(null); // index of open FAQ item
   const [landingView, setLandingView] = useState(
     () => window.location.hash === "#apply" ? "apply" : "home"
   ); // "home" | "apply"
@@ -7658,6 +7661,41 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
     { id: "pricing", label: "Pricing" },
     { id: "handoff", label: "How It Works" },
     { id: "team", label: "Our Team" },
+  ];
+
+  const FAQ_ITEMS = [
+    {
+      q: "How do I pay?",
+      a: "We accept payments via Stripe or cash. We will send you an invoice after each walk is completed.",
+    },
+    {
+      q: "How much notice is needed for cancellation?",
+      a: "We understand emergencies happen. We keep the following cancellation policy.\n\n24 hours: No charge\n12–24 hours: 50% booking fee\nLess than 12 hours: 100% booking fee",
+    },
+    {
+      q: "What areas do you serve?",
+      a: "We currently serve East Dallas and surrounding neighborhoods. Not sure if we cover your area? Sign up and we'll let you know.",
+    },
+    {
+      q: "Do you have any references?",
+      a: "Yes. Upon request we will provide a list of satisfied clients including phone numbers and emails.",
+    },
+    {
+      q: "How are gratuities handled?",
+      a: "Being a repeat customer, referring a friend, or writing a review will be the best gratuity you can provide. If you want to give a little something extra, you can send it with your invoice or give it to your walker directly. Gratuities go to your walker 100%.",
+    },
+    {
+      q: "Are you bonded & insured?",
+      a: "Yes. We are bonded and insured and will provide documentation during the initial consultation visit.",
+    },
+    {
+      q: "What time will you visit my dog?",
+      a: "During the initial consultation visit, we will determine what time works best for your schedule. You can view all of our walker's availability each week on our website.",
+    },
+    {
+      q: "Still have questions?",
+      a: "Complete our \"Contact Us\" form and we will contact you with answers.",
+    },
   ];
 
   const LANDING_STYLES = `
@@ -7753,7 +7791,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
               <button onClick={() => setLandingMenuOpen(false)} style={{ background: "none",
                 border: "none", color: "#9B7444", fontSize: "22px", cursor: "pointer", lineHeight: 1 }}>✕</button>
             </div>
-            <div style={{ flex: 1, padding: "16px 0" }}>
+            <div style={{ flex: 1, padding: "16px 0", overflowY: "auto" }}>
               {NAV_LINKS.map(link => (
                 <button key={link.id} onClick={() => { scrollTo(link.id); setLandingMenuOpen(false); }} style={{
                   width: "100%", padding: "14px 24px", border: "none", background: "transparent",
@@ -7775,6 +7813,38 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                   Join the Team ✦
                 </span>
               </button>
+
+              {/* FAQ section */}
+              <div style={{ borderTop: "1px solid #1E4A32", marginTop: "8px", paddingTop: "8px" }}>
+                <div style={{ padding: "10px 24px 6px", fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "11px", fontWeight: 700, letterSpacing: "2.5px",
+                  textTransform: "uppercase", color: "#9B7444" }}>FAQ</div>
+                {FAQ_ITEMS.map((item, i) => (
+                  <div key={i}>
+                    <button onClick={() => setFaqOpen(faqOpen === i ? null : i)} style={{
+                      width: "100%", padding: "11px 24px", border: "none", background: "transparent",
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      cursor: "pointer", textAlign: "left", gap: "12px",
+                    }}>
+                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                        fontWeight: 500, color: "rgba(255,255,255,0.82)", lineHeight: "1.4", flex: 1 }}>
+                        {item.q}
+                      </span>
+                      <span style={{ color: "#9B7444", fontSize: "16px", flexShrink: 0,
+                        transition: "transform 0.2s",
+                        transform: faqOpen === i ? "rotate(45deg)" : "rotate(0deg)" }}>+</span>
+                    </button>
+                    {faqOpen === i && (
+                      <div style={{ padding: "0 24px 12px", fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "13px", color: "rgba(255,255,255,0.55)", lineHeight: "1.65" }}>
+                        {item.a.split("\n").map((line, i) => (
+                          <span key={i}>{line}{i < item.a.split("\n").length - 1 && <br />}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
             <div style={{ padding: "20px", borderTop: "1px solid #1E4A32",
               display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -8922,8 +8992,18 @@ export default function LonestarBark() {
     if (payment === "success" && invoiceId) {
       window.history.replaceState({}, "", window.location.pathname);
       const now = new Date().toISOString();
+      // Read any stored gratuity for this invoice
+      let gratuityAmount = 0;
+      try {
+        const stored = localStorage.getItem("dwi_stripe_gratuity");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed.invoiceId === invoiceId) gratuityAmount = parsed.amount || 0;
+          localStorage.removeItem("dwi_stripe_gratuity");
+        }
+      } catch {}
       // Update invoices table directly
-      updateInvoiceInDB(invoiceId, { status: "paid", paidAt: now });
+      updateInvoiceInDB(invoiceId, { status: "paid", paidAt: now, ...(gratuityAmount > 0 ? { gratuity: gratuityAmount } : {}) });
 
       // Try to fetch card details from Stripe session (requires get-payment-details edge fn)
       const fetchCardDetails = async () => {
@@ -8948,6 +9028,7 @@ export default function LonestarBark() {
             invoiceId, paidAt: now,
             last4: cardDetails?.last4 || null,
             brand: cardDetails?.brand || null,
+            gratuity: gratuityAmount || 0,
           }));
         } catch {}
       });
@@ -9302,7 +9383,7 @@ function RoleSelectScreen({ onSelectRole, onBack }) {
         </div>
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff88",
           fontSize: "13px", letterSpacing: "3.5px", textTransform: "uppercase", marginBottom: "28px" }}>
-          Born Here. Walk Here. &nbsp;·&nbsp; Dallas, TX
+          BORN HERE / WALK HERE / DALLAS, TX
         </div>
         <div style={{ display: "flex", justifyContent: "center" }}>
           <LogoBadge size={120} />
@@ -11319,6 +11400,12 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
           const overdueCount   = myInvoicesAll.filter(inv => invoiceStatusMeta(inv.status, inv.dueDate).effectiveStatus === "overdue").length;
           const overdueAmt     = myInvoicesAll.filter(inv => invoiceStatusMeta(inv.status, inv.dueDate).effectiveStatus === "overdue").reduce((s, inv) => s + (inv.total || 0), 0);
 
+          // Gratuity totals
+          const paidInvoices     = myInvoicesAll.filter(inv => inv.status === "paid" && inv.gratuity > 0);
+          const allTimeGratuity  = paidInvoices.reduce((s, inv) => s + (inv.gratuity || 0), 0);
+          const { monday: wMonG, sunday: wSunG } = getCurrentWeekRange();
+          const weekGratuity     = paidInvoices.filter(inv => { const d = new Date(inv.paidAt); return d >= wMonG && d <= wSunG; }).reduce((s, inv) => s + (inv.gratuity || 0), 0);
+
           // Next 5 upcoming walks across all time
           const upcoming5 = [...myWalks].sort((a, b) =>
             new Date(a.scheduledDateTime || a.bookedAt) - new Date(b.scheduledDateTime || b.bookedAt)
@@ -11379,6 +11466,14 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                 {kpiCard("🏅", fmt(allTimePayout, true), "All-Time Earnings","#C4541A", "#FDF5EC", "#F0E8D5", () => setTab("payouts"))}
                 {kpiCard("🗝️", myKeyClients.length, "Key Clients",
                   "#7A4D6E", "#F9F0F7", "#D8ABCF", () => setTab("myclients"))}
+              </div>
+
+              {/* ── Gratuity KPI grid ── */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
+                {kpiCard("🤝", allTimeGratuity > 0 ? fmt(allTimeGratuity, true) : "—", "All-Time Gratuity",
+                  "#059669", "#f0fdf4", "#a8d5bf", null)}
+                {kpiCard("🤝", weekGratuity > 0 ? fmt(weekGratuity, true) : "—", "This Week's Gratuity",
+                  "#059669", "#f0fdf4", "#a8d5bf", null)}
               </div>
 
               {/* ── Outstanding + Overdue ── */}
@@ -14750,6 +14845,13 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                                 color: meta.effectiveStatus === "paid" ? "#059669" : "#111827" }}>
                                 ${inv.total}
                               </div>
+                              {inv.gratuity > 0 && (
+                                <div style={{ fontSize: "12px", fontWeight: 600, color: "#C4541A",
+                                  background: "#FDF5EC", border: "1px solid #D4A87A",
+                                  borderRadius: "6px", padding: "2px 6px", whiteSpace: "nowrap" }}>
+                                  +${Number(inv.gratuity).toFixed(2)} tip
+                                </div>
+                              )}
                               <span style={{ color: "#9ca3af", fontSize: "13px",
                                 transform: isOpen ? "rotate(180deg)" : "none",
                                 display: "inline-block", transition: "transform 0.15s" }}>▾</span>
@@ -14788,6 +14890,27 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                                 ${inv.total}
                               </span>
                             </div>
+                            {inv.gratuity > 0 && (
+                              <div style={{ display: "flex", justifyContent: "space-between",
+                                alignItems: "center", marginTop: "8px", padding: "8px 12px",
+                                background: "#FDF5EC", borderRadius: "8px",
+                                border: "1.5px solid #D4A87A",
+                                fontFamily: "'DM Sans', sans-serif" }}>
+                                <div>
+                                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#C4541A" }}>
+                                    🤝 Gratuity (100% to walker)
+                                  </div>
+                                  {(inv.items || []).find(it => it.walker) && (
+                                    <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px" }}>
+                                      For {inv.items.find(it => it.walker)?.walker}
+                                    </div>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: "15px", fontWeight: 700, color: "#C4541A" }}>
+                                  +${Number(inv.gratuity).toFixed(2)}
+                                </div>
+                              </div>
+                            )}
                             <div style={{ fontFamily: "'DM Sans', sans-serif",
                               fontSize: "12px", color: "#9ca3af", marginTop: "8px" }}>
                               {inv.id}
@@ -15253,6 +15376,10 @@ function getAllInvoices(clients) {
 function StripePaymentModal({ invoice, client, onClose, onPaid }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [gratuity, setGratuity] = useState("");
+
+  const gratuityAmt = parseFloat(gratuity) || 0;
+  const totalWithTip = invoice.total + gratuityAmt;
 
   const handlePay = async () => {
     setLoading(true);
@@ -15263,16 +15390,20 @@ function StripePaymentModal({ invoice, client, onClose, onPaid }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           invoiceId: invoice.id,
-          amount: invoice.total,
+          amount: totalWithTip,
           clientName: client?.name || "Client",
           clientEmail: client?.email || "",
-          description: `Lonestar Bark Co. — Invoice ${invoice.id}`,
+          description: gratuityAmt > 0
+            ? `Lonestar Bark Co. — Invoice ${invoice.id} (incl. $${gratuityAmt.toFixed(2)} gratuity)`
+            : `Lonestar Bark Co. — Invoice ${invoice.id}`,
         }),
       });
       const data = await res.json();
       if (data.url) {
-        // Store client ID so we can auto-login on return from Stripe
         try { localStorage.setItem("dwi_stripe_return_clientId", client?.id || ""); } catch {}
+        if (gratuityAmt > 0) {
+          try { localStorage.setItem("dwi_stripe_gratuity", JSON.stringify({ invoiceId: invoice.id, amount: gratuityAmt })); } catch {}
+        }
         window.location.href = data.url;
       } else {
         setError(data.error || "Something went wrong. Please try again.");
@@ -15303,7 +15434,7 @@ function StripePaymentModal({ invoice, client, onClose, onPaid }) {
             color: "#ffffff99", fontSize: "22px", cursor: "pointer", lineHeight: 1 }}>✕</button>
         </div>
 
-        {/* Amount */}
+        {/* Amount due */}
         <div style={{ background: "#FDF5EC", borderBottom: "1.5px solid #D4A87A",
           padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#374151" }}>Amount due</div>
@@ -15312,6 +15443,43 @@ function StripePaymentModal({ invoice, client, onClose, onPaid }) {
         </div>
 
         <div style={{ padding: "24px" }}>
+
+          {/* Gratuity input */}
+          <div style={{ marginBottom: "20px" }}>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600,
+              letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "8px" }}>
+              Add Gratuity <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(optional — goes 100% to your walker)</span>
+            </div>
+            <div style={{ position: "relative" }}>
+              <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)",
+                fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#6b7280" }}>$</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                placeholder="0"
+                value={gratuity}
+                onChange={e => setGratuity(e.target.value.replace(/[^0-9.]/g, ""))}
+                style={{ width: "100%", padding: "11px 14px 11px 28px", borderRadius: "10px",
+                  border: "1.5px solid #d1d5db", fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "16px", color: "#111827", outline: "none" }}
+              />
+            </div>
+            {gratuityAmt > 0 && (
+              <div className="fade-up" style={{ marginTop: "10px", padding: "10px 14px",
+                background: "#FDF5EC", border: "1.5px solid #D4A87A", borderRadius: "10px",
+                display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280" }}>
+                  Invoice ${invoice.total} + tip ${gratuityAmt.toFixed(2)}
+                </span>
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                  fontWeight: 700, color: "#C4541A" }}>
+                  Total ${totalWithTip.toFixed(2)}
+                </span>
+              </div>
+            )}
+          </div>
+
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
             lineHeight: "1.6", marginBottom: "20px" }}>
             You'll be redirected to Stripe's secure checkout to complete your payment. After paying you'll be brought back here automatically.
@@ -15328,7 +15496,7 @@ function StripePaymentModal({ invoice, client, onClose, onPaid }) {
             background: loading ? "#9ca3af" : "#635bff", color: "#fff",
             fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
             fontWeight: 700, cursor: loading ? "default" : "pointer" }}>
-            {loading ? "Redirecting to Stripe…" : `🔒 Pay $${invoice.total} with Stripe`}
+            {loading ? "Redirecting to Stripe…" : `🔒 Pay $${totalWithTip.toFixed(2)} with Stripe`}
           </button>
 
           <div style={{ textAlign: "center", marginTop: "12px", fontFamily: "'DM Sans', sans-serif",
@@ -16649,6 +16817,20 @@ function ClientInvoicesPage({ client, clients, setClients }) {
                         ${inv.total}
                       </span>
                     </div>
+                    {inv.gratuity > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between",
+                        alignItems: "center", marginTop: "8px", padding: "8px 10px",
+                        background: "#FDF5EC", borderRadius: "8px", border: "1.5px solid #D4A87A" }}>
+                        <span style={{ fontFamily: "'DM Sans', sans-serif",
+                          fontSize: "14px", fontWeight: 600, color: "#C4541A" }}>
+                          🤝 Gratuity (goes 100% to your walker)
+                        </span>
+                        <span style={{ fontFamily: "'DM Sans', sans-serif",
+                          fontSize: "14px", fontWeight: 700, color: "#C4541A" }}>
+                          +${Number(inv.gratuity).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {inv.notes && (
