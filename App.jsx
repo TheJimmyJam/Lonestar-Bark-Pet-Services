@@ -1256,6 +1256,7 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
     { id: "about", label: "Our Team", icon: "👥" },
     ...(client.keyholder ? [{ id: "messages", label: "Messages", icon: "💬" }] : []),
     { id: "myinfo", label: "My Info", icon: "👤" },
+    { id: "contact", label: "Contact Us", icon: "✉️" },
   ];
   const [pinned, ...rest] = clientTabs;
   return (
@@ -5905,6 +5906,19 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         <ClientMyInfoPage client={client} clients={clients} setClients={setClients} />
       )}
 
+      {/* ── CONTACT PAGE ── */}
+      {page === "contact" && (
+        <div className="app-container fade-up">
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase",
+            letterSpacing: "1.5px", fontWeight: 600, color: "#111827", marginBottom: "4px" }}>Contact Us</div>
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
+            marginBottom: "20px" }}>
+            Have a question or need to reach us? Fill out the form below and we'll get back to you shortly.
+          </p>
+          <ClientContactForm client={client} />
+        </div>
+      )}
+
       {/* ── MESSAGES PAGE ── */}
       {page === "messages" && (
         <div className="fade-up" style={{ padding: "20px 16px", maxWidth: "680px", margin: "0 auto" }}>
@@ -7406,10 +7420,360 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
 }
 
 // ─── Landing Page ─────────────────────────────────────────────────────────────
+// ─── Client Portal Contact Form (inline, pre-filled) ─────────────────────────
+function ClientContactForm({ client }) {
+  const green = "#C4541A";
+  const [form, setForm] = useState({
+    name: client?.name || "",
+    phone: client?.phone || "",
+    email: client?.email || "",
+    preference: "email",
+    message: "",
+  });
+  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const hasContact = form.phone.trim() || form.email.trim();
+  const canSubmit = hasContact && form.message.trim() && !submitting;
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await notifyAdmin("contact_us", {
+        name: form.name.trim() || "Anonymous",
+        phone: form.phone.trim(),
+        email: form.email.trim(),
+        preference: form.preference,
+        message: form.message.trim(),
+      });
+      setSubmitted(true);
+    } catch {
+      setError("Something went wrong. Please try again.");
+    }
+    setSubmitting(false);
+  };
+
+  const labelStyle = {
+    display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+    fontWeight: 600, letterSpacing: "1.5px", textTransform: "uppercase",
+    color: "#9ca3af", marginBottom: "6px",
+  };
+  const inputStyle = {
+    width: "100%", padding: "11px 14px", borderRadius: "10px",
+    border: "1.5px solid #e4e7ec", background: "#fff",
+    fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+    color: "#111827", outline: "none", boxSizing: "border-box",
+  };
+
+  if (submitted) {
+    return (
+      <div className="fade-up" style={{ background: "#fff", border: "1.5px solid #e4e7ec",
+        borderRadius: "16px", padding: "40px 24px", textAlign: "center" }}>
+        <div style={{ fontSize: "48px", marginBottom: "14px" }}>🐾</div>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "18px",
+          fontWeight: 700, color: "#111827", marginBottom: "8px" }}>Message Sent!</div>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+          color: "#6b7280", lineHeight: "1.6" }}>
+          We received your message and will reach out via your preferred contact method soon.
+        </div>
+        <button onClick={() => { setSubmitted(false); setForm(f => ({ ...f, message: "" })); }}
+          style={{ marginTop: "24px", padding: "12px 32px", borderRadius: "10px",
+            border: "none", background: green, color: "#fff",
+            fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+            fontWeight: 600, cursor: "pointer" }}>
+          Send Another
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
+      borderRadius: "16px", padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
+
+      {/* Name */}
+      <div>
+        <label style={labelStyle}>Your Name <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "12px" }}>(optional)</span></label>
+        <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+          placeholder="First and last name" style={inputStyle}
+          onFocus={e => e.target.style.borderColor = green}
+          onBlur={e => e.target.style.borderColor = "#e4e7ec"} />
+      </div>
+
+      {/* Phone + Email */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+        <div>
+          <label style={labelStyle}>Phone <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "12px" }}>(optional)</span></label>
+          <input type="tel" value={form.phone}
+            onChange={e => setForm(f => ({ ...f, phone: formatPhone(e.target.value) }))}
+            maxLength={12} placeholder="214.555.0000" style={inputStyle}
+            onFocus={e => e.target.style.borderColor = green}
+            onBlur={e => e.target.style.borderColor = "#e4e7ec"} />
+        </div>
+        <div>
+          <label style={labelStyle}>Email <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "12px" }}>(optional)</span></label>
+          <input type="email" value={form.email}
+            onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+            placeholder="you@email.com" style={inputStyle}
+            onFocus={e => e.target.style.borderColor = green}
+            onBlur={e => e.target.style.borderColor = "#e4e7ec"} />
+        </div>
+      </div>
+      {!hasContact && (
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+          color: "#f59e0b", marginTop: "-8px" }}>
+          ⚠ Please provide at least a phone number or email address.
+        </div>
+      )}
+
+      {/* Contact Preference */}
+      <div>
+        <label style={labelStyle}>Preferred Contact Method</label>
+        <div style={{ display: "flex", gap: "8px" }}>
+          {[
+            { id: "phone", label: "📞 Phone Call" },
+            { id: "email", label: "✉️ Email" },
+            { id: "text", label: "💬 Text" },
+          ].map(opt => (
+            <button key={opt.id} onClick={() => setForm(f => ({ ...f, preference: opt.id }))}
+              style={{ flex: 1, padding: "10px 6px", borderRadius: "10px", cursor: "pointer",
+                border: form.preference === opt.id ? `2px solid ${green}` : "1.5px solid #e4e7ec",
+                background: form.preference === opt.id ? `${green}12` : "#f9fafb",
+                color: form.preference === opt.id ? green : "#6b7280",
+                fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                fontWeight: form.preference === opt.id ? 600 : 400,
+                transition: "all 0.15s" }}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Message */}
+      <div>
+        <label style={labelStyle}>
+          How can we help?
+          <span style={{ float: "right", fontWeight: 400, textTransform: "none",
+            letterSpacing: 0, fontSize: "12px",
+            color: form.message.length > 220 ? "#ef4444" : "#9ca3af" }}>
+            {form.message.length}/250
+          </span>
+        </label>
+        <textarea value={form.message}
+          onChange={e => setForm(f => ({ ...f, message: e.target.value.slice(0, 250) }))}
+          rows={4} placeholder="Tell us what's on your mind…"
+          style={{ ...inputStyle, resize: "none", lineHeight: "1.6" }}
+          onFocus={e => e.target.style.borderColor = green}
+          onBlur={e => e.target.style.borderColor = "#e4e7ec"} />
+      </div>
+
+      {error && (
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#ef4444" }}>
+          {error}
+        </div>
+      )}
+
+      <button onClick={handleSubmit} disabled={!canSubmit}
+        style={{ width: "100%", padding: "15px", borderRadius: "12px", border: "none",
+          background: canSubmit ? green : "#e4e7ec",
+          color: canSubmit ? "#fff" : "#9ca3af",
+          fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600,
+          cursor: canSubmit ? "pointer" : "default", transition: "all 0.15s" }}>
+        {submitting ? "Sending…" : "Send Message"}
+      </button>
+    </div>
+  );
+}
+
+// ─── Contact Us Form (modal, used on landing page) ────────────────────────────
+function ContactUsForm({ onClose, darkMode = false }) {
+  const green = "#C4541A";
+  const [form, setForm] = useState({ name: "", phone: "", email: "", preference: "email", message: "" });
+  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const hasContact = form.phone.trim() || form.email.trim();
+  const canSubmit = hasContact && form.message.trim() && !submitting;
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await notifyAdmin("contact_us", {
+        name: form.name.trim() || "Anonymous",
+        phone: form.phone.trim(),
+        email: form.email.trim(),
+        preference: form.preference,
+        message: form.message.trim(),
+      });
+      setSubmitted(true);
+    } catch {
+      setError("Something went wrong. Please try again.");
+    }
+    setSubmitting(false);
+  };
+
+  const labelStyle = {
+    display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+    fontWeight: 600, letterSpacing: "1.5px", textTransform: "uppercase",
+    color: darkMode ? "rgba(255,255,255,0.5)" : "#9ca3af", marginBottom: "6px",
+  };
+  const inputStyle = {
+    width: "100%", padding: "11px 14px", borderRadius: "10px",
+    border: `1.5px solid ${darkMode ? "rgba(255,255,255,0.12)" : "#e4e7ec"}`,
+    background: darkMode ? "rgba(255,255,255,0.06)" : "#fff",
+    fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+    color: darkMode ? "#fff" : "#111827", outline: "none", boxSizing: "border-box",
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 500,
+      background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end",
+      justifyContent: "center" }}>
+      <div className="fade-up" style={{
+        background: darkMode ? "#0B1423" : "#fff",
+        borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "520px",
+        maxHeight: "92vh", overflowY: "auto",
+        padding: "28px 24px 40px", boxShadow: "0 -8px 40px rgba(0,0,0,0.3)",
+      }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+          <div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+              textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 700,
+              color: darkMode ? "#fff" : "#111827" }}>Contact Us</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+              color: darkMode ? "rgba(255,255,255,0.5)" : "#9ca3af", marginTop: "2px" }}>
+              We'll get back to you shortly.
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none",
+            color: darkMode ? "rgba(255,255,255,0.4)" : "#9ca3af",
+            fontSize: "22px", cursor: "pointer", lineHeight: 1, padding: "4px" }}>✕</button>
+        </div>
+
+        {submitted ? (
+          <div className="fade-up" style={{ textAlign: "center", padding: "32px 0" }}>
+            <div style={{ fontSize: "48px", marginBottom: "14px" }}>🐾</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "18px",
+              fontWeight: 700, color: darkMode ? "#fff" : "#111827", marginBottom: "8px" }}>
+              Message Sent!
+            </div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+              color: darkMode ? "rgba(255,255,255,0.5)" : "#6b7280", lineHeight: "1.6" }}>
+              We received your message and will reach out via your preferred contact method soon.
+            </div>
+            <button onClick={onClose} style={{ marginTop: "24px", padding: "12px 32px",
+              borderRadius: "10px", border: "none", background: green, color: "#fff",
+              fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
+              cursor: "pointer" }}>Done</button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            {/* Name */}
+            <div>
+              <label style={labelStyle}>Your Name <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(optional)</span></label>
+              <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="First and last name" style={inputStyle}
+                onFocus={e => e.target.style.borderColor = green}
+                onBlur={e => e.target.style.borderColor = darkMode ? "rgba(255,255,255,0.12)" : "#e4e7ec"} />
+            </div>
+
+            {/* Phone + Email */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div>
+                <label style={labelStyle}>Phone</label>
+                <input type="tel" value={form.phone}
+                  onChange={e => setForm(f => ({ ...f, phone: formatPhone(e.target.value) }))}
+                  maxLength={12} placeholder="214.555.0000" style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = green}
+                  onBlur={e => e.target.style.borderColor = darkMode ? "rgba(255,255,255,0.12)" : "#e4e7ec"} />
+              </div>
+              <div>
+                <label style={labelStyle}>Email</label>
+                <input type="email" value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="you@email.com" style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = green}
+                  onBlur={e => e.target.style.borderColor = darkMode ? "rgba(255,255,255,0.12)" : "#e4e7ec"} />
+              </div>
+            </div>
+            {!hasContact && (
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                color: "#f59e0b", marginTop: "-6px" }}>
+                ⚠ Please provide at least a phone number or email address.
+              </div>
+            )}
+
+            {/* Contact Preference */}
+            <div>
+              <label style={labelStyle}>Preferred Contact Method</label>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {[
+                  { id: "phone", label: "📞 Phone Call" },
+                  { id: "email", label: "✉️ Email" },
+                  { id: "text", label: "💬 Text" },
+                ].map(opt => (
+                  <button key={opt.id} onClick={() => setForm(f => ({ ...f, preference: opt.id }))}
+                    style={{ flex: 1, padding: "10px 6px", borderRadius: "10px", cursor: "pointer",
+                      border: form.preference === opt.id ? `2px solid ${green}` : `1.5px solid ${darkMode ? "rgba(255,255,255,0.12)" : "#e4e7ec"}`,
+                      background: form.preference === opt.id ? `${green}15` : darkMode ? "rgba(255,255,255,0.04)" : "#f9fafb",
+                      color: form.preference === opt.id ? green : darkMode ? "rgba(255,255,255,0.6)" : "#6b7280",
+                      fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: form.preference === opt.id ? 600 : 400,
+                      transition: "all 0.15s" }}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Message */}
+            <div>
+              <label style={labelStyle}>
+                How can we help?
+                <span style={{ float: "right", fontWeight: 400, textTransform: "none",
+                  letterSpacing: 0, color: form.message.length > 220 ? "#ef4444" : "inherit" }}>
+                  {form.message.length}/250
+                </span>
+              </label>
+              <textarea value={form.message}
+                onChange={e => setForm(f => ({ ...f, message: e.target.value.slice(0, 250) }))}
+                rows={4} placeholder="Tell us what's on your mind…"
+                style={{ ...inputStyle, resize: "none", lineHeight: "1.6" }}
+                onFocus={e => e.target.style.borderColor = green}
+                onBlur={e => e.target.style.borderColor = darkMode ? "rgba(255,255,255,0.12)" : "#e4e7ec"} />
+            </div>
+
+            {error && (
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                color: "#ef4444" }}>{error}</div>
+            )}
+
+            <button onClick={handleSubmit} disabled={!canSubmit}
+              style={{ width: "100%", padding: "15px", borderRadius: "12px", border: "none",
+                background: canSubmit ? green : "#e4e7ec",
+                color: canSubmit ? "#fff" : "#9ca3af",
+                fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600,
+                cursor: canSubmit ? "pointer" : "default", transition: "all 0.15s" }}>
+              {submitting ? "Sending…" : "Send Message"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
   const [expandedWalker, setExpandedWalker] = useState(null);
   const [navScrolled, setNavScrolled] = useState(false);
   const [landingMenuOpen, setLandingMenuOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
   const [landingView, setLandingView] = useState(
     () => window.location.hash === "#apply" ? "apply" : "home"
   ); // "home" | "apply"
@@ -7566,6 +7930,15 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                   Join the Team ✦
                 </span>
               </button>
+              <button onClick={() => { setContactOpen(true); setLandingMenuOpen(false); }} style={{
+                width: "100%", padding: "14px 24px", border: "none", background: "transparent",
+                display: "flex", alignItems: "center", gap: "14px", cursor: "pointer", textAlign: "left",
+              }}>
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                  fontWeight: 500, color: "rgba(255,255,255,0.85)", letterSpacing: "0.3px" }}>
+                  Contact Us
+                </span>
+              </button>
             </div>
             <div style={{ padding: "20px", borderTop: "1px solid #1E4A32",
               display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -7583,6 +7956,10 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             </div>
           </div>
         </div>
+      )}
+
+      {contactOpen && (
+        <ContactUsForm onClose={() => setContactOpen(false)} darkMode />
       )}
 
       {/* ── Hero ── */}
