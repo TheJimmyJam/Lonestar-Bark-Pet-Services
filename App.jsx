@@ -3378,7 +3378,7 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
                 </div>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
                   color: "#9ca3af", marginBottom: "14px", lineHeight: "1.5" }}>
-                  Your walker will reach out prior to confirm their arrival time within your window.
+                  Your personal walker will reach out to confirm their arrival time.
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                   {ALL_HANDOFF_SLOTS.map(slot => {
@@ -4372,6 +4372,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const [submitting, setSubmitting] = useState(false);
   const [expandedWalker, setExpandedWalker] = useState(null);
   const [cancelConfirm, setCancelConfirm] = useState(null);
+  const [handoffEditOpen, setHandoffEditOpen] = useState(false);
+  const [handoffCancelConfirm, setHandoffCancelConfirm] = useState(false);
+  const [handoffReschedDay, setHandoffReschedDay] = useState(null);
+  const [handoffReschedWindow, setHandoffReschedWindow] = useState(null);
+  const [handoffReschedWeek, setHandoffReschedWeek] = useState(0);
   const hasBookings = (client.bookings || []).filter(b => !b.cancelled).length > 0;
   const [showHandoffBanner, setShowHandoffBanner] = useState(!hasBookings);
   useEffect(() => {
@@ -4693,6 +4698,151 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       <div style={{ flex: 1, overflowY: "scroll", WebkitOverflowScrolling: "touch" }}>
       <Header client={client} onLogout={onLogout} />
       <ClientNav client={client} onLogout={onLogout} page={page} setPage={setPage} notifCounts={clientNotifCountsFull} sticky />
+
+      {/* ── Meet & Greet Cancel Confirm ── */}
+      {handoffCancelConfirm && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(0,0,0,0.5)",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
+          <div className="fade-up" style={{ background: "#fff", borderRadius: "18px", padding: "28px 24px",
+            maxWidth: "360px", width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.2)", textAlign: "center" }}>
+            <div style={{ fontSize: "36px", marginBottom: "12px" }}>🤝</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600,
+              color: "#111827", marginBottom: "8px" }}>Cancel Meet & Greet?</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
+              lineHeight: "1.6", marginBottom: "24px" }}>
+              Your meet & greet appointment will be removed. You can reschedule at any time from My Walks.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <button onClick={() => {
+                const updated = { ...client, handoffDone: false, handoffInfo: null };
+                const updatedClients = { ...clients, [client.id]: updated };
+                setClients(updatedClients);
+                saveClients(updatedClients);
+                setHandoffCancelConfirm(false);
+              }} style={{ width: "100%", padding: "13px", borderRadius: "10px", border: "none",
+                background: "#dc2626", color: "#fff", fontFamily: "'DM Sans', sans-serif",
+                fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>
+                Yes, Cancel Appointment
+              </button>
+              <button onClick={() => setHandoffCancelConfirm(false)}
+                style={{ width: "100%", padding: "13px", borderRadius: "10px",
+                  border: "1.5px solid #e4e7ec", background: "#fff",
+                  color: "#6b7280", fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "15px", cursor: "pointer" }}>
+                Keep It
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Meet & Greet Reschedule Modal ── */}
+      {handoffEditOpen && (() => {
+        const purple = "#7A4D6E";
+        const wDates = getWeekDates(handoffReschedWeek);
+        const canSave = handoffReschedDay !== null && handoffReschedWindow !== null;
+        return (
+          <div style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(0,0,0,0.5)",
+            display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div className="fade-up" style={{ background: "#fff", borderRadius: "20px 20px 0 0",
+              width: "100%", maxWidth: "520px", maxHeight: "90vh", overflowY: "auto",
+              padding: "28px 20px 40px", boxShadow: "0 -8px 40px rgba(0,0,0,0.2)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase",
+                  letterSpacing: "1.5px", fontWeight: 700, color: "#111827" }}>Reschedule Meet & Greet</div>
+                <button onClick={() => setHandoffEditOpen(false)} style={{ background: "none", border: "none",
+                  color: "#9ca3af", fontSize: "22px", cursor: "pointer" }}>✕</button>
+              </div>
+
+              {/* Week nav */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                <button onClick={() => { if (handoffReschedWeek > 0) { setHandoffReschedWeek(w => w - 1); setHandoffReschedDay(null); setHandoffReschedWindow(null); } }}
+                  disabled={handoffReschedWeek === 0}
+                  style={{ width: "32px", height: "32px", borderRadius: "8px", border: "1.5px solid #e4e7ec",
+                    background: handoffReschedWeek === 0 ? "#f9fafb" : "#fff",
+                    color: handoffReschedWeek === 0 ? "#d1d5db" : "#374151", cursor: handoffReschedWeek === 0 ? "default" : "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280" }}>
+                  {handoffReschedWeek === 0 ? "This week" : handoffReschedWeek === 1 ? "Next week" : `+${handoffReschedWeek} weeks`}
+                </div>
+                <button onClick={() => { setHandoffReschedWeek(w => w + 1); setHandoffReschedDay(null); setHandoffReschedWindow(null); }}
+                  disabled={handoffReschedWeek >= 8}
+                  style={{ width: "32px", height: "32px", borderRadius: "8px", border: "1.5px solid #e4e7ec",
+                    background: handoffReschedWeek >= 8 ? "#f9fafb" : "#fff",
+                    color: handoffReschedWeek >= 8 ? "#d1d5db" : "#374151", cursor: handoffReschedWeek >= 8 ? "default" : "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center" }}>›</button>
+              </div>
+
+              {/* Day selector Mon–Fri */}
+              <div style={{ display: "flex", gap: "6px", marginBottom: "16px" }}>
+                {[0,1,2,3,4].map(i => {
+                  const date = wDates[i];
+                  const today = new Date(); today.setHours(0,0,0,0);
+                  const disabled = date < today;
+                  const active = handoffReschedDay === i;
+                  return (
+                    <button key={i} onClick={() => { if (!disabled) { setHandoffReschedDay(i); setHandoffReschedWindow(null); } }}
+                      disabled={disabled}
+                      style={{ flex: 1, padding: "10px 4px", borderRadius: "10px",
+                        border: active ? `2px solid ${purple}` : "2px solid #e4e7ec",
+                        background: active ? purple : disabled ? "#f9fafb" : "#fff",
+                        color: active ? "#fff" : disabled ? "#d1d5db" : "#374151",
+                        cursor: disabled ? "default" : "pointer",
+                        display: "flex", flexDirection: "column", alignItems: "center", gap: "2px",
+                        fontFamily: "'DM Sans', sans-serif" }}>
+                      <span style={{ fontSize: "13px", fontWeight: 600, textTransform: "uppercase" }}>{DAYS[i]}</span>
+                      <span style={{ fontSize: "15px", fontWeight: 700 }}>{date.getDate()}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Time window */}
+              {handoffReschedDay !== null && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
+                  {ALL_HANDOFF_SLOTS.map(slot => {
+                    const active = handoffReschedWindow?.id === slot.id;
+                    return (
+                      <button key={slot.id} onClick={() => setHandoffReschedWindow(slot)}
+                        style={{ padding: "16px 12px", borderRadius: "12px", cursor: "pointer",
+                          border: active ? `2px solid ${purple}` : "1.5px solid #e4e7ec",
+                          background: active ? "#F5EFF3" : "#fff",
+                          color: active ? purple : "#374151",
+                          textAlign: "center", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s" }}>
+                        <div style={{ fontWeight: 700, fontSize: "15px", marginBottom: "3px" }}>{slot.label}</div>
+                        <div style={{ fontSize: "12px", color: active ? purple : "#9ca3af" }}>15-min meet & greet</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <button disabled={!canSave} onClick={() => {
+                const newDate = new Date(wDates[handoffReschedDay]);
+                newDate.setHours(handoffReschedWindow.hour, handoffReschedWindow.minute, 0, 0);
+                const updated = {
+                  ...client,
+                  handoffInfo: { ...client.handoffInfo, handoffDay: handoffReschedDay,
+                    handoffSlot: handoffReschedWindow, handoffDate: newDate.toISOString() },
+                };
+                const updatedClients = { ...clients, [client.id]: updated };
+                setClients(updatedClients);
+                saveClients(updatedClients);
+                setHandoffEditOpen(false);
+                setHandoffReschedDay(null);
+                setHandoffReschedWindow(null);
+                setHandoffReschedWeek(0);
+              }} style={{ width: "100%", padding: "15px", borderRadius: "12px", border: "none",
+                background: canSave ? purple : "#e4e7ec",
+                color: canSave ? "#fff" : "#9ca3af",
+                fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600,
+                cursor: canSave ? "pointer" : "default", transition: "all 0.15s" }}>
+                {canSave ? "Confirm Reschedule" : "Select a day and window"}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Payment result banner */}
       {paymentBanner && (
@@ -5499,23 +5649,36 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                         <div style={{ padding: "10px 18px", display: "flex", flexDirection: "column", gap: "8px" }}>
                           {group.bookings.sort((a,b) => new Date(a.scheduledDateTime) - new Date(b.scheduledDateTime)).map((b, i) => {
                             if (b.isHandoff) return (
-                              <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "4px 0",
-                                background: "#F5EFF3", borderRadius: "10px", padding: "10px 12px",
+                              <div key={i} style={{ background: "#F5EFF3", borderRadius: "10px", padding: "10px 12px",
                                 border: "1.5px solid #C4A0B8" }}>
-                                <span style={{ fontSize: "16px" }}>🤝</span>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                                    fontWeight: 600, color: "#7A4D6E" }}>Meet & Greet Appointment</div>
-                                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
-                                    {b.day} at {b.slot?.time} · 30 min · Meet your walker &amp; hand over a key
-                                  </div>
-                                  {b.form?.walker && (
+                                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                  <span style={{ fontSize: "16px" }}>🤝</span>
+                                  <div style={{ flex: 1 }}>
                                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                                      color: "#7A4D6E", marginTop: "2px" }}>Walker: {firstName(b.form.walker)}</div>
-                                  )}
+                                      fontWeight: 600, color: "#7A4D6E" }}>Meet & Greet Appointment</div>
+                                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
+                                      {b.day} · {b.slot?.time} · 15 min
+                                    </div>
+                                  </div>
+                                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                                    color: "#9ca3af", fontStyle: "italic", flexShrink: 0 }}>Free</div>
                                 </div>
-                                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                                  color: "#9ca3af", fontStyle: "italic", flexShrink: 0 }}>Free</div>
+                                <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+                                  <button onClick={() => setHandoffEditOpen(true)}
+                                    style={{ flex: 1, padding: "8px", borderRadius: "8px", cursor: "pointer",
+                                      border: "1.5px solid #C4A0B8", background: "#fff",
+                                      color: "#7A4D6E", fontFamily: "'DM Sans', sans-serif",
+                                      fontSize: "14px", fontWeight: 600 }}>
+                                    ✏️ Reschedule
+                                  </button>
+                                  <button onClick={() => setHandoffCancelConfirm(true)}
+                                    style={{ flex: 1, padding: "8px", borderRadius: "8px", cursor: "pointer",
+                                      border: "1.5px solid #fecaca", background: "#fef2f2",
+                                      color: "#dc2626", fontFamily: "'DM Sans', sans-serif",
+                                      fontSize: "14px", fontWeight: 600 }}>
+                                    ✕ Cancel
+                                  </button>
+                                </div>
                               </div>
                             );
                             const s = SERVICES[b.service] || SERVICES["dog"];
@@ -17683,7 +17846,36 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
   };
 
   const now = new Date();
-  const upcoming = allBookings.filter(b => new Date(b.scheduledDateTime || b.bookedAt) > now);
+
+  // Inject pending meet & greet appointments from handoffInfo into upcoming
+  const handoffBookings = [];
+  Object.values(clients).forEach(c => {
+    if (c.deleted || c.handoffConfirmed) return;
+    const hi = c.handoffInfo;
+    if (!hi?.handoffDate || !hi?.handoffSlot) return;
+    const apptDate = new Date(hi.handoffDate);
+    if (apptDate <= now) return;
+    handoffBookings.push({
+      key: `__handoff__${c.id}`,
+      isHandoff: true,
+      service: "handoff",
+      clientId: c.id,
+      clientName: c.name,
+      clientEmail: c.email,
+      day: apptDate.toLocaleDateString("en-US", { weekday: "long" }),
+      date: apptDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      slot: { time: hi.handoffSlot.time, duration: "15 min" },
+      form: { walker: hi.handoffWalker || "", pet: "", name: c.name || "" },
+      bookedAt: hi.handoffDate,
+      scheduledDateTime: hi.handoffDate,
+      price: 0, priceTier: "",
+    });
+  });
+
+  const upcoming = [
+    ...allBookings.filter(b => new Date(b.scheduledDateTime || b.bookedAt) > now),
+    ...handoffBookings,
+  ];
   const unassigned = upcoming.filter(b => !b.form?.walker || b.form.walker === "");
 
   // Revenue: only from admin-completed walks
