@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { PRICING_TIERS, ADD_ONS, SERVICES } from "../constants.js";
+import { ADD_ONS, PRICING_TIERS, SERVICES, WALKER_SERVICES } from "../constants.js";
 import { firstName } from "../helpers.js";
 import LogoBadge from "./shared/LogoBadge.jsx";
+import { getAllWalkers } from "./auth/WalkerAuthScreen.jsx";
+import WalkerApplicationPage from "./walker/WalkerApplicationPage.jsx";
 
 // ─── Landing Page ─────────────────────────────────────────────────────────────
 function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {

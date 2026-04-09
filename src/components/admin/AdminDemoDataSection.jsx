@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { saveClients, saveWalkerProfiles, sbFetch } from "../../supabase.js";
+import { injectCustomWalkers } from "../auth/WalkerAuthScreen.jsx";
 
 // ─── Demo Data Generator ──────────────────────────────────────────────────────
 function buildDemoData() {

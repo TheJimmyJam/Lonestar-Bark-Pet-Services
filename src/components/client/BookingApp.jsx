@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { SERVICES, SERVICE_SLOTS, PRICING_TIERS, ADD_ONS, DAYS, FULL_DAYS } from "../../constants.js";
+import { ADD_ONS, ALL_HANDOFF_SLOTS, DAYS, FULL_DAYS, PRICING_TIERS, SERVICES, SERVICE_SLOTS, WALKER_SERVICES } from "../../constants.js";
 import {
   saveClients, notifyAdmin,
   loadChatMessages, saveChatMessage, formatChatTime,
@@ -21,9 +21,13 @@ import ClientMyInfoPage from "./ClientMyInfoPage.jsx";
 import QuickRebookBanner from "./QuickRebookBanner.jsx";
 import ClientInvoicesPage from "../invoices/ClientInvoicesPage.jsx";
 import HandoffFlow from "../HandoffFlow.jsx";
-import { autoCreateWalkInvoice, generateInvoiceId } from "../invoices/invoiceHelpers.js";
+import { autoCreateWalkInvoice, generateInvoiceId, invoiceStatusMeta } from "../invoices/invoiceHelpers.js";
 import { spawnNextRecurringOccurrence } from "../recurring.js";
 import { GLOBAL_STYLES } from "../../styles.js";
+import { getAllWalkers } from "../auth/WalkerAuthScreen.jsx";
+import AddressFields from "../shared/AddressFields.jsx";;
+import { PRICE_TIERS, addrFromString } from "../../helpers.js";
+import { loadInvoicesFromDB } from "../../supabase.js";
 
 // ─── Main Booking App ─────────────────────────────────────────────────────────
 function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {} }) {

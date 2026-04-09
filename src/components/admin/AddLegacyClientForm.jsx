@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { SERVICES, SERVICE_SLOTS, DAYS } from "../../constants.js";
 import { saveClients, notifyAdmin } from "../../supabase.js";
-import { formatPhone, emptyAddr, addrToString, generateCode, firstName, fmt } from "../../helpers.js";
+import { addrToString, applySameDayDiscount, emptyAddr, firstName, fmt, formatPhone, generateCode, repriceWeekBookings } from "../../helpers.js";
 import AddressFields from "../shared/AddressFields.jsx";
+import { getAllWalkers } from "../auth/WalkerAuthScreen.jsx";
+import { generateRecurringBookings } from "../recurring.js";
 
 // ─── Add Legacy Client Form ──────────────────────────────────────────────────
 function LegacySection({ title, children }) {

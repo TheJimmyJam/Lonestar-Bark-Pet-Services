@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { sbFetch } from "../../supabase.js";
+import { CUSTOM_WALKERS, WALKER_CREDENTIALS, injectCustomWalkers } from "../auth/WalkerAuthScreen.jsx";
 
 // ─── Admin Danger Zone (full system reset) ────────────────────────────────────
 function AdminDangerZone({ admin, adminList, setAdminList, setClients, setWalkerProfiles, onLogout }) {

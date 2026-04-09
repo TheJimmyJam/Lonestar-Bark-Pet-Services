@@ -20,10 +20,14 @@ import LogoBadge from "../shared/LogoBadge.jsx";
 import AddressFields from "../shared/AddressFields.jsx";
 import WalkerClientEditor from "./WalkerClientEditor.jsx";
 import { slotsToShifts, shiftsToSlots, ShiftSlider, DayAvailSliders } from "./AvailabilityComponents.jsx";
-import { autoCreateWalkInvoice, generateInvoiceId } from "../invoices/invoiceHelpers.js";
+import { autoCreateWalkInvoice, generateInvoiceId, invoiceStatusMeta } from "../invoices/invoiceHelpers.js";
 import { spawnNextRecurringOccurrence } from "../recurring.js";
 import { GLOBAL_STYLES } from "../../styles.js";
-import { WALKER_CREDENTIALS } from "../auth/WalkerAuthScreen.jsx";
+import { WALKER_CREDENTIALS, getAllWalkers } from "../auth/WalkerAuthScreen.jsx";
+import AddLegacyClientForm from "../admin/AddLegacyClientForm.jsx";;
+import ScheduleWalkForm from "../admin/ScheduleWalkForm.jsx";;
+import Header from "../shared/Header.jsx";;
+import { loadClientMessages, saveClientMessage, saveInvoiceToDB } from "../../supabase.js";
 
 // ─── Walker Dashboard ─────────────────────────────────────────────────────────
 function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalkerProfiles, trades, setTrades, onLogout }) {
