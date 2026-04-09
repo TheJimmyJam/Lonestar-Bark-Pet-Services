@@ -458,6 +458,7 @@ export {
   PAYROLL_LS_KEY, loadCompletedPayrolls, saveCompletedPayrolls,
   loadWalkerAvailability, saveWalkerAvailabilityDay, loadAllWalkersAvailability,
   DEFAULT_ADMIN, loadAdminList, saveAdminList, removeAdminFromDB,
+  loadContactSubmissions, saveContactSubmission, updateContactSubmission, deleteContactSubmission,
 };
 
 // ─── Admin List DB Functions ──────────────────────────────────────────────────
@@ -525,5 +526,78 @@ async function removeAdminFromDB(id) {
     });
   } catch (e) {
     console.error("removeAdminFromDB failed:", e);
+  }
+}
+
+// ─── Contact Submissions DB Functions ────────────────────────────────────────
+async function loadContactSubmissions() {
+  try {
+    const rows = await sbFetch("contact_submissions?select=*&order=created_at.desc");
+    return (rows || []).map(r => ({
+      id: r.id,
+      name: r.name || "",
+      email: r.email || "",
+      phone: r.phone || "",
+      subject: r.subject || "",
+      message: r.message || "",
+      contactPref: r.contact_pref || "email",
+      status: r.status || "new",
+      adminNotes: r.admin_notes || "",
+      source: r.source || "landing",
+      createdAt: r.created_at,
+    }));
+  } catch (e) {
+    console.error("loadContactSubmissions failed:", e);
+    return [];
+  }
+}
+
+async function saveContactSubmission(sub) {
+  try {
+    const row = {
+      name: sub.name || "",
+      email: sub.email || "",
+      phone: sub.phone || "",
+      subject: sub.subject || "",
+      message: sub.message || "",
+      contact_pref: sub.contactPref || "email",
+      status: "new",
+      source: sub.source || "landing",
+      admin_notes: "",
+      created_at: new Date().toISOString(),
+    };
+    const result = await sbFetch("contact_submissions", {
+      method: "POST",
+      body: JSON.stringify(row),
+    });
+    return result;
+  } catch (e) {
+    console.error("saveContactSubmission failed:", e);
+    return null;
+  }
+}
+
+async function updateContactSubmission(id, updates) {
+  try {
+    const row = {};
+    if (updates.status !== undefined) row.status = updates.status;
+    if (updates.adminNotes !== undefined) row.admin_notes = updates.adminNotes;
+    await sbFetch(`contact_submissions?id=eq.${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(row),
+    });
+  } catch (e) {
+    console.error("updateContactSubmission failed:", e);
+  }
+}
+
+async function deleteContactSubmission(id) {
+  try {
+    await sbFetch(`contact_submissions?id=eq.${id}`, {
+      method: "DELETE",
+      headers: { "Prefer": "" },
+    });
+  } catch (e) {
+    console.error("deleteContactSubmission failed:", e);
   }
 }

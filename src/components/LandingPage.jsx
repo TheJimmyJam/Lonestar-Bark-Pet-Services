@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ADD_ONS, PRICING_TIERS, SERVICES, WALKER_SERVICES } from "../constants.js";
 import { firstName } from "../helpers.js";
+import { saveContactSubmission } from "../supabase.js";
 import LogoBadge from "./shared/LogoBadge.jsx";
 import { getAllWalkers } from "./auth/WalkerAuthScreen.jsx";
 import WalkerApplicationPage from "./walker/WalkerApplicationPage.jsx";
@@ -11,6 +12,9 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
   const [navScrolled, setNavScrolled] = useState(false);
   const [landingMenuOpen, setLandingMenuOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(null); // index of open FAQ item
+  const [lpContact, setLpContact] = useState({ name: "", email: "", phone: "", subject: "", message: "", contactPref: "email" });
+  const [lpContactSent, setLpContactSent] = useState(false);
+  const [lpContactSending, setLpContactSending] = useState(false);
   const [landingView, setLandingView] = useState(
     () => window.location.hash === "#apply" ? "apply" : "home"
   ); // "home" | "apply"
@@ -678,6 +682,158 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                 </div>
               );
             })}
+          </div>
+
+          {/* ── Contact Us Section ── */}
+          <div id="contact" style={{ background: "#fff", borderRadius: "24px", padding: "48px 32px",
+            border: "1.5px solid #e4e7ec", marginBottom: "40px" }}>
+            <div style={{ textAlign: "center", marginBottom: "28px" }}>
+              <div style={{ fontSize: "28px", marginBottom: "10px" }}>📨</div>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase",
+                letterSpacing: "1.5px", fontWeight: 600, color: "#111827", marginBottom: "8px" }}>
+                Contact Us
+              </div>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
+                lineHeight: "1.6", maxWidth: "400px", margin: "0 auto" }}>
+                Have a question or want to learn more? Drop us a message and we'll get back to you.
+              </p>
+            </div>
+
+            {lpContactSent ? (
+              <div style={{ background: "#FDF5EC", border: "1.5px solid #D4A843", borderRadius: "14px",
+                padding: "24px", textAlign: "center", maxWidth: "420px", margin: "0 auto" }}>
+                <div style={{ fontSize: "32px", marginBottom: "12px" }}>✅</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "17px", fontWeight: 600,
+                  color: "#C4541A", marginBottom: "8px" }}>Message Sent!</div>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
+                  lineHeight: "1.6", marginBottom: "16px" }}>
+                  Thanks for reaching out. We'll get back to you as soon as possible.
+                </p>
+                <button onClick={() => { setLpContact({ name: "", email: "", phone: "", subject: "", message: "", contactPref: "email" }); setLpContactSent(false); }}
+                  style={{ padding: "10px 24px", borderRadius: "10px", border: "1.5px solid #D4A843",
+                    background: "transparent", color: "#C4541A", fontFamily: "'DM Sans', sans-serif",
+                    fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>Send Another Message</button>
+              </div>
+            ) : (
+              <div style={{ maxWidth: "420px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "14px" }}>
+                {/* Name + Email row */}
+                <div style={{ display: "flex", gap: "12px" }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                      fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
+                      color: "#9ca3af", marginBottom: "5px" }}>Name</label>
+                    <input type="text" placeholder="Your name" value={lpContact.name}
+                      onChange={e => setLpContact(f => ({ ...f, name: e.target.value }))}
+                      style={{ width: "100%", padding: "11px 14px", borderRadius: "10px", boxSizing: "border-box",
+                        border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                        color: "#111827", outline: "none" }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                      fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
+                      color: "#9ca3af", marginBottom: "5px" }}>Email</label>
+                    <input type="email" placeholder="you@email.com" value={lpContact.email}
+                      onChange={e => setLpContact(f => ({ ...f, email: e.target.value }))}
+                      style={{ width: "100%", padding: "11px 14px", borderRadius: "10px", boxSizing: "border-box",
+                        border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                        color: "#111827", outline: "none" }} />
+                  </div>
+                </div>
+
+                {/* Phone */}
+                <div>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                    fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
+                    color: "#9ca3af", marginBottom: "5px" }}>Phone (optional)</label>
+                  <input type="tel" placeholder="(214) 555-1234" value={lpContact.phone}
+                    onChange={e => setLpContact(f => ({ ...f, phone: e.target.value }))}
+                    style={{ width: "100%", padding: "11px 14px", borderRadius: "10px", boxSizing: "border-box",
+                      border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                      color: "#111827", outline: "none" }} />
+                </div>
+
+                {/* Contact Preference */}
+                <div>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                    fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
+                    color: "#9ca3af", marginBottom: "8px" }}>How should we reach you?</label>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    {[
+                      { val: "email", icon: "📧", label: "Email" },
+                      { val: "text",  icon: "💬", label: "Text" },
+                      { val: "cell",  icon: "📞", label: "Call" },
+                    ].map(opt => (
+                      <button key={opt.val}
+                        onClick={() => setLpContact(f => ({ ...f, contactPref: opt.val }))}
+                        style={{
+                          flex: 1, padding: "10px 8px", borderRadius: "10px",
+                          border: lpContact.contactPref === opt.val
+                            ? "2px solid #1A6B4A" : "1.5px solid #e4e7ec",
+                          background: lpContact.contactPref === opt.val
+                            ? "#f0fdf4" : "#fff",
+                          cursor: "pointer", textAlign: "center",
+                        }}>
+                        <div style={{ fontSize: "18px", marginBottom: "2px" }}>{opt.icon}</div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                          fontWeight: lpContact.contactPref === opt.val ? 700 : 400,
+                          color: lpContact.contactPref === opt.val ? "#1A6B4A" : "#6b7280",
+                        }}>{opt.label}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Subject */}
+                <div>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                    fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
+                    color: "#9ca3af", marginBottom: "5px" }}>Subject</label>
+                  <input type="text" placeholder="e.g. Pricing question, service area..." value={lpContact.subject}
+                    onChange={e => setLpContact(f => ({ ...f, subject: e.target.value }))}
+                    style={{ width: "100%", padding: "11px 14px", borderRadius: "10px", boxSizing: "border-box",
+                      border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                      color: "#111827", outline: "none" }} />
+                </div>
+
+                {/* Message */}
+                <div>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                    fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
+                    color: "#9ca3af", marginBottom: "5px" }}>Message</label>
+                  <textarea rows={4} placeholder="How can we help?" value={lpContact.message}
+                    onChange={e => setLpContact(f => ({ ...f, message: e.target.value }))}
+                    style={{ width: "100%", padding: "11px 14px", borderRadius: "10px", boxSizing: "border-box",
+                      border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                      color: "#111827", outline: "none", resize: "vertical" }} />
+                </div>
+
+                {/* Submit */}
+                <button onClick={async () => {
+                    if (!lpContact.message.trim() || !lpContact.name.trim()) return;
+                    setLpContactSending(true);
+                    await saveContactSubmission({
+                      name: lpContact.name,
+                      email: lpContact.email,
+                      phone: lpContact.phone,
+                      subject: lpContact.subject,
+                      message: lpContact.message,
+                      contactPref: lpContact.contactPref,
+                      source: "landing",
+                    });
+                    setLpContactSending(false);
+                    setLpContactSent(true);
+                  }}
+                  disabled={!lpContact.message.trim() || !lpContact.name.trim() || lpContactSending}
+                  style={{
+                    padding: "14px 28px", borderRadius: "10px", border: "none",
+                    background: lpContact.message.trim() && lpContact.name.trim() && !lpContactSending ? "#1A6B4A" : "#e4e7ec",
+                    color: lpContact.message.trim() && lpContact.name.trim() && !lpContactSending ? "#fff" : "#9ca3af",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
+                    cursor: lpContact.message.trim() && lpContact.name.trim() && !lpContactSending ? "pointer" : "default",
+                    alignSelf: "center", transition: "all 0.2s ease",
+                  }}>{lpContactSending ? "Sending..." : "Send Message →"}</button>
+              </div>
+            )}
           </div>
 
           {/* Final CTA */}

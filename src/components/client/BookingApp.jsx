@@ -5,6 +5,7 @@ import {
   loadChatMessages, saveChatMessage, formatChatTime,
   loadClientMessages, saveClientMessage,
   loadAllWalkersAvailability,
+  saveContactSubmission,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout,
@@ -72,8 +73,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   }, [paymentBanner]);
 
   // ── Contact Us form state ──
-  const [contactForm, setContactForm] = useState({ subject: "", message: "" });
+  const [contactForm, setContactForm] = useState({ subject: "", message: "", contactPref: "email" });
   const [contactSent, setContactSent] = useState(false);
+  const [contactSending, setContactSending] = useState(false);
 
   // ── Client ↔ Walker messaging state ──
   const [clientMsgs, setClientMsgs]       = useState([]);
@@ -2011,7 +2013,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   lineHeight: "1.6", marginBottom: "16px" }}>
                   Thanks for reaching out. We'll get back to you as soon as possible.
                 </p>
-                <button onClick={() => { setContactForm({ subject: "", message: "" }); setContactSent(false); }} style={{
+                <button onClick={() => { setContactForm({ subject: "", message: "", contactPref: "email" }); setContactSent(false); }} style={{
                   padding: "10px 24px", borderRadius: "10px", border: "1.5px solid #D4A843",
                   background: "transparent", color: "#C4541A", fontFamily: "'DM Sans', sans-serif",
                   fontSize: "15px", fontWeight: 600, cursor: "pointer",
@@ -2030,6 +2032,37 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   </div>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280" }}>
                     {client.email || "—"} {client.phone ? `· ${client.phone}` : ""}
+                  </div>
+                </div>
+
+                {/* Contact Preference */}
+                <div>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                    fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
+                    color: "#9ca3af", marginBottom: "8px" }}>How should we reach you?</label>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    {[
+                      { val: "email", icon: "📧", label: "Email" },
+                      { val: "text",  icon: "💬", label: "Text" },
+                      { val: "cell",  icon: "📞", label: "Call" },
+                    ].map(opt => (
+                      <button key={opt.val}
+                        onClick={() => setContactForm(f => ({ ...f, contactPref: opt.val }))}
+                        style={{
+                          flex: 1, padding: "10px 8px", borderRadius: "10px",
+                          border: contactForm.contactPref === opt.val
+                            ? "2px solid #C4541A" : "1.5px solid #e4e7ec",
+                          background: contactForm.contactPref === opt.val
+                            ? "#FDF5EC" : "#fff",
+                          cursor: "pointer", textAlign: "center",
+                        }}>
+                        <div style={{ fontSize: "18px", marginBottom: "2px" }}>{opt.icon}</div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                          fontWeight: contactForm.contactPref === opt.val ? 700 : 400,
+                          color: contactForm.contactPref === opt.val ? "#C4541A" : "#6b7280",
+                        }}>{opt.label}</div>
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -2060,16 +2093,30 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 </div>
 
                 {/* Submit */}
-                <button onClick={() => { if (contactForm.message.trim()) setContactSent(true); }}
-                  disabled={!contactForm.message.trim()}
+                <button onClick={async () => {
+                    if (!contactForm.message.trim()) return;
+                    setContactSending(true);
+                    await saveContactSubmission({
+                      name: client.name || "",
+                      email: client.email || "",
+                      phone: client.phone || "",
+                      subject: contactForm.subject,
+                      message: contactForm.message,
+                      contactPref: contactForm.contactPref,
+                      source: "client",
+                    });
+                    setContactSending(false);
+                    setContactSent(true);
+                  }}
+                  disabled={!contactForm.message.trim() || contactSending}
                   style={{
                     padding: "13px 28px", borderRadius: "10px", border: "none",
-                    background: contactForm.message.trim() ? "#C4541A" : "#e4e7ec",
-                    color: contactForm.message.trim() ? "#fff" : "#9ca3af",
+                    background: contactForm.message.trim() && !contactSending ? "#C4541A" : "#e4e7ec",
+                    color: contactForm.message.trim() && !contactSending ? "#fff" : "#9ca3af",
                     fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
-                    cursor: contactForm.message.trim() ? "pointer" : "default",
+                    cursor: contactForm.message.trim() && !contactSending ? "pointer" : "default",
                     alignSelf: "flex-end", transition: "all 0.2s ease",
-                  }}>Send Message →</button>
+                  }}>{contactSending ? "Sending..." : "Send Message →"}</button>
               </div>
             )}
           </div>

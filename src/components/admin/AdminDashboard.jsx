@@ -26,6 +26,7 @@ import AdminMapView from "./AdminMapView.jsx";
 import AdminInvoicesTab from "./AdminInvoicesTab.jsx";
 import AdminAdminsTab from "./AdminAdminsTab.jsx";
 import AdminMyInfo from "./AdminMyInfo.jsx";
+import AdminContactTab from "./AdminContactTab.jsx";
 import { autoCreateWalkInvoice, generateInvoiceId, getAllInvoices, invoiceStatusMeta } from "../invoices/invoiceHelpers.js";
 import { generateRecurringBookings, extendRecurringBookings, spawnNextRecurringOccurrence } from "../recurring.js";
 import { GLOBAL_STYLES } from "../../styles.js";
@@ -393,6 +394,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     { id: "map",           label: "Map",            icon: "🗺️" },
     { id: "admins",        label: "Admins",         icon: "🛡️" },
     { id: "myinfo",        label: "My Info",        icon: "👤" },
+    { id: "contact",       label: "Contact",        icon: "📨" },
   ];
 
   const amber = "#b45309";
@@ -6511,6 +6513,11 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
             setAdminList={setAdminList}
             onLogout={onLogout}
           />
+        )}
+
+        {/* ── Contact Submissions ── */}
+        {tab === "contact" && (
+          <AdminContactTab />
         )}
 
       </div>
