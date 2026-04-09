@@ -1207,6 +1207,7 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
     { id: "about",    label: "Our Team",    icon: "👥" },
     ...(client.keyholder ? [{ id: "messages", label: "Messages", icon: "💬" }] : []),
     { id: "myinfo",   label: "My Info",     icon: "👤" },
+    { id: "contact",  label: "Contact Us",  icon: "✉️" },
   ];
   const totalBadges = Object.values(notifCounts).reduce((s, n) => s + n, 0);
 
@@ -1297,10 +1298,16 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
                     );
                   })}
                 </div>
-                {/* Logout */}
-                <div style={{ padding: "16px 20px", borderTop: "1px solid #1E4A32" }}>
+                {/* Contact Us + Logout */}
+                <div style={{ padding: "16px 20px", borderTop: "1px solid #1E4A32", display: "flex", gap: "10px" }}>
+                  <button onClick={() => { setPage("contact"); scrollTop(); setMenuOpen(false); }} style={{
+                    flex: 1, padding: "11px", borderRadius: "10px",
+                    border: "1px solid #8A7545", background: "transparent",
+                    color: "#9B7444", fontFamily: "'DM Sans', sans-serif",
+                    fontSize: "15px", cursor: "pointer",
+                  }}>✉️ Contact Us</button>
                   <button onClick={() => { setMenuOpen(false); onLogout(); }} style={{
-                    width: "100%", padding: "11px", borderRadius: "10px",
+                    flex: 1, padding: "11px", borderRadius: "10px",
                     border: "1px solid #8A7545", background: "transparent",
                     color: "#9B7444", fontFamily: "'DM Sans', sans-serif",
                     fontSize: "15px", cursor: "pointer",
@@ -4257,6 +4264,11 @@ function QuickRebookBanner({ client, service, myBookings, clients, setClients, o
                 <span style={{ fontSize: "17px", fontWeight: 700 }}>
                   {entry.targetDate.getDate()}
                 </span>
+                {entry.slotTime && (
+                  <span style={{ fontSize: "11px", fontWeight: 500, opacity: 0.85, whiteSpace: "nowrap" }}>
+                    {entry.slotTime}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -4335,6 +4347,10 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       return () => clearTimeout(timer);
     }
   }, [paymentBanner]);
+
+  // ── Contact Us form state ──
+  const [contactForm, setContactForm] = useState({ subject: "", message: "" });
+  const [contactSent, setContactSent] = useState(false);
 
   // ── Client ↔ Walker messaging state ──
   const [clientMsgs, setClientMsgs]       = useState([]);
@@ -6252,6 +6268,90 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         </div>
       )}
 
+      {/* ── CONTACT US PAGE ── */}
+      {page === "contact" && (
+          <div className="app-container fade-up">
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
+              fontWeight: 600, color: "#111827", marginBottom: "6px" }}>Contact Us</div>
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#6b7280",
+              marginBottom: "24px", lineHeight: "1.6" }}>
+              Have a question, special request, or feedback? We'd love to hear from you.
+            </p>
+
+            {contactSent ? (
+              <div style={{ background: "#FDF5EC", border: "1.5px solid #D4A843", borderRadius: "14px",
+                padding: "24px", textAlign: "center" }}>
+                <div style={{ fontSize: "32px", marginBottom: "12px" }}>✅</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "17px", fontWeight: 600,
+                  color: "#C4541A", marginBottom: "8px" }}>Message Sent!</div>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
+                  lineHeight: "1.6", marginBottom: "16px" }}>
+                  Thanks for reaching out. We'll get back to you as soon as possible.
+                </p>
+                <button onClick={() => { setContactForm({ subject: "", message: "" }); setContactSent(false); }} style={{
+                  padding: "10px 24px", borderRadius: "10px", border: "1.5px solid #D4A843",
+                  background: "transparent", color: "#C4541A", fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "15px", fontWeight: 600, cursor: "pointer",
+                }}>Send Another Message</button>
+              </div>
+            ) : (
+              <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "16px",
+                padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+                {/* From info (auto-filled) */}
+                <div style={{ background: "#f9fafb", borderRadius: "10px", padding: "14px 16px",
+                  display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 700,
+                    letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af" }}>From</div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#111827", fontWeight: 500 }}>
+                    {client.name || "—"}
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280" }}>
+                    {client.email || "—"} {client.phone ? `· ${client.phone}` : ""}
+                  </div>
+                </div>
+
+                {/* Subject */}
+                <div>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                    fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
+                    color: "#9ca3af", marginBottom: "5px" }}>Subject</label>
+                  <input type="text" placeholder="e.g. Schedule question, special request..."
+                    value={contactForm.subject}
+                    onChange={e => setContactForm(f => ({ ...f, subject: e.target.value }))}
+                    style={{ width: "100%", padding: "11px 14px", borderRadius: "10px", boxSizing: "border-box",
+                      border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                      color: "#111827", outline: "none", background: "#fff" }} />
+                </div>
+
+                {/* Message */}
+                <div>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                    fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
+                    color: "#9ca3af", marginBottom: "5px" }}>Message</label>
+                  <textarea rows={5} placeholder="How can we help?"
+                    value={contactForm.message}
+                    onChange={e => setContactForm(f => ({ ...f, message: e.target.value }))}
+                    style={{ width: "100%", padding: "11px 14px", borderRadius: "10px", boxSizing: "border-box",
+                      border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                      color: "#111827", outline: "none", background: "#fff", resize: "vertical" }} />
+                </div>
+
+                {/* Submit */}
+                <button onClick={() => { if (contactForm.message.trim()) setContactSent(true); }}
+                  disabled={!contactForm.message.trim()}
+                  style={{
+                    padding: "13px 28px", borderRadius: "10px", border: "none",
+                    background: contactForm.message.trim() ? "#C4541A" : "#e4e7ec",
+                    color: contactForm.message.trim() ? "#fff" : "#9ca3af",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
+                    cursor: contactForm.message.trim() ? "pointer" : "default",
+                    alignSelf: "flex-end", transition: "all 0.2s ease",
+                  }}>Send Message →</button>
+              </div>
+            )}
+          </div>
+      )}
+
       {/* ── BOOK PAGE ── */}
       {page === "book" && (
         <>
@@ -6625,7 +6725,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   myBookings={myBookings}
                   clients={clients}
                   setClients={setClients}
-                  onBooked={() => setPage("mywalks")}
+                  onBooked={() => {}}
                 />
 
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
