@@ -15,16 +15,12 @@ function RoleSelectScreen({ onSelectRole, onBack }) {
 
       {/* Header block */}
       <div style={{ textAlign: "center", marginBottom: "36px" }}>
-        <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
-          fontSize: "clamp(28px,7vw,42px)", fontWeight: 700, letterSpacing: "2px", marginBottom: "8px" }}>
-          Lonestar Bark Co.
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "12px" }}>
+          <LogoBadge size={120} />
         </div>
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff88",
-          fontSize: "13px", letterSpacing: "3.5px", textTransform: "uppercase", marginBottom: "28px" }}>
+          fontSize: "13px", letterSpacing: "3.5px", textTransform: "uppercase" }}>
           BORN HERE / WALK HERE / DALLAS, TX
-        </div>
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          <LogoBadge size={120} />
         </div>
       </div>
 
