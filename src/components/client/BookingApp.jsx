@@ -919,6 +919,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               <div key={i} style={{ background: "#fff",
                 border: tier.badge === "Popular" ? "2px solid #8B5E3C" : "1.5px solid #e4e7ec",
                 borderRadius: "16px", padding: "20px 22px", position: "relative",
+                display: "flex", flexDirection: "column",
                 boxShadow: tier.badge === "Popular" ? "0 4px 20px rgba(26,107,74,0.10)" : "0 2px 8px rgba(0,0,0,0.04)" }}>
                 {tier.badge && (
                   <div style={{ position: "absolute", top: "-12px", left: "20px",
@@ -931,10 +932,10 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   fontWeight: 600, color: "#111827", marginBottom: "2px" }}>{tier.label}</div>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                   color: "#6b7280", marginBottom: "4px" }}>{tier.freq}</div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af", marginBottom: "14px" }}>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af", marginBottom: "14px", flex: 1 }}>
                   {tier.description}
                 </div>
-                <div style={{ display: "flex", gap: "8px" }}>
+                <div style={{ display: "flex", gap: "8px", marginTop: "auto" }}>
                   {Object.entries(tier.prices).map(([dur, price]) => (
                     <div key={dur} style={{ flex: 1, background: "#f5f6f8", borderRadius: "10px",
                       padding: "8px 12px", textAlign: "center" }}>
