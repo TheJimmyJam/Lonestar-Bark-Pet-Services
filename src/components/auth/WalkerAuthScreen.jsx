@@ -1,11 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { WALKER_SERVICES } from "../../constants.js";
 import { notifyAdmin, loadWalkerProfiles } from "../../supabase.js";
-import { generateCode, formatPhone, emptyAddr, addrToString } from "../../helpers.js";
+import { generateCode, formatPhone, emptyAddr, addrToString, firstName } from "../../helpers.js";
 import PinPad from "../shared/PinPad.jsx";
 import LogoBadge from "../shared/LogoBadge.jsx";
 import AddressFields from "../shared/AddressFields.jsx";
 import { GLOBAL_STYLES } from "../../styles.js";
+
+// ─── Shared mutable walker state ──────────────────────────────────────────────
+// These are module-level so all files importing from here share the same references.
+let WALKER_CREDENTIALS = {};
+let CUSTOM_WALKERS = [];
 
 // ─── Walker helpers ───────────────────────────────────────────────────────────
 function getAllWalkers() {
@@ -238,5 +243,5 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin }) {
 }
 
 // ─── Admin Auth Screen ────────────────────────────────────────────────────────
-export { getAllWalkers, injectCustomWalkers };
+export { getAllWalkers, injectCustomWalkers, WALKER_CREDENTIALS, CUSTOM_WALKERS };
 export default WalkerAuthScreen;

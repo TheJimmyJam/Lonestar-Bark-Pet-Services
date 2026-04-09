@@ -23,6 +23,7 @@ import { slotsToShifts, shiftsToSlots, ShiftSlider, DayAvailSliders } from "./Av
 import { autoCreateWalkInvoice, generateInvoiceId } from "../invoices/invoiceHelpers.js";
 import { spawnNextRecurringOccurrence } from "../recurring.js";
 import { GLOBAL_STYLES } from "../../styles.js";
+import { WALKER_CREDENTIALS } from "../auth/WalkerAuthScreen.jsx";
 
 // ─── Walker Dashboard ─────────────────────────────────────────────────────────
 function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalkerProfiles, trades, setTrades, onLogout }) {

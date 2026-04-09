@@ -92,12 +92,4 @@ function RoleSelectScreen({ onSelectRole, onBack }) {
 // ─── Walker Auth Screen ───────────────────────────────────────────────────────
 // Hard-coded walker credentials matching WALKERS array
 // In production these would be in the DB; here PIN is walker.id * 1111
-// This is a mutable object so custom walkers added by admin can be injected at runtime
-let WALKER_CREDENTIALS = {};
-
-// Registry of walkers added by admin at runtime (populated from walkerProfiles on load)
-let CUSTOM_WALKERS = [];
-
-// Returns the full merged walker list (built-in + custom), excluding deleted walkers
-
 export default RoleSelectScreen;
