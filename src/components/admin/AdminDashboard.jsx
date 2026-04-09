@@ -8,6 +8,7 @@ import {
   loadCompletedPayrolls, saveCompletedPayrolls,
   loadAllWalkersAvailability,
   saveInvoiceToDB, updateInvoiceInDB, sendInvoiceEmail,
+  loadContactSubmissions,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout,
@@ -83,9 +84,35 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     setConfirmPayrollWalker(null);
     setBookingsView("upcoming");
     if (newTab === "invoices") setInvoicesKey(k => k + 1);
+    if (newTab === "contact") {
+      try { localStorage.setItem(CONTACT_SEEN_KEY, new Date().toISOString()); } catch {}
+      setNewContactCount(0);
+    }
     setClientSearch(""); setWalkerSearch(""); setAppSearch(""); setBookingSearch("");
     setAssignSearch(""); setAssignDateFilter("");
   };
+  // ── Contact notification badge ──
+  const [newContactCount, setNewContactCount] = useState(0);
+  const CONTACT_SEEN_KEY = "lsb_contact_last_seen";
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const subs = await loadContactSubmissions();
+        const lastSeen = (() => { try { return localStorage.getItem(CONTACT_SEEN_KEY) || ""; } catch { return ""; } })();
+        if (lastSeen) {
+          const unseenCount = subs.filter(s => s.createdAt && new Date(s.createdAt) > new Date(lastSeen)).length;
+          setNewContactCount(unseenCount);
+        } else {
+          // Never opened contact tab — all "new" status submissions are unseen
+          setNewContactCount(subs.filter(s => s.status === "new").length);
+        }
+      } catch (e) {
+        console.error("Failed to load contact count:", e);
+      }
+    })();
+  }, [tab]); // re-check when switching tabs (in case new ones came in)
+
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [expandedKpi, setExpandedKpi] = useState(null);
   const [kpiWalkDetail, setKpiWalkDetail] = useState(null);
@@ -380,6 +407,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
       const { effectiveStatus } = invoiceStatusMeta(inv.status, inv.dueDate);
       return effectiveStatus === "overdue";
     }).length,
+    contact:      newContactCount,
   };
 
   const TABS = [
