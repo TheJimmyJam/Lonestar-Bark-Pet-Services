@@ -3,7 +3,7 @@ import { saveClients, updateInvoiceInDB } from "../../supabase.js";
 import { fmt, firstName } from "../../helpers.js";
 import { invoiceStatusMeta, getInvoiceDueDate } from "./invoiceHelpers.js";
 import StripePaymentModal from "./StripePaymentModal.jsx";
-import Header from "../shared/Header.jsx";;
+import Header from "../shared/Header.jsx";
 
 // ─── Client Invoices Page ──────────────────────────────────────────────────────
 function ClientInvoicesPage({ client, clients, setClients }) {

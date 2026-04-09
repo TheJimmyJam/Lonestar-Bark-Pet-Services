@@ -30,7 +30,7 @@ import { autoCreateWalkInvoice, generateInvoiceId, getAllInvoices, invoiceStatus
 import { generateRecurringBookings, extendRecurringBookings, spawnNextRecurringOccurrence } from "../recurring.js";
 import { GLOBAL_STYLES } from "../../styles.js";
 import { WALKER_CREDENTIALS, getAllWalkers, injectCustomWalkers } from "../auth/WalkerAuthScreen.jsx";
-import Header from "../shared/Header.jsx";;
+import Header from "../shared/Header.jsx";
 import { SUPABASE_ANON_KEY, SUPABASE_URL, loadClients, loadTrades, loadWalkerProfiles } from "../../supabase.js";
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────

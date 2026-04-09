@@ -3,7 +3,7 @@ import { SERVICES } from "../../constants.js";
 import { saveClients, notifyAdmin } from "../../supabase.js";
 import { formatPhone, addrToString, addrFromString, emptyAddr, firstName } from "../../helpers.js";
 import AddressFields from "../shared/AddressFields.jsx";
-import PinPad from "../shared/PinPad.jsx";;
+import PinPad from "../shared/PinPad.jsx";
 
 // ─── Client My Info Page ──────────────────────────────────────────────────────
 function MyInfoSection({ title, children }) {

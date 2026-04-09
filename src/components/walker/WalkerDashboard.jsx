@@ -6,6 +6,7 @@ import {
   loadDirectMessages, saveDirectMessage,
   loadWalkerAvailability, saveWalkerAvailabilityDay,
   loadCompletedPayrolls, saveCompletedPayrolls,
+  loadClientMessages, saveClientMessage, saveInvoiceToDB,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout,
@@ -19,15 +20,14 @@ import {
 import LogoBadge from "../shared/LogoBadge.jsx";
 import AddressFields from "../shared/AddressFields.jsx";
 import WalkerClientEditor from "./WalkerClientEditor.jsx";
-import { slotsToShifts, shiftsToSlots, ShiftSlider, DayAvailSliders } from "./AvailabilityComponents.jsx";
+import { slotsToShifts, shiftsToSlots, ShiftSlider, DayAvailSliders, AVAIL_SLIDER_CSS } from "./AvailabilityComponents.jsx";
 import { autoCreateWalkInvoice, generateInvoiceId, invoiceStatusMeta } from "../invoices/invoiceHelpers.js";
 import { spawnNextRecurringOccurrence } from "../recurring.js";
 import { GLOBAL_STYLES } from "../../styles.js";
 import { WALKER_CREDENTIALS, getAllWalkers } from "../auth/WalkerAuthScreen.jsx";
-import AddLegacyClientForm from "../admin/AddLegacyClientForm.jsx";;
-import ScheduleWalkForm from "../admin/ScheduleWalkForm.jsx";;
-import Header from "../shared/Header.jsx";;
-import { loadClientMessages, saveClientMessage, saveInvoiceToDB } from "../../supabase.js";
+import AddLegacyClientForm from "../admin/AddLegacyClientForm.jsx";
+import ScheduleWalkForm from "../admin/ScheduleWalkForm.jsx";
+import Header from "../shared/Header.jsx";
 
 // ─── Walker Dashboard ─────────────────────────────────────────────────────────
 function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalkerProfiles, trades, setTrades, onLogout }) {
@@ -4542,13 +4542,5 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     </div>
   );
 }
-
-// ─── Admin Map View ───────────────────────────────────────────────────────────
-const TIME_BANDS = [
-  { id: "morning",   label: "Morning",   range: "7–10 AM",  hours: [7,  10], color: "#3b82f6" },
-  { id: "midday",    label: "Midday",    range: "10 AM–1 PM", hours: [10, 13], color: "#059669" },
-  { id: "afternoon", label: "Afternoon", range: "1–4 PM",   hours: [13, 16], color: "#f97316" },
-  { id: "evening",   label: "Evening",   range: "4–7 PM",   hours: [16, 19], color: "#A07090" },
-];
 
 export default WalkerDashboard;

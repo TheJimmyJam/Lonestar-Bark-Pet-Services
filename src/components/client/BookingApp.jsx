@@ -25,7 +25,7 @@ import { autoCreateWalkInvoice, generateInvoiceId, invoiceStatusMeta } from "../
 import { spawnNextRecurringOccurrence } from "../recurring.js";
 import { GLOBAL_STYLES } from "../../styles.js";
 import { getAllWalkers } from "../auth/WalkerAuthScreen.jsx";
-import AddressFields from "../shared/AddressFields.jsx";;
+import AddressFields from "../shared/AddressFields.jsx";
 import { PRICE_TIERS, addrFromString } from "../../helpers.js";
 import { loadInvoicesFromDB } from "../../supabase.js";
 

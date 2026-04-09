@@ -4,7 +4,7 @@ import { saveClients, notifyAdmin } from "../supabase.js";
 import { addrFromString, addrToString, dateStrFromDate, firstName, fmt, formatPhone, generateCode, getSessionPrice, getWeekDates } from "../helpers.js";
 import { GLOBAL_STYLES } from "../styles.js";
 import { getAllWalkers } from "./auth/WalkerAuthScreen.jsx";
-import AddressFields from "./shared/AddressFields.jsx";;
+import AddressFields from "./shared/AddressFields.jsx";
 
 // ─── Meet & Greet Flow ─────────────────────────────────────────────────────────────
 // ─── Meet & Greet Flow ─────────────────────────────────────────────────────────────

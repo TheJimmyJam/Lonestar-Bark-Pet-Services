@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { FULL_DAYS, SERVICES, SERVICE_SLOTS } from "../../constants.js";
 import { saveClients, loadAllWalkersAvailability } from "../../supabase.js";
-import Header from "../shared/Header.jsx";;
+import Header from "../shared/Header.jsx";
 import { repriceWeekBookings } from "../../helpers.js";
 import {
   getWeekDates, parseDateLocal, getWeekBookingCountForOffset,

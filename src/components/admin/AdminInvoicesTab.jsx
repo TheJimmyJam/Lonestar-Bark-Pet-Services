@@ -8,7 +8,7 @@ import {
 } from "../../helpers.js";
 import { generateInvoiceId, getInvoiceDueDate, invoiceStatusMeta, getAllInvoices } from "../invoices/invoiceHelpers.js";
 import StripePaymentModal from "../invoices/StripePaymentModal.jsx";
-import Header from "../shared/Header.jsx";;
+import Header from "../shared/Header.jsx";
 
 // ─── Admin Invoices Tab ────────────────────────────────────────────────────────
 function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
