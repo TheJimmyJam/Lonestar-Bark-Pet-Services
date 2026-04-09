@@ -4,6 +4,7 @@ import { generateCode } from "../../helpers.js";
 import PinPad from "../shared/PinPad.jsx";
 import LogoBadge from "../shared/LogoBadge.jsx";
 import { GLOBAL_STYLES } from "../../styles.js";
+import useRateLimiter from "../../hooks/useRateLimiter.js";
 
 // ─── Admin Auth Screen ────────────────────────────────────────────────────────
 function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdminList }) {
@@ -15,6 +16,8 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
   const [savedEmail, setSavedEmail] = useState(null);
   const [emailError, setEmailError] = useState("");
   const [pinError, setPinError]   = useState("");
+
+  const rateLimiter = useRateLimiter(savedEmail || email);
 
   // Setup (invite onboarding) state
   const [setupName, setSetupName]   = useState("");
@@ -51,13 +54,21 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
   };
 
   const handlePin = (pin) => {
+    if (rateLimiter.locked) return;
     const e = (savedEmail || email).trim().toLowerCase();
     const found = adminList.find(a => a.email.toLowerCase() === e && a.status === "active");
     if (found && pin === found.pin) {
+      rateLimiter.clearFailures();
       try { localStorage.setItem(STORAGE_KEY, found.email); } catch {}
       onLogin({ id: found.id, name: found.name, role: "admin", email: found.email });
     } else {
-      setPinError("Incorrect PIN."); setTimeout(() => setPinError(""), 100);
+      const nowLocked = rateLimiter.recordFailure();
+      if (nowLocked) {
+        setPinError("Too many failed attempts. Account locked."); setTimeout(() => setPinError(""), 100);
+      } else {
+        setPinError(`Incorrect PIN. ${rateLimiter.attemptsLeft - 1} attempt${rateLimiter.attemptsLeft - 1 === 1 ? "" : "s"} remaining.`);
+        setTimeout(() => setPinError(""), 100);
+      }
     }
   };
 
@@ -155,7 +166,25 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
               )}
             </div>
             <div style={{ marginTop: "24px" }}>
-              <PinPad label="Enter your PIN" onComplete={handlePin} error={pinError} color={amber} />
+              {rateLimiter.locked ? (
+                <div style={{ textAlign: "center", padding: "24px 16px" }}>
+                  <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔒</div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ef4444",
+                    fontSize: "15px", fontWeight: 600, marginBottom: "8px" }}>
+                    Account Locked
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
+                    fontSize: "15px", lineHeight: "1.6", marginBottom: "12px" }}>
+                    Too many failed PIN attempts. Try again in:
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', monospace", color: "#fff",
+                    fontSize: "28px", fontWeight: 700, letterSpacing: "2px" }}>
+                    {rateLimiter.formatRemaining()}
+                  </div>
+                </div>
+              ) : (
+                <PinPad label="Enter your PIN" onComplete={handlePin} error={pinError} color={amber} />
+              )}
             </div>
             <button onClick={handleForgetMe} style={{
               marginTop: "20px", background: "none", border: "1px solid rgba(255,255,255,0.2)",

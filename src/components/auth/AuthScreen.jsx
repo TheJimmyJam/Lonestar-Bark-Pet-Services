@@ -6,6 +6,7 @@ import PinPad from "../shared/PinPad.jsx";
 import LogoBadge from "../shared/LogoBadge.jsx";
 import AddressFields from "../shared/AddressFields.jsx";
 import { GLOBAL_STYLES } from "../../styles.js";
+import useRateLimiter from "../../hooks/useRateLimiter.js";
 
 // ─── Auth Screen ──────────────────────────────────────────────────────────────
 function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onSetPin }) {
@@ -29,6 +30,7 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
   const [pendingPin, setPendingPin] = useState("");
   const [newClientPin, setNewClientPin] = useState(null);
   const [isNew, setIsNew] = useState(false);
+  const rateLimiter = useRateLimiter(email);
 
   const pinSectionRef  = useRef(null);
   const nameSectionRef = useRef(null);
@@ -56,16 +58,26 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
   };
 
   const handleLoginPin = (pin) => {
+    if (rateLimiter.locked) return;
     const client = Object.values(clients).find(c => c.email === email.trim().toLowerCase());
     if (client && client.pin === pin) {
       if (client.emailVerified === false) {
         setPinError("Please verify your email before logging in. Check your inbox for the verification link.");
         return;
       }
+      rateLimiter.clearFailures();
       try { localStorage.setItem("dwi_saved_email", email.trim().toLowerCase()); } catch {}
       onLogin(client);
     }
-    else { setPinError("Incorrect PIN. Please try again."); setTimeout(() => setPinError(""), 100); }
+    else {
+      const nowLocked = rateLimiter.recordFailure();
+      if (nowLocked) {
+        setPinError("Too many failed attempts. Account locked."); setTimeout(() => setPinError(""), 100);
+      } else {
+        setPinError(`Incorrect PIN. ${rateLimiter.attemptsLeft - 1} attempt${rateLimiter.attemptsLeft - 1 === 1 ? "" : "s"} remaining.`);
+        setTimeout(() => setPinError(""), 100);
+      }
+    }
   };
 
   const handleSetClientPin = (pin) => {
@@ -196,8 +208,26 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
               </div>
             </div>
             <div style={{ marginTop: "24px" }}>
-              <PinPad label="Enter your PIN" onComplete={handleLoginPin}
-                error={pinError} color="#C4541A" />
+              {rateLimiter.locked ? (
+                <div style={{ textAlign: "center", padding: "24px 16px" }}>
+                  <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔒</div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ef4444",
+                    fontSize: "15px", fontWeight: 600, marginBottom: "8px" }}>
+                    Account Locked
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
+                    fontSize: "15px", lineHeight: "1.6", marginBottom: "12px" }}>
+                    Too many failed PIN attempts. Try again in:
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', monospace", color: "#fff",
+                    fontSize: "28px", fontWeight: 700, letterSpacing: "2px" }}>
+                    {rateLimiter.formatRemaining()}
+                  </div>
+                </div>
+              ) : (
+                <PinPad label="Enter your PIN" onComplete={handleLoginPin}
+                  error={pinError} color="#C4541A" />
+              )}
             </div>
             <button onClick={() => { forgetSavedEmail(); }}
               style={{ marginTop: "20px", background: "none", border: "none", color: "#ffffffaa",

@@ -6,6 +6,7 @@ import PinPad from "../shared/PinPad.jsx";
 import LogoBadge from "../shared/LogoBadge.jsx";
 import AddressFields from "../shared/AddressFields.jsx";
 import { GLOBAL_STYLES } from "../../styles.js";
+import useRateLimiter from "../../hooks/useRateLimiter.js";
 
 // ─── Shared mutable walker state ──────────────────────────────────────────────
 // These are module-level so all files importing from here share the same references.
@@ -57,6 +58,7 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin }) {
   const [pinError, setPinError] = useState("");
   const [savedEmail, setSavedEmail] = useState(null);
   const [newPin, setNewPin]     = useState(null);
+  const rateLimiter = useRateLimiter(email);
 
   // On mount: check for a previously saved email
   useEffect(() => {
@@ -81,14 +83,22 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin }) {
   };
 
   const handlePin = (pin) => {
+    if (rateLimiter.locked) return;
     const e = email.trim().toLowerCase();
     const cred = WALKER_CREDENTIALS[e];
     if (cred && cred.pin === pin) {
+      rateLimiter.clearFailures();
       try { localStorage.setItem(STORAGE_KEY, e); } catch {}
       const walkerData = getAllWalkers().find(w => w.id === cred.walkerId);
       onLogin({ ...walkerData, email: e, role: "walker" });
     } else {
-      setPinError("Incorrect PIN."); setTimeout(() => setPinError(""), 100);
+      const nowLocked = rateLimiter.recordFailure();
+      if (nowLocked) {
+        setPinError("Too many failed attempts. Account locked."); setTimeout(() => setPinError(""), 100);
+      } else {
+        setPinError(`Incorrect PIN. ${rateLimiter.attemptsLeft - 1} attempt${rateLimiter.attemptsLeft - 1 === 1 ? "" : "s"} remaining.`);
+        setTimeout(() => setPinError(""), 100);
+      }
     }
   };
 
@@ -187,7 +197,25 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin }) {
               )}
             </div>
             <div style={{ marginTop: "24px" }}>
-              <PinPad label="Enter your walker PIN" onComplete={handlePin} error={pinError} color={accentBlue} />
+              {rateLimiter.locked ? (
+                <div style={{ textAlign: "center", padding: "24px 16px" }}>
+                  <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔒</div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ef4444",
+                    fontSize: "15px", fontWeight: 600, marginBottom: "8px" }}>
+                    Account Locked
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
+                    fontSize: "15px", lineHeight: "1.6", marginBottom: "12px" }}>
+                    Too many failed PIN attempts. Try again in:
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', monospace", color: "#fff",
+                    fontSize: "28px", fontWeight: 700, letterSpacing: "2px" }}>
+                    {rateLimiter.formatRemaining()}
+                  </div>
+                </div>
+              ) : (
+                <PinPad label="Enter your walker PIN" onComplete={handlePin} error={pinError} color={accentBlue} />
+              )}
             </div>
             <button onClick={handleForgetMe} style={{
               marginTop: "20px", background: "none", border: "none", color: "#ffffffaa",
