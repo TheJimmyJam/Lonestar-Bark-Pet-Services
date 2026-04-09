@@ -201,6 +201,8 @@ function addrToString(a) {
 function addrFromString(s) {
   // Best-effort parse of "123 Main St, Dallas, TX 75201"
   if (!s) return { street: "", city: "", state: "", zip: "" };
+  if (typeof s === "object") return { street: s.street || "", city: s.city || "", state: s.state || "", zip: s.zip || "" };
+  if (typeof s !== "string") return { street: "", city: "", state: "", zip: "" };
   const parts = s.split(",").map(p => p.trim());
   return {
     street: parts[0] || "",

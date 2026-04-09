@@ -805,7 +805,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               {renderKpiCard({
                 label: "Current Tier",
                 value: currentTier.label,
-                sub: `$${currentTier.prices["30 min"]}/30 min · $${currentTier.prices["60 min"]}/60 min`,
+                sub: `$${currentTier.prices["30 min"].toFixed(2)}/30 min · $${currentTier.prices["60 min"].toFixed(2)}/60 min`,
                 accent: tierColor[currentTier.label],
                 onClick: () => setPage("pricing"),
               })}
@@ -877,15 +877,17 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
             border: `1.5px solid ${weekBookingCount >= 5 ? "#3D6B7A" : weekBookingCount >= 3 ? "#C4541A" : "#e4e7ec"}` }}>
             <div style={{ padding: "12px 14px",
               background: weekBookingCount >= 5 ? "#EBF4F6" : weekBookingCount >= 3 ? "#FDF5EC" : "#f9fafb",
-              display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
+              display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ flex: 1 }}>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
                   fontSize: "15px", color: "#111827", marginBottom: "2px" }}>
                   {currentTier.label} rate this week
-                  <span style={{ marginLeft: "8px", fontSize: "15px", fontWeight: 500,
-                    padding: "2px 8px", borderRadius: "20px",
-                    background: weekBookingCount >= 5 ? "#3D6B7A" : weekBookingCount >= 3 ? "#C4541A" : "#e4e7ec",
-                    color: weekBookingCount >= 1 ? "#fff" : "#6b7280" }}>
+                </div>
+                <div style={{ marginBottom: "12px" }}>
+                  <span style={{ marginRight: "8px", fontSize: "15px", fontWeight: 600,
+                    padding: "3px 10px", borderRadius: "20px",
+                    background: weekBookingCount >= 5 ? "#3D6B7A" : weekBookingCount >= 3 ? "#C4541A" : "#6b7280",
+                    color: "#fff" }}>
                     {weekBookingCount} booked this week
                   </span>
                 </div>
@@ -902,7 +904,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               </div>
               <div style={{ textAlign: "right", flexShrink: 0 }}>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                  fontWeight: 600, color: "#111827" }}>${currentTier.prices["30 min"]}</div>
+                  fontWeight: 600, color: "#111827" }}>${currentTier.prices["30 min"].toFixed(2)}</div>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>30 min</div>
               </div>
             </div>
@@ -938,7 +940,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       padding: "8px 12px", textAlign: "center" }}>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af", marginBottom: "2px" }}>{dur}</div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", textTransform: "uppercase", letterSpacing: "1px",
-                        fontWeight: 600, color: "#111827" }}>${price}</div>
+                        fontWeight: 600, color: "#111827" }}>${price.toFixed(2)}</div>
                     </div>
                   ))}
                 </div>
@@ -952,18 +954,18 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" }}>
             {ADD_ONS.map((addon, i) => (
               <div key={i} style={{ background: "#fff", border: "1.5px solid #e4e7ec",
-                borderRadius: "12px", padding: "16px 18px", display: "flex", alignItems: "center", gap: "14px" }}>
+                borderRadius: "12px", padding: "16px 18px", display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
                 <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: "#FDF5EC",
                   display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", flexShrink: 0 }}>
                   {addon.icon}
                 </div>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: "1 1 150px", minWidth: 0 }}>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: "16px",
                     color: "#111827", marginBottom: "2px" }}>{addon.label}</div>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#9ca3af" }}>{addon.note}</div>
                 </div>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                  fontWeight: 600, color: "#C4541A", whiteSpace: "nowrap" }}>{addon.price}</div>
+                  fontWeight: 600, color: "#C4541A", flexShrink: 0 }}>{addon.price}</div>
               </div>
             ))}
           </div>
@@ -1368,15 +1370,17 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               border: `1.5px solid ${weekBookingCount >= 5 ? "#3D6B7A" : weekBookingCount >= 3 ? "#C4541A" : "#e4e7ec"}` }}>
               <div style={{ padding: "12px 14px",
                 background: weekBookingCount >= 5 ? "#EBF4F6" : weekBookingCount >= 3 ? "#FDF5EC" : "#f9fafb",
-                display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
+                display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
                     fontSize: "15px", color: "#111827", marginBottom: "2px" }}>
                     {currentTier.label} rate this week
-                    <span style={{ marginLeft: "8px", fontSize: "15px", fontWeight: 500,
-                      padding: "2px 8px", borderRadius: "20px",
-                      background: weekBookingCount >= 5 ? "#3D6B7A" : weekBookingCount >= 3 ? "#C4541A" : "#e4e7ec",
-                      color: weekBookingCount >= 1 ? "#fff" : "#6b7280" }}>
+                  </div>
+                  <div style={{ marginBottom: "12px" }}>
+                    <span style={{ marginRight: "8px", fontSize: "15px", fontWeight: 600,
+                      padding: "3px 10px", borderRadius: "20px",
+                      background: weekBookingCount >= 5 ? "#3D6B7A" : weekBookingCount >= 3 ? "#C4541A" : "#6b7280",
+                      color: "#fff" }}>
                       {weekBookingCount} booked this week
                     </span>
                   </div>
@@ -1393,7 +1397,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                    fontWeight: 600, color: "#111827" }}>${currentTier.prices["30 min"]}</div>
+                    fontWeight: 600, color: "#111827" }}>${currentTier.prices["30 min"].toFixed(2)}</div>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>30 min</div>
                 </div>
               </div>
@@ -1705,7 +1709,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                         </div>
                         {b.price > 0 && (
                           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                            fontWeight: 600, color: "#9ca3af" }}>${b.price}</div>
+                            fontWeight: 600, color: "#9ca3af" }}>${Number(b.price).toFixed(2)}</div>
                         )}
                       </div>
                     );
@@ -2731,9 +2735,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                                           color: walk.duration === d ? "rgba(255,255,255,0.85)" : "#9ca3af" }}>
                                           {sameDayDiscountActive && btnBaseOrig && (
                                             <span style={{ textDecoration: "line-through", marginRight: "4px",
-                                              opacity: 0.6 }}>${btnBaseOrig}</span>
+                                              opacity: 0.6 }}>${btnBaseOrig.toFixed(2)}</span>
                                           )}
-                                          ${btnPrice}
+                                          ${btnPrice.toFixed(2)}
                                         </div>
                                       </button>
                                     );
@@ -2870,7 +2874,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                               {b.price > 0 && (
                                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                                   color: "#C4541A", fontWeight: 500, marginTop: "2px" }}>
-                                  ${b.price} · {b.priceTier} rate
+                                  ${Number(b.price).toFixed(2)} · {b.priceTier} rate
                                 </div>
                               )}
                               {policy && (

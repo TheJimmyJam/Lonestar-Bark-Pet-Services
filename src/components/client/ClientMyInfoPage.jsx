@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { SERVICES } from "../../constants.js";
 import { saveClients, notifyAdmin } from "../../supabase.js";
 import { formatPhone, addrToString, addrFromString, emptyAddr, firstName } from "../../helpers.js";
@@ -27,9 +27,9 @@ function ClientMyInfoPage({ client, clients, setClients }) {
     name: client.name || "",
     email: client.email || "",
     phone: client.phone || "",
-    addrObj: addrFromString(client.address || ""),
-    dogs: (client.dogs || []).length > 0 ? [...client.dogs] : [""],
-    cats: (client.cats || []).length > 0 ? [...client.cats] : [],
+    addrObj: addrFromString(client.addrObj || client.address || ""),
+    dogs: Array.isArray(client.dogs) && client.dogs.length > 0 ? [...client.dogs] : [""],
+    cats: Array.isArray(client.cats) && client.cats.length > 0 ? [...client.cats] : [],
     notes: client.notes || "",
     vetName: client.vetName || "",
     vetAddress: client.vetAddress || "",
@@ -46,15 +46,18 @@ function ClientMyInfoPage({ client, clients, setClients }) {
     if (draft.name !== (client.name || "")) return true;
     if (draft.email !== (client.email || "")) return true;
     if (draft.phone !== (client.phone || "")) return true;
-    if (addrToString(draft.addrObj) !== (client.address || "")) return true;
+    const clientAddr = typeof client.address === "string" ? client.address : addrToString(client.addrObj || client.address || "");
+    if (addrToString(draft.addrObj) !== (clientAddr || "")) return true;
     if (draft.notes !== (client.notes || "")) return true;
     if (draft.vetName !== (client.vetName || "")) return true;
     if (draft.vetAddress !== (client.vetAddress || "")) return true;
     if (draft.vetPhone !== (client.vetPhone || "")) return true;
     const dogs = draft.dogs.map(d => d.trim()).filter(Boolean);
     const cats = draft.cats.map(c => c.trim()).filter(Boolean);
-    if (JSON.stringify(dogs) !== JSON.stringify(client.dogs || [])) return true;
-    if (JSON.stringify(cats) !== JSON.stringify(client.cats || [])) return true;
+    const clientDogs = Array.isArray(client.dogs) ? client.dogs : [];
+    const clientCats = Array.isArray(client.cats) ? client.cats : [];
+    if (JSON.stringify(dogs) !== JSON.stringify(clientDogs)) return true;
+    if (JSON.stringify(cats) !== JSON.stringify(clientCats)) return true;
     return false;
   }, [draft, client]);
 
