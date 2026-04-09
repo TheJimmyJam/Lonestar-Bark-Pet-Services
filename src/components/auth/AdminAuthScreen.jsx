@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { sbFetch, notifyAdmin } from "../../supabase.js";
+import { sbFetch, notifyAdmin, saveAdminList } from "../../supabase.js";
 import { generateCode } from "../../helpers.js";
 import PinPad from "../shared/PinPad.jsx";
 import LogoBadge from "../shared/LogoBadge.jsx";
+import { GLOBAL_STYLES } from "../../styles.js";
 
 // ─── Admin Auth Screen ────────────────────────────────────────────────────────
 function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdminList }) {

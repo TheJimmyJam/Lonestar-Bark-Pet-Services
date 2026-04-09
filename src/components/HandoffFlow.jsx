@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { ALL_HANDOFF_SLOTS } from "../constants.js";
 import { saveClients, notifyAdmin } from "../supabase.js";
 import { firstName, addrToString } from "../helpers.js";
+import { GLOBAL_STYLES } from "../styles.js";
 
 // ─── Meet & Greet Flow ─────────────────────────────────────────────────────────────
 // ─── Meet & Greet Flow ─────────────────────────────────────────────────────────────

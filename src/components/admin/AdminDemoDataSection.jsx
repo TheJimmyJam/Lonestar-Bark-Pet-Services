@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { saveClients, saveWalkerProfiles } from "../../supabase.js";
+import { saveClients, saveWalkerProfiles, sbFetch } from "../../supabase.js";
 
 // ─── Demo Data Generator ──────────────────────────────────────────────────────
 function buildDemoData() {

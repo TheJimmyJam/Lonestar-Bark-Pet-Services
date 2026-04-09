@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import LogoBadge from "../shared/LogoBadge.jsx";
+import { GLOBAL_STYLES } from "../../styles.js";
 
 // ─── Role Selection Screen ────────────────────────────────────────────────────
 function RoleSelectScreen({ onSelectRole, onBack }) {

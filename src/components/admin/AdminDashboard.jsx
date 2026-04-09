@@ -28,6 +28,7 @@ import AdminAdminsTab from "./AdminAdminsTab.jsx";
 import AdminMyInfo from "./AdminMyInfo.jsx";
 import { autoCreateWalkInvoice, generateInvoiceId } from "../invoices/invoiceHelpers.js";
 import { generateRecurringBookings, extendRecurringBookings, spawnNextRecurringOccurrence } from "../recurring.js";
+import { GLOBAL_STYLES } from "../../styles.js";
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, setWalkerProfiles, trades, setTrades, adminList, setAdminList, onLogout }) {

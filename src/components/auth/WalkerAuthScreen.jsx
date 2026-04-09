@@ -5,6 +5,7 @@ import { generateCode, formatPhone, emptyAddr, addrToString } from "../../helper
 import PinPad from "../shared/PinPad.jsx";
 import LogoBadge from "../shared/LogoBadge.jsx";
 import AddressFields from "../shared/AddressFields.jsx";
+import { GLOBAL_STYLES } from "../../styles.js";
 
 // ─── Walker helpers ───────────────────────────────────────────────────────────
 function getAllWalkers() {
@@ -237,77 +238,5 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin }) {
 }
 
 // ─── Admin Auth Screen ────────────────────────────────────────────────────────
-// ─── Admin List Storage (localStorage) ───────────────────────────────────────
-// ─── Admin Supabase Functions ─────────────────────────────────────────────────
-const DEFAULT_ADMIN = {
-  id: "admin-1",
-  name: "Admin",
-  email: "admin@lonestarbark.com",
-  pin: "0000",
-  status: "active",
-  isMaster: true,
-  invitedBy: null,
-  createdAt: new Date(0).toISOString(),
-};
-
-async function loadAdminList() {
-  try {
-    const rows = await sbFetch("admins?select=*&order=created_at.asc");
-    if (rows && rows.length > 0) {
-      return rows.map(r => ({
-        id: r.id,
-        name: r.name || "",
-        email: r.email,
-        pin: r.pin || "",
-        status: r.status || "active",
-        isMaster: r.is_master || false,
-        invitedBy: r.invited_by || null,
-        createdAt: r.created_at || new Date().toISOString(),
-      }));
-    }
-    // Table is empty — seed with the legacy default admin
-    await saveAdminList([DEFAULT_ADMIN]);
-    return [DEFAULT_ADMIN];
-  } catch (e) {
-    console.error("loadAdminList failed:", e);
-    return [DEFAULT_ADMIN];
-  }
-}
-
-async function saveAdminList(list) {
-  try {
-    // Upsert all admins by id
-    const rows = list.map(a => ({
-      id: a.id,
-      name: a.name || "",
-      email: a.email,
-      pin: a.pin || "",
-      status: a.status || "active",
-      is_master: a.isMaster || false,
-      invited_by: a.invitedBy || null,
-      created_at: a.createdAt || new Date().toISOString(),
-    }));
-    await sbFetch("admins?on_conflict=id", {
-      method: "POST",
-      headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify(rows),
-    });
-  } catch (e) {
-    console.error("saveAdminList failed:", e);
-  }
-}
-
-async function removeAdminFromDB(id) {
-  try {
-    await sbFetch(`admins?id=eq.${encodeURIComponent(id)}`, {
-      method: "DELETE",
-      headers: { "Prefer": "" },
-    });
-  } catch (e) {
-    console.error("removeAdminFromDB failed:", e);
-  }
-}
-
-
 export { getAllWalkers, injectCustomWalkers };
 export default WalkerAuthScreen;

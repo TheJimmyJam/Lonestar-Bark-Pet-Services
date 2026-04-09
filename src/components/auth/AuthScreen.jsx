@@ -5,6 +5,7 @@ import { generateCode, formatPhone, addrToString, emptyAddr } from "../../helper
 import PinPad from "../shared/PinPad.jsx";
 import LogoBadge from "../shared/LogoBadge.jsx";
 import AddressFields from "../shared/AddressFields.jsx";
+import { GLOBAL_STYLES } from "../../styles.js";
 
 // ─── Auth Screen ──────────────────────────────────────────────────────────────
 function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onSetPin }) {

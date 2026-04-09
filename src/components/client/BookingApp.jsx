@@ -23,6 +23,7 @@ import ClientInvoicesPage from "../invoices/ClientInvoicesPage.jsx";
 import HandoffFlow from "../HandoffFlow.jsx";
 import { autoCreateWalkInvoice, generateInvoiceId } from "../invoices/invoiceHelpers.js";
 import { spawnNextRecurringOccurrence } from "../recurring.js";
+import { GLOBAL_STYLES } from "../../styles.js";
 
 // ─── Main Booking App ─────────────────────────────────────────────────────────
 function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {} }) {

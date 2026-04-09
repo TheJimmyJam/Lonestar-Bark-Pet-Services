@@ -6,6 +6,7 @@ import {
   loadInvoicesFromDB, mergeInvoicesIntoClients,
   loadTrades, saveTrades,
   sbFetch,
+  loadAdminList, saveAdminList,
 } from "./supabase.js";
 import { GLOBAL_STYLES } from "./styles.js";
 import LandingPage from "./components/LandingPage.jsx";
