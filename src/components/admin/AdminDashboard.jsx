@@ -7,7 +7,7 @@ import {
   loadWalkerAvailability, saveWalkerAvailabilityDay,
   loadCompletedPayrolls, saveCompletedPayrolls,
   loadAllWalkersAvailability,
-  saveInvoiceToDB, updateInvoiceInDB,
+  saveInvoiceToDB, updateInvoiceInDB, sendInvoiceEmail,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout,
@@ -249,7 +249,10 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     );
     // Persist new invoice to the dedicated DB table
     const newInv = (updatedClientRecord.invoices || []).find(i => !existingIds.has(i.id));
-    if (newInv) saveInvoiceToDB(newInv, booking.clientId, booking.clientName || "", booking.clientEmail || "");
+    if (newInv) {
+      saveInvoiceToDB(newInv, booking.clientId, booking.clientName || "", booking.clientEmail || "");
+      sendInvoiceEmail(newInv, booking.clientName || c.name, booking.clientEmail || c.email);
+    }
 
     const updatedClients = { ...clients, [clientId]: updatedClientRecord };
     setClients(updatedClients);

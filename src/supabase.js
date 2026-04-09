@@ -459,6 +459,7 @@ export {
   loadWalkerAvailability, saveWalkerAvailabilityDay, loadAllWalkersAvailability,
   DEFAULT_ADMIN, loadAdminList, saveAdminList, removeAdminFromDB,
   loadContactSubmissions, saveContactSubmission, updateContactSubmission, deleteContactSubmission,
+  sendInvoiceEmail,
 };
 
 // ─── Admin List DB Functions ──────────────────────────────────────────────────
@@ -599,5 +600,24 @@ async function deleteContactSubmission(id) {
     });
   } catch (e) {
     console.error("deleteContactSubmission failed:", e);
+  }
+}
+
+// ─── Invoice Email ───────────────────────────────────────────────────────────
+async function sendInvoiceEmail(invoice, clientName, clientEmail) {
+  if (!clientEmail) {
+    console.warn("[sendInvoiceEmail] No email for client, skipping.");
+    return;
+  }
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-invoice-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientName, clientEmail, invoice }),
+    });
+    const body = await res.json();
+    console.log(`[sendInvoiceEmail] ${clientEmail} → ${res.status}`, body);
+  } catch (e) {
+    console.error("[sendInvoiceEmail] failed:", e);
   }
 }
