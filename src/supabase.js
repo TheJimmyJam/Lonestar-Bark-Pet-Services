@@ -465,7 +465,7 @@ const DEFAULT_ADMIN = {
   id: "admin-1",
   name: "Admin",
   email: "admin@lonestarbark.com",
-  pin: "0000",
+  pin: "000000",
   status: "active",
   isMaster: true,
   invitedBy: null,

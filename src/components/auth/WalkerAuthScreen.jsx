@@ -208,12 +208,12 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin }) {
               <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#4E7A8C",
                 fontSize: "16px", lineHeight: "1.6" }}>
                 {stage === "setpin"
-                  ? "Welcome to Lonestar Bark Co.! Choose a 4-digit PIN you'll use to log in."
+                  ? "Welcome to Lonestar Bark Co.! Choose a 6-digit PIN you'll use to log in."
                   : "Enter your PIN one more time to confirm."}
               </div>
             </div>
             <PinPad
-              label={stage === "setpin" ? "Choose a 4-digit PIN" : "Confirm PIN"}
+              label={stage === "setpin" ? "Choose a 6-digit PIN" : "Confirm PIN"}
               onComplete={handleSetPin}
               error={pinError}
               color={accentBlue}

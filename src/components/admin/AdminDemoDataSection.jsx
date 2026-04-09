@@ -227,7 +227,7 @@ function buildDemoData() {
       id: clientId, name, email, phone, address,
       addrObj: { street: `${streetNum} ${streetName}`, city: "Dallas", state: "TX", zip },
       dogs, cats, pets: dogs, bookings: [],
-      pin: String(randomInt(1000, 9999)),
+      pin: String(randomInt(100000, 999999)),
       createdAt: new Date(now.getTime() - randomInt(1, 180) * 86400000).toISOString(),
       handoffDone: true, isDemo: true,
     };

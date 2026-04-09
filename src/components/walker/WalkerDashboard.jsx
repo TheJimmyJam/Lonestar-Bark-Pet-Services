@@ -4192,7 +4192,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                 const handlePinSave = () => {
                   const errs = {};
                   if (!myCred || currentPin !== myCred.pin) errs.current = "Current PIN is incorrect.";
-                  if (!/^\d{4}$/.test(newPinVal))           errs.new = "New PIN must be exactly 4 digits.";
+                  if (!/^\d{6}$/.test(newPinVal))           errs.new = "New PIN must be exactly 6 digits.";
                   if (newPinVal !== confirmPin)              errs.confirm = "PINs don't match.";
                   if (newPinVal === currentPin && !errs.current) errs.new = "New PIN must be different from your current PIN.";
                   if (Object.keys(errs).length) { setPinErrors(errs); return; }
@@ -4246,8 +4246,8 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                             textTransform: "uppercase", color: accentBlue, marginBottom: "6px" }}>
                             Current PIN
                           </label>
-                          <input type="password" inputMode="numeric" maxLength={4}
-                            placeholder="••••" value={currentPin}
+                          <input type="password" inputMode="numeric" maxLength={6}
+                            placeholder="••••••" value={currentPin}
                             onChange={e => { setCurrentPin(e.target.value.replace(/\D/g, "")); setPinErrors(p => ({ ...p, current: "" })); }}
                             style={pinFieldStyle(pinErrors.current)} />
                           {pinErrors.current && <div style={{ color: "#ef4444",
@@ -4259,8 +4259,8 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                             textTransform: "uppercase", color: accentBlue, marginBottom: "6px" }}>
                             New PIN
                           </label>
-                          <input type="password" inputMode="numeric" maxLength={4}
-                            placeholder="••••" value={newPinVal}
+                          <input type="password" inputMode="numeric" maxLength={6}
+                            placeholder="••••••" value={newPinVal}
                             onChange={e => { setNewPinVal(e.target.value.replace(/\D/g, "")); setPinErrors(p => ({ ...p, new: "" })); }}
                             style={pinFieldStyle(pinErrors.new)} />
                           {pinErrors.new && <div style={{ color: "#ef4444",
@@ -4272,8 +4272,8 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                             textTransform: "uppercase", color: accentBlue, marginBottom: "6px" }}>
                             Confirm New PIN
                           </label>
-                          <input type="password" inputMode="numeric" maxLength={4}
-                            placeholder="••••" value={confirmPin}
+                          <input type="password" inputMode="numeric" maxLength={6}
+                            placeholder="••••••" value={confirmPin}
                             onChange={e => { setConfirmPin(e.target.value.replace(/\D/g, "")); setPinErrors(p => ({ ...p, confirm: "" })); }}
                             style={pinFieldStyle(pinErrors.confirm)} />
                           {pinErrors.confirm && <div style={{ color: "#ef4444",
@@ -4281,11 +4281,11 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                         </div>
                         <div style={{ display: "flex", gap: "10px" }}>
                           <button onClick={handlePinSave}
-                            disabled={currentPin.length < 4 || newPinVal.length < 4 || confirmPin.length < 4}
+                            disabled={currentPin.length < 6 || newPinVal.length < 6 || confirmPin.length < 6}
                             style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "none",
-                              background: (currentPin.length < 4 || newPinVal.length < 4 || confirmPin.length < 4)
+                              background: (currentPin.length < 6 || newPinVal.length < 6 || confirmPin.length < 6)
                                 ? "#e4e7ec" : accentBlue,
-                              color: (currentPin.length < 4 || newPinVal.length < 4 || confirmPin.length < 4)
+                              color: (currentPin.length < 6 || newPinVal.length < 6 || confirmPin.length < 6)
                                 ? "#9ca3af" : "#fff",
                               fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                               fontWeight: 600, cursor: "pointer" }}>

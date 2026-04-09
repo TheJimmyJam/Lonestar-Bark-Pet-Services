@@ -220,7 +220,7 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
               <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#D4A880",
                 fontSize: "16px", lineHeight: "1.6" }}>
                 {stage === "setpin"
-                  ? "Welcome! Choose a 4-digit PIN — you'll use it every time you log in."
+                  ? "Welcome! Choose a 6-digit PIN — you'll use it every time you log in."
                   : "Enter your new PIN one more time to confirm."}
               </div>
               <div style={{ display: "inline-flex", alignItems: "center", gap: "8px",
@@ -232,7 +232,7 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
               </div>
             </div>
             <PinPad
-              label={stage === "setpin" ? "Choose a 4-digit PIN" : "Confirm PIN"}
+              label={stage === "setpin" ? "Choose a 6-digit PIN" : "Confirm PIN"}
               onComplete={handleSetClientPin}
               error={pinError}
               color="#C4541A"
@@ -257,7 +257,7 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
               </div>
             </div>
             <div style={{ marginTop: "24px" }}>
-              <PinPad label="Choose a 4-digit PIN" onComplete={handleRegisterPin} color="#C4541A" />
+              <PinPad label="Choose a 6-digit PIN" onComplete={handleRegisterPin} color="#C4541A" />
             </div>
             <button onClick={() => setStage("entry")}
               style={{ marginTop: "20px", background: "none", border: "none", color: "#ffffffaa",

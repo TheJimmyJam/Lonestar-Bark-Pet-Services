@@ -336,7 +336,7 @@ function ClientMyInfoPage({ client, clients, setClients }) {
         {pinSection === "enter-new" && (
           <div className="fade-up">
             <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280", marginBottom: "20px" }}>
-              Choose a new 4-digit PIN.
+              Choose a new 6-digit PIN.
             </p>
             <PinPad label="New PIN" onComplete={handlePinNew} error={pinError} color={green} />
           </div>

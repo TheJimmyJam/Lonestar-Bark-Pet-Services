@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 
 // ─── PIN Pad ──────────────────────────────────────────────────────────────────
-function PinPad({ length = 4, onComplete, label, color = "#C4541A", error }) {
+function PinPad({ length = 6, onComplete, label, color = "#C4541A", error }) {
   const [pin, setPin] = useState("");
   const [shake, setShake] = useState(false);
 

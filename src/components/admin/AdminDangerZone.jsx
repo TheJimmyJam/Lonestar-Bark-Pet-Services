@@ -92,8 +92,8 @@ function AdminDangerZone({ admin, adminList, setAdminList, setClients, setWalker
             letterSpacing: "1.5px", textTransform: "uppercase", marginBottom: "6px" }}>
             Your Admin PIN
           </label>
-          <input type="password" inputMode="numeric" maxLength={4}
-            placeholder="••••" value={pinInput}
+          <input type="password" inputMode="numeric" maxLength={6}
+            placeholder="••••••" value={pinInput}
             onChange={e => { setPinInput(e.target.value.replace(/\D/g, "")); setPinError(""); }}
             onKeyDown={e => e.key === "Enter" && handlePinContinue()}
             style={{ width: "100%", padding: "13px 14px", borderRadius: "10px",
@@ -106,12 +106,12 @@ function AdminDangerZone({ admin, adminList, setAdminList, setClients, setWalker
 
           <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
             <button onClick={handlePinContinue}
-              disabled={pinInput.length < 4}
+              disabled={pinInput.length < 6}
               style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "none",
-                background: pinInput.length < 4 ? "#e4e7ec" : "#dc2626",
-                color: pinInput.length < 4 ? "#9ca3af" : "#fff",
+                background: pinInput.length < 6 ? "#e4e7ec" : "#dc2626",
+                color: pinInput.length < 6 ? "#9ca3af" : "#fff",
                 fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                fontWeight: 600, cursor: pinInput.length < 4 ? "default" : "pointer" }}>
+                fontWeight: 600, cursor: pinInput.length < 6 ? "default" : "pointer" }}>
               Continue →
             </button>
             <button onClick={() => { setStage("idle"); setPinInput(""); setPinError(""); }}

@@ -64,7 +64,7 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
   const handleSetupSubmit = () => {
     const errs = {};
     if (!setupName.trim()) errs.name = "Please enter your name.";
-    if (!/^\d{4}$/.test(setupPin)) errs.pin = "PIN must be exactly 4 digits.";
+    if (!/^\d{6}$/.test(setupPin)) errs.pin = "PIN must be exactly 6 digits.";
     if (setupPin !== setupPin2) errs.pin2 = "PINs don't match.";
     // Check PIN uniqueness
     const dupPin = adminList.find(a => a.id !== pendingAdmin.id && a.pin === setupPin && a.status === "active");
@@ -196,8 +196,8 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
             <div style={{ marginBottom: "16px" }}>
               <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif",
                 fontSize: "15px", fontWeight: 700, color: "#ffffffaa", letterSpacing: "1px",
-                textTransform: "uppercase", marginBottom: "6px" }}>Choose a 4-Digit PIN</label>
-              <input type="password" inputMode="numeric" maxLength={4} placeholder="••••" value={setupPin}
+                textTransform: "uppercase", marginBottom: "6px" }}>Choose a 6-Digit PIN</label>
+              <input type="password" inputMode="numeric" maxLength={6} placeholder="••••••" value={setupPin}
                 onChange={e => { setSetupPin(e.target.value.replace(/\D/g,"")); setSetupErrors(p => ({ ...p, pin: "" })); }}
                 style={{ width: "100%", padding: "13px 14px", borderRadius: "12px", boxSizing: "border-box",
                   border: setupErrors.pin ? "1.5px solid #ef4444" : "1.5px solid #8B5220",
@@ -211,7 +211,7 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
               <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif",
                 fontSize: "15px", fontWeight: 700, color: "#ffffffaa", letterSpacing: "1px",
                 textTransform: "uppercase", marginBottom: "6px" }}>Confirm PIN</label>
-              <input type="password" inputMode="numeric" maxLength={4} placeholder="••••" value={setupPin2}
+              <input type="password" inputMode="numeric" maxLength={6} placeholder="••••••" value={setupPin2}
                 onChange={e => { setSetupPin2(e.target.value.replace(/\D/g,"")); setSetupErrors(p => ({ ...p, pin2: "" })); }}
                 style={{ width: "100%", padding: "13px 14px", borderRadius: "12px", boxSizing: "border-box",
                   border: setupErrors.pin2 ? "1.5px solid #ef4444" : "1.5px solid #8B5220",
