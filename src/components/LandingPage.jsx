@@ -12,6 +12,14 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
   const [navScrolled, setNavScrolled] = useState(false);
   const [landingMenuOpen, setLandingMenuOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(null); // index of open FAQ item
+  const [expandedTier, setExpandedTier] = useState(null); // index of expanded pricing card on mobile
+  const [expandedService, setExpandedService] = useState(null); // index of expanded service card on mobile
+  const [lpMobile, setLpMobile] = useState(typeof window !== "undefined" && window.innerWidth < 768);
+  useEffect(() => {
+    const onResize = () => setLpMobile(window.innerWidth < 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
   const [lpContact, setLpContact] = useState({ name: "", email: "", phone: "", subject: "", message: "", contactPref: "email" });
   const [lpContactSent, setLpContactSent] = useState(false);
   const [lpContactSending, setLpContactSending] = useState(false);
@@ -145,22 +153,24 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
               Lonestar Bark Co.
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: lpMobile ? "8px" : "16px", flexShrink: 0 }}>
             <button className="lp-hamburger" onClick={() => setLandingMenuOpen(true)}>
               <span style={{ display: "block", width: "18px", height: "2px", background: "rgba(255,255,255,0.8)", borderRadius: "2px" }} />
               <span style={{ display: "block", width: "18px", height: "2px", background: "rgba(255,255,255,0.8)", borderRadius: "2px" }} />
               <span style={{ display: "block", width: "18px", height: "2px", background: "rgba(255,255,255,0.8)", borderRadius: "2px" }} />
             </button>
             <button onClick={onLogin} className="lp-cta-btn" style={{
-              padding: "9px 20px", borderRadius: "8px",
+              padding: lpMobile ? "7px 12px" : "9px 20px", borderRadius: "8px",
               border: "1px solid rgba(255,255,255,0.18)", background: "transparent",
               color: "rgba(255,255,255,0.8)", fontFamily: "'DM Sans', sans-serif",
-              fontSize: "15px", fontWeight: 400, cursor: "pointer", letterSpacing: "0.3px",
+              fontSize: lpMobile ? "13px" : "15px", fontWeight: 400, cursor: "pointer", letterSpacing: "0.3px",
+              whiteSpace: "nowrap",
             }}>Log In</button>
             <button onClick={onSignUp} className="lp-cta-btn" style={{
-              padding: "9px 22px", borderRadius: "8px", border: "none",
+              padding: lpMobile ? "7px 14px" : "9px 22px", borderRadius: "8px", border: "none",
               background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
-              fontSize: "15px", fontWeight: 500, cursor: "pointer", letterSpacing: "0.3px",
+              fontSize: lpMobile ? "13px" : "15px", fontWeight: 500, cursor: "pointer", letterSpacing: "0.3px",
+              whiteSpace: "nowrap",
             }}>Sign Up</button>
           </div>
         </div>
@@ -287,8 +297,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             color: "rgba(255,255,255,0.55)", fontSize: "clamp(10px, 1.5vw, 11px)", lineHeight: "2.2",
             marginBottom: "40px", fontWeight: 500, maxWidth: "600px", margin: "0 auto 40px",
             letterSpacing: "0.15em", textAlign: "center" }}>
-            <div>INSURED & VETTED WALKERS &nbsp;·&nbsp; TRANSPARENT PRICING</div>
-            <div>FREE 15-MIN MEET & GREET &nbsp;·&nbsp; YOUR PEACE OF MIND</div>
+            TRANSPARENT PRICING &nbsp;/&nbsp; FREE 15-MIN MEET & GREET &nbsp;/&nbsp; INSURED & VETTED WALKERS &nbsp;/&nbsp; YOUR PEACE OF MIND
           </div>
           <div className="lp-fade-4 lp-hero-ctas">
             <button onClick={onSignUp} className="lp-cta-btn" style={{
@@ -335,8 +344,8 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             marginBottom: "56px", lineHeight: "1.7", maxWidth: "520px", margin: "0 auto 56px" }}>
             Whether you have a high-energy pup or an independent cat, we have a service tailored for them.
           </p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-            {[
+          {(() => {
+            const svcs = [
               { icon: "🐕", color: "#C4541A", light: "#FDF5EC", border: "#D4A843",
                 title: "Dog-walking", desc: "Your dog walks one-on-one with their dedicated walker — never in a large group, never rushed. Every walk is personalized to your dog's pace, personality, and needs, with flexible scheduling that fits your life." },
               { icon: "🐈", color: "#3D6B7A", light: "#EBF4F6", border: "#8EBCC6",
@@ -345,7 +354,9 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                 title: "Overnight Stays", desc: "When you're away overnight, your pet stays comfortable in their own home with a dedicated sitter by their side.\n\n🏡 At our place — $100/night\n🔑 At your place — $150/night" },
               { icon: "🚗", color: "#b45309", light: "#fffbeb", border: "#fde68a",
                 title: "Pet Transportation", desc: "Vet visit? Groomer calling? We'll handle the ride so you don't have to. Your pet travels safely and stress-free with someone they already trust — door to door, no detours.\n\n*Prices vary based on size and distance." },
-            ].map(svc => (
+            ];
+
+            const renderFullCard = (svc) => (
               <div key={svc.title} className="lp-hover" style={{ background: "#fff",
                 border: `1.5px solid ${svc.border}`, borderRadius: "20px",
                 padding: "36px 32px", textAlign: "left",
@@ -360,8 +371,75 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                 <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                   color: "#6b7280", lineHeight: "1.7", whiteSpace: "pre-line" }}>{svc.desc}</p>
               </div>
-            ))}
-          </div>
+            );
+
+            /* ── Desktop: 2-col grid ── */
+            if (!lpMobile) return (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                {svcs.map(renderFullCard)}
+              </div>
+            );
+
+            /* ── Mobile: stacked overlapping cards ── */
+            const PEEK = 56;
+            return (
+              <div style={{ position: "relative", marginBottom: "0px",
+                height: expandedService !== null ? undefined : `${PEEK * svcs.length + 16}px`,
+                transition: "height 0.3s ease" }}>
+                {svcs.map((svc, i) => {
+                  const isExpanded = expandedService === i;
+                  const isOther = expandedService !== null && expandedService !== i;
+                  return (
+                    <div key={svc.title}
+                      onClick={() => setExpandedService(isExpanded ? null : i)}
+                      style={{
+                        position: expandedService === null ? "absolute" : "relative",
+                        top: expandedService === null ? `${i * PEEK}px` : undefined,
+                        left: 0, right: 0,
+                        borderRadius: "16px", overflow: "hidden",
+                        background: "#fff",
+                        border: `1.5px solid ${svc.border}`,
+                        cursor: "pointer",
+                        zIndex: isExpanded ? 10 : svcs.length - i,
+                        boxShadow: isExpanded
+                          ? "0 8px 32px rgba(0,0,0,0.15)"
+                          : "0 2px 8px rgba(0,0,0,0.06)",
+                        transition: "all 0.3s ease",
+                        marginBottom: expandedService !== null ? (isOther ? "0px" : "12px") : 0,
+                        maxHeight: isOther ? `${PEEK}px` : "600px",
+                      }}>
+                      {/* Peek banner — icon + title + chevron */}
+                      <div style={{ display: "flex", alignItems: "center", padding: "12px 16px",
+                        minHeight: `${PEEK - 3}px`, boxSizing: "border-box", gap: "12px" }}>
+                        <div style={{ width: "36px", height: "36px", borderRadius: "10px", flexShrink: 0,
+                          background: svc.light, display: "flex", alignItems: "center",
+                          justifyContent: "center", fontSize: "20px" }}>{svc.icon}</div>
+                        <div style={{ flex: 1, fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                          textTransform: "uppercase", letterSpacing: "1.2px",
+                          fontWeight: 600, color: "#111827" }}>{svc.title}</div>
+                        <span style={{ fontSize: "16px", color: svc.color,
+                          transition: "transform 0.3s ease",
+                          transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                          lineHeight: 1 }}>▾</span>
+                      </div>
+                      {/* Expandable description */}
+                      <div style={{
+                        maxHeight: isExpanded ? "400px" : "0px",
+                        overflow: "hidden",
+                        transition: "max-height 0.3s ease",
+                      }}>
+                        <div style={{ padding: "0 16px 18px", textAlign: "left" }}>
+                          <div style={{ height: "0.5px", background: svc.border, marginBottom: "14px", opacity: 0.4 }} />
+                          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                            color: "#6b7280", lineHeight: "1.7", whiteSpace: "pre-line", margin: 0 }}>{svc.desc}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
           <div style={{ textAlign: "center", marginTop: "48px" }}>
             <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
               color: "#9ca3af", marginBottom: "16px" }}>
@@ -388,8 +466,8 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           </p>
 
           {/* Pricing cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px", marginBottom: "28px" }}>
-            {[
+          {(() => {
+            const tiers = [
               { label: "Easy Rider", freq: "1× per week", badge: null, badgeColor: null,
                 price30: 30, price60: 45, save30: null, save60: null,
                 bannerBg: "#f5f6f8", bannerFg: "#9ca3af",
@@ -408,55 +486,140 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                 cardBorder: "#3D6B7A", cardBg: "#fff",
                 nameFg: "#6b7280", lineFg: "#f3f4f6",
                 durationFg: "#9ca3af", priceFg: "#111827", saveFg: "#3D6B7A" },
-            ].map(tier => (
-              <div key={tier.label} style={{ borderRadius: "16px", overflow: "hidden",
-                border: `2px solid ${tier.cardBorder}` }}>
-                {/* Banner */}
-                <div style={{ background: tier.bannerBg, padding: "10px 16px",
-                  display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px",
-                    fontWeight: 600, letterSpacing: "0.1em", color: tier.bannerFg }}>
-                    {tier.freq}
-                  </span>
-                  {tier.badge && (
-                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "9px",
-                      fontWeight: 600, letterSpacing: "0.1em", color: tier.bannerFg,
-                      background: "rgba(255,255,255,0.2)", padding: "2px 8px",
-                      borderRadius: "20px" }}>{tier.badge}</span>
-                  )}
-                </div>
-                {/* Card body */}
-                <div style={{ background: tier.cardBg, padding: "18px 18px 22px" }}>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", fontWeight: 600,
-                    letterSpacing: "0.12em", textTransform: "uppercase", color: tier.nameFg,
-                    marginBottom: "14px" }}>{tier.label}</div>
-                  <div style={{ height: "0.5px", background: tier.lineFg, marginBottom: "14px" }} />
-                  <div style={{ display: "flex", justifyContent: "space-between",
-                    alignItems: "center", padding: "5px 0" }}>
-                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
-                      color: tier.durationFg }}>30 min</span>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
-                        fontWeight: 500, color: tier.priceFg }}>${tier.price30.toFixed(2)}</span>
-                      {tier.save30 && <span style={{ fontFamily: "'DM Sans', sans-serif",
-                        fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save30}</span>}
-                    </div>
+            ];
+
+            const renderCardBody = (tier) => (
+              <div style={{ background: tier.cardBg, padding: "18px 18px 22px" }}>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", fontWeight: 600,
+                  letterSpacing: "0.12em", textTransform: "uppercase", color: tier.nameFg,
+                  marginBottom: "14px" }}>{tier.label}</div>
+                <div style={{ height: "0.5px", background: tier.lineFg, marginBottom: "14px" }} />
+                <div style={{ display: "flex", justifyContent: "space-between",
+                  alignItems: "center", padding: "5px 0" }}>
+                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                    color: tier.durationFg }}>30 min</span>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
+                      fontWeight: 500, color: tier.priceFg }}>${tier.price30.toFixed(2)}</span>
+                    {tier.save30 && <span style={{ fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save30}</span>}
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between",
-                    alignItems: "center", padding: "5px 0" }}>
-                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
-                      color: tier.durationFg }}>60 min</span>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
-                        fontWeight: 500, color: tier.priceFg }}>${tier.price60.toFixed(2)}</span>
-                      {tier.save60 && <span style={{ fontFamily: "'DM Sans', sans-serif",
-                        fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save60}</span>}
-                    </div>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between",
+                  alignItems: "center", padding: "5px 0" }}>
+                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                    color: tier.durationFg }}>60 min</span>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
+                      fontWeight: 500, color: tier.priceFg }}>${tier.price60.toFixed(2)}</span>
+                    {tier.save60 && <span style={{ fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save60}</span>}
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
+            );
+
+            const renderBanner = (tier) => (
+              <div style={{ background: tier.bannerBg, padding: "10px 16px",
+                display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px",
+                  fontWeight: 600, letterSpacing: "0.1em", color: tier.bannerFg }}>
+                  {tier.freq}
+                </span>
+                {tier.badge && (
+                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "9px",
+                    fontWeight: 600, letterSpacing: "0.1em", color: tier.bannerFg,
+                    background: "rgba(255,255,255,0.2)", padding: "2px 8px",
+                    borderRadius: "20px" }}>{tier.badge}</span>
+                )}
+              </div>
+            );
+
+            /* ── Desktop: normal 3-col grid ── */
+            if (!lpMobile) return (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px", marginBottom: "28px" }}>
+                {tiers.map(tier => (
+                  <div key={tier.label} style={{ borderRadius: "16px", overflow: "hidden",
+                    border: `2px solid ${tier.cardBorder}` }}>
+                    {renderBanner(tier)}
+                    {renderCardBody(tier)}
+                  </div>
+                ))}
+              </div>
+            );
+
+            /* ── Mobile: stacked overlapping cards ── */
+            const COLLAPSED_PEEK = 52; // height of the peeking banner strip
+            return (
+              <div style={{ position: "relative", marginBottom: "28px",
+                height: expandedTier !== null
+                  ? undefined  // auto height when one is expanded
+                  : `${COLLAPSED_PEEK * tiers.length + 16}px`,
+                transition: "height 0.3s ease" }}>
+                {tiers.map((tier, i) => {
+                  const isExpanded = expandedTier === i;
+                  const isOther = expandedTier !== null && expandedTier !== i;
+                  return (
+                    <div key={tier.label}
+                      onClick={() => setExpandedTier(isExpanded ? null : i)}
+                      style={{
+                        position: expandedTier === null ? "absolute" : "relative",
+                        top: expandedTier === null ? `${i * COLLAPSED_PEEK}px` : undefined,
+                        left: 0, right: 0,
+                        borderRadius: "16px", overflow: "hidden",
+                        border: `2px solid ${tier.cardBorder}`,
+                        cursor: "pointer",
+                        zIndex: isExpanded ? 10 : tiers.length - i,
+                        boxShadow: isExpanded
+                          ? "0 8px 32px rgba(0,0,0,0.18)"
+                          : "0 2px 8px rgba(0,0,0,0.08)",
+                        transition: "all 0.3s ease",
+                        display: isOther ? "block" : "block",
+                        marginBottom: expandedTier !== null ? (isOther ? "0px" : "12px") : 0,
+                        maxHeight: isOther ? `${COLLAPSED_PEEK}px` : "500px",
+                        opacity: 1,
+                      }}>
+                      {/* Banner — always visible as the peek strip */}
+                      <div style={{ background: tier.bannerBg, padding: "10px 16px",
+                        display: "flex", justifyContent: "space-between", alignItems: "center",
+                        minHeight: `${COLLAPSED_PEEK - 4}px`, boxSizing: "border-box" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                            fontWeight: 700, letterSpacing: "0.08em", color: tier.bannerFg }}>
+                            {tier.label}
+                          </span>
+                          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px",
+                            fontWeight: 500, color: tier.bannerFg, opacity: 0.7 }}>
+                            {tier.freq}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          {tier.badge && (
+                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "9px",
+                              fontWeight: 600, letterSpacing: "0.1em", color: tier.bannerFg,
+                              background: "rgba(255,255,255,0.2)", padding: "2px 8px",
+                              borderRadius: "20px" }}>{tier.badge}</span>
+                          )}
+                          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                            color: tier.bannerFg, transition: "transform 0.3s ease",
+                            transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                            lineHeight: 1 }}>▾</span>
+                        </div>
+                      </div>
+                      {/* Card body — slides open */}
+                      <div style={{
+                        maxHeight: isExpanded ? "300px" : "0px",
+                        overflow: "hidden",
+                        transition: "max-height 0.3s ease",
+                      }}>
+                        {renderCardBody(tier)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af",
             letterSpacing: "0.05em", marginBottom: "48px" }}>
@@ -877,7 +1040,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
         </div>
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff44",
           fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase" }}>
-          East Dallas · Dallas, TX
+          East Dallas
         </div>
       </footer>
       </>)}
