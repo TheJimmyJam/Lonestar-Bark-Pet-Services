@@ -61,7 +61,6 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
     { id: "services", label: "Services" },
     { id: "pricing", label: "Pricing" },
     { id: "handoff", label: "How It Works" },
-    { id: "team", label: "Our Team" },
   ];
 
   const FAQ_ITEMS = [
@@ -780,74 +779,10 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
         </div>
       </section>
 
-      {/* ── Team ── */}
+      {/* ── Contact ── */}
       <section id="team" className="lp-section" style={{ background: "#f5f6f8" }}>
         <div style={{ maxWidth: "700px", margin: "0 auto", textAlign: "center" }}>
           <div className="section-divider" />
-          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "36px",
-            fontWeight: 600, color: "#111827", marginBottom: "12px" }}>Meet the Team</div>
-          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
-            marginBottom: "48px", lineHeight: "1.7", maxWidth: "480px", margin: "0 auto 48px" }}>
-            Here's your East Dallas dog walking team.
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "52px" }}>
-            {getAllWalkers(walkerProfiles).filter(walker => (walkerProfiles[walker.id]?.showOnTeamPage ?? true) !== false).map(walker => {
-              const open = expandedWalker === walker.id;
-              return (
-                <div key={walker.id} className="lp-walker-card" style={{ background: "#fff",
-                  border: open ? `2px solid ${walker.color}` : "1.5px solid #e4e7ec",
-                  borderRadius: "16px", overflow: "hidden", textAlign: "left",
-                  boxShadow: open ? `0 4px 20px ${walker.color}22` : "0 2px 8px rgba(0,0,0,0.04)" }}>
-                  <button onClick={() => setExpandedWalker(open ? null : walker.id)} style={{
-                    width: "100%", background: "none", border: "none", padding: "18px 22px",
-                    cursor: "pointer", display: "flex", alignItems: "center", gap: "14px" }}>
-                    <div style={{ width: "50px", height: "50px", borderRadius: "50%",
-                      background: walker.color + "18", border: `2px solid ${walker.color}44`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: "22px", flexShrink: 0 }}>{walker.avatar}</div>
-                    <div style={{ flex: 1, textAlign: "left" }}>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                        fontWeight: 600, color: "#111827", marginBottom: "2px" }}>{firstName(walker.name)}</div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                        color: walker.color, fontWeight: 500 }}>{(walker.role || "").replace(/ & /g, " / ")}</div>
-                    </div>
-                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                        color: "#9ca3af" }}>{walker.years >= 10 ? "10+" : walker.years} yrs exp.</div>
-                      <div style={{ fontSize: "18px", color: "#9ca3af",
-                        transform: open ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>⌄</div>
-                    </div>
-                  </button>
-                  {open && (
-                    <div style={{ padding: "0 22px 20px", borderTop: "1px solid #f3f4f6" }}>
-                      <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                        color: "#374151", lineHeight: "1.65", margin: "16px 0 12px" }}>
-                        {(walkerProfiles[walker.id]?.bio) || walker.bio}
-                      </p>
-                      {(() => {
-                        const svcs = walkerProfiles[walker.id]?.services || [];
-                        if (!svcs.length) return null;
-                        return (
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "4px" }}>
-                            {WALKER_SERVICES.filter(s => svcs.includes(s.id)).map(s => (
-                              <span key={s.id} style={{
-                                display: "inline-flex", alignItems: "center", gap: "5px",
-                                padding: "4px 10px", borderRadius: "20px", fontSize: "16px",
-                                fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                                color: s.color, background: s.bg, border: `1px solid ${s.border}`,
-                              }}>
-                                {s.icon} {s.label}
-                              </span>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
 
           {/* ── Contact Us Section ── */}
           <div id="contact" style={{ background: "#fff", borderRadius: "24px", padding: "48px 32px",
