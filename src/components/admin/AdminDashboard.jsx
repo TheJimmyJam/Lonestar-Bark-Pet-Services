@@ -153,6 +153,8 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
   const [ovwWalkEditDraft, setOvwWalkEditDraft] = useState(null);
   const [ovwConfirmDeleteWalkKey, setOvwConfirmDeleteWalkKey] = useState(null);
   const [completedPayrolls, setCompletedPayrolls] = useState([]);
+  const [payrollStale, setPayrollStale] = useState(false);
+  const [payrollSaveError, setPayrollSaveError] = useState("");
   const [confirmPayrollWalker, setConfirmPayrollWalker] = useState(null); // walkerName awaiting confirm
 
   // ── Team Chat ───────────────────────────────────────────────────────────────
@@ -213,7 +215,17 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     ? chatMessages.filter(m => m.from !== "Admin" && m.sentAt && new Date(m.sentAt) > new Date(chatLastSeenAt)).length
     : 0;
 
-  useEffect(() => { loadCompletedPayrolls().then(setCompletedPayrolls); }, []);
+  useEffect(() => {
+    loadCompletedPayrolls().then(result => {
+      if (result && result.stale) {
+        setCompletedPayrolls(result.records || []);
+        setPayrollStale(true);
+      } else {
+        setCompletedPayrolls(result || []);
+        setPayrollStale(false);
+      }
+    });
+  }, []);
 
   // ── Notification / last-seen tracking ──────────────────────────────────────
   const [seenTs, setSeenTs] = useState(() => {
@@ -531,7 +543,13 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                   setClients(extended);
                   setWalkerProfiles(wp);
                   setTrades(tr);
-                  setCompletedPayrolls(pr);
+                  if (pr && pr.stale) {
+                    setCompletedPayrolls(pr.records || []);
+                    setPayrollStale(true);
+                  } else {
+                    setCompletedPayrolls(pr || []);
+                    setPayrollStale(false);
+                  }
                 } finally {
                   setRefreshing(false);
                 }
@@ -5730,6 +5748,30 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
         {tab === "payroll" && (() => {
           const { monday: payMon, sunday: paySun } = getWeekRangeForOffset(payrollWeekOffset);
           const weekKey = payMon.toISOString().slice(0, 10);
+          // Stale cache warning
+          const payrollWarning = payrollStale ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", background: "#fef3c7",
+              border: "1.5px solid #f59e0b", borderRadius: "10px", padding: "12px 16px", marginBottom: "16px" }}>
+              <span style={{ fontSize: "20px" }}>⚠️</span>
+              <div>
+                <div style={{ fontWeight: 700, color: "#92400e", fontSize: "14px" }}>Payroll data may be outdated</div>
+                <div style={{ color: "#78350f", fontSize: "13px" }}>Could not reach the database. Showing cached data — do not process payroll until the connection is restored.</div>
+              </div>
+            </div>
+          ) : null;
+          const payrollError = payrollSaveError ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", background: "#fee2e2",
+              border: "1.5px solid #ef4444", borderRadius: "10px", padding: "12px 16px", marginBottom: "16px" }}>
+              <span style={{ fontSize: "20px" }}>🚫</span>
+              <div>
+                <div style={{ fontWeight: 700, color: "#991b1b", fontSize: "14px" }}>Payroll not saved</div>
+                <div style={{ color: "#7f1d1d", fontSize: "13px" }}>{payrollSaveError}</div>
+              </div>
+              <button onClick={() => setPayrollSaveError("")}
+                style={{ marginLeft: "auto", background: "none", border: "none", color: "#991b1b",
+                  cursor: "pointer", fontSize: "18px", lineHeight: 1 }}>✕</button>
+            </div>
+          ) : null;
 
           // All admin-completed walks in the selected week
           const weekCompleted = completedBookings.filter(b => {
@@ -5821,9 +5863,15 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
               paidAt: new Date().toISOString(),
             };
             const updated = [...completedPayrolls, record];
-            setCompletedPayrolls(updated);
-            await saveCompletedPayrolls(updated);
-            setConfirmPayrollWalker(null);
+            setPayrollSaveError("");
+            try {
+              await saveCompletedPayrolls(updated);
+              setCompletedPayrolls(updated);
+              setPayrollStale(false);
+              setConfirmPayrollWalker(null);
+            } catch (err) {
+              setPayrollSaveError(err.message || "Payroll could not be saved. Please try again.");
+            }
           };
 
           const downloadCSV = (entriesToExport) => {
@@ -6019,6 +6067,8 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 )}
               </div>
 
+              {payrollWarning}
+              {payrollError}
               {/* ── Week navigator ── */}
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "24px" }}>
                 <button onClick={() => setPayrollWeekOffset(o => o - 1)} style={{

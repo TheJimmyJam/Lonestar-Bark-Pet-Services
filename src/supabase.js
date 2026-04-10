@@ -348,40 +348,40 @@ async function saveClientMessage(clientEmail, walkerName, fromName, text) {
 }
 
 // ─── Payroll Persistence ──────────────────────────────────────────────────────
-// Primary: localStorage (always works). Secondary: Supabase `payrolls` table
-// (optional — requires table with columns: id int8 generated, data text).
-const PAYROLL_LS_KEY = "dwi_completed_payrolls_v1";
+// Supabase is the sole source of truth for payroll records.
+// localStorage is used only as a read-cache so the UI loads instantly —
+// it is NEVER relied on as a save destination.
+const PAYROLL_LS_CACHE_KEY = "dwi_completed_payrolls_cache_v2";
 
 async function loadCompletedPayrolls() {
-  // Try Supabase first; fall back to localStorage
+  // Always try Supabase first — it is the source of truth
   try {
     const rows = await sbFetch("payrolls?select=data&order=id.asc");
     if (rows && rows.length > 0) {
       const records = JSON.parse(rows[0].data);
-      // Sync back to localStorage so offline fallback stays fresh
-      localStorage.setItem(PAYROLL_LS_KEY, JSON.stringify(records));
+      // Update read-cache so next load feels instant
+      try { localStorage.setItem(PAYROLL_LS_CACHE_KEY, JSON.stringify(records)); } catch {}
       return records;
     }
-  } catch (e) {
-    console.warn("loadCompletedPayrolls (Supabase) failed, using localStorage:", e);
-  }
-  // localStorage fallback
-  try {
-    const raw = localStorage.getItem(PAYROLL_LS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
+    // Supabase responded but table is empty — that is the truth
+    try { localStorage.removeItem(PAYROLL_LS_CACHE_KEY); } catch {}
     return [];
+  } catch (e) {
+    // Supabase unreachable — return stale cache with a warning flag so UI can show a banner
+    console.error("loadCompletedPayrolls: Supabase unavailable, serving stale cache", e);
+    try {
+      const raw = localStorage.getItem(PAYROLL_LS_CACHE_KEY);
+      const records = raw ? JSON.parse(raw) : [];
+      return { records, stale: true };
+    } catch {
+      return { records: [], stale: true };
+    }
   }
 }
 
+// saveCompletedPayrolls — throws if Supabase is unreachable so callers can
+// show the user an error instead of silently losing financial data.
 async function saveCompletedPayrolls(records) {
-  // Always save to localStorage first so data is never lost
-  try {
-    localStorage.setItem(PAYROLL_LS_KEY, JSON.stringify(records));
-  } catch (e) {
-    console.error("saveCompletedPayrolls (localStorage) failed:", e);
-  }
-  // Also try Supabase (best-effort)
   try {
     await sbFetch("payrolls?id=gt.0", { method: "DELETE", headers: { "Prefer": "" } });
     if (records.length > 0) {
@@ -390,8 +390,12 @@ async function saveCompletedPayrolls(records) {
         body: JSON.stringify({ data: JSON.stringify(records) }),
       });
     }
+    // Update read-cache to match what is now in Supabase
+    try { localStorage.setItem(PAYROLL_LS_CACHE_KEY, JSON.stringify(records)); } catch {}
   } catch (e) {
-    console.warn("saveCompletedPayrolls (Supabase) failed, localStorage already saved:", e);
+    console.error("saveCompletedPayrolls: Supabase write failed — payroll NOT saved", e);
+    // Re-throw so the calling UI can surface an error to the admin
+    throw new Error("Payroll could not be saved — database unavailable. Please try again.");
   }
 }
 
@@ -455,7 +459,7 @@ export {
   formatChatTime, loadChatMessages, saveChatMessage,
   loadDirectMessages, saveDirectMessage,
   loadClientMessages, saveClientMessage,
-  PAYROLL_LS_KEY, loadCompletedPayrolls, saveCompletedPayrolls,
+  loadCompletedPayrolls, saveCompletedPayrolls,
   loadWalkerAvailability, saveWalkerAvailabilityDay, loadAllWalkersAvailability,
   DEFAULT_ADMIN, loadAdminList, saveAdminList, removeAdminFromDB,
   loadContactSubmissions, saveContactSubmission, updateContactSubmission, deleteContactSubmission,
