@@ -125,7 +125,7 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
 
   // ── Bulk invoice: find all uninvoiced completed walks across every client ──
   const allUninvoicedByClient = {};
-  activeClients.forEach(c => {
+  Object.entries(clients).filter(([, c]) => !c.deleted).forEach(([pin, c]) => {
     const invoicedKeys = new Set(
       (c.invoices || [])
         .filter(inv => inv.status !== "draft")
@@ -134,7 +134,7 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
     const uninvoiced = (c.bookings || []).filter(
       b => b.adminCompleted && !b.cancelled && !invoicedKeys.has(b.key)
     );
-    if (uninvoiced.length > 0) allUninvoicedByClient[c.id] = { client: c, walks: uninvoiced };
+    if (uninvoiced.length > 0) allUninvoicedByClient[pin] = { client: c, walks: uninvoiced };
   });
   const bulkClientCount = Object.keys(allUninvoicedByClient).length;
   const bulkWalkCount   = Object.values(allUninvoicedByClient).reduce((s, v) => s + v.walks.length, 0);
@@ -161,8 +161,8 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
           createdAt: now, sentAt: now,
           dueDate: getInvoiceDueDate(now),
         };
-        upd[client.id] = { ...client, invoices: [...(client.invoices || []), inv] };
-        saveInvoiceToDB(inv, client.id, client.name || "", client.email || "");
+        upd[pin] = { ...client, invoices: [...(client.invoices || []), inv] };
+        saveInvoiceToDB(inv, pin, client.name || "", client.email || "");
         sendInvoiceEmail(inv, client.name || "", client.email || "");
       });
       setClients(upd);

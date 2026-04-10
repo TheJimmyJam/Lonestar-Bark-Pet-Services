@@ -244,19 +244,17 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
   const allBookings = [];
   const completedBookings = []; // admin-marked complete (old invoice flow)
   const stripePaidBookings = []; // paid upfront via Stripe (new flow)
-  Object.values(clients).forEach(c => {
+  // Use PIN (map key) as clientId so admin actions (delete/edit) can look up clients[clientId]
+  Object.entries(clients).forEach(([pin, c]) => {
     (c.bookings || []).forEach(b => {
       if (b.cancelled) return;
       if (b.adminCompleted) {
-        // Always keep completed walks — even for deleted clients (preserves history & KPIs)
-        completedBookings.push({ ...b, clientId: c.id, clientName: c.name, clientEmail: c.email, clientKeyholder: c.keyholder || "" });
+        completedBookings.push({ ...b, clientId: pin, clientName: c.name, clientEmail: c.email, clientKeyholder: c.keyholder || "" });
       } else {
-        // Exclude upcoming walks for deleted clients
         if (c.deleted) return;
-        allBookings.push({ ...b, clientId: c.id, clientName: c.name, clientEmail: c.email, clientKeyholder: c.keyholder || "" });
-        // Track Stripe-paid confirmed bookings separately for revenue
+        allBookings.push({ ...b, clientId: pin, clientName: c.name, clientEmail: c.email, clientKeyholder: c.keyholder || "" });
         if (b.status === "confirmed" && b.stripeSessionId && b.paidAt) {
-          stripePaidBookings.push({ ...b, clientId: c.id, clientName: c.name, clientEmail: c.email });
+          stripePaidBookings.push({ ...b, clientId: pin, clientName: c.name, clientEmail: c.email });
         }
       }
     });
@@ -337,7 +335,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
 
   // Inject pending meet & greet appointments from handoffInfo into upcoming
   const handoffBookings = [];
-  Object.values(clients).forEach(c => {
+  Object.entries(clients).forEach(([pin, c]) => {
     if (c.deleted || c.handoffConfirmed) return;
     const hi = c.handoffInfo;
     if (!hi?.handoffDate || !hi?.handoffSlot) return;
@@ -347,7 +345,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
       key: `__handoff__${c.id}`,
       isHandoff: true,
       service: "handoff",
-      clientId: c.id,
+      clientId: pin,
       clientName: c.name,
       clientEmail: c.email,
       day: apptDate.toLocaleDateString("en-US", { weekday: "long" }),
@@ -737,21 +735,21 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
 
                 if (id === "clients") return (
                   <div>
-                    {clientList.length === 0 ? <div style={emptyStyle}>No clients yet.</div> : clientList.map((c, i) => (
-                      <div key={i} onClick={() => { changeTab("clients"); setSelectedClientId(c.id); setExpandedKpi(null); }}
+                    {clientList.length === 0 ? <div style={emptyStyle}>No clients yet.</div> : clientList.map((item, i) => (
+                      <div key={i} onClick={() => { changeTab("clients"); setSelectedClientId(item.pin); setExpandedKpi(null); }}
                         style={{ ...rowStyle, display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
                         <div style={{ width: "32px", height: "32px", borderRadius: "50%",
                           background: "#8B5E3C18", display: "flex", alignItems: "center",
                           justifyContent: "center", fontSize: "16px", flexShrink: 0 }}>🐾</div>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 600, color: "#111827", fontSize: "15px" }}>{c.name}</div>
+                          <div style={{ fontWeight: 600, color: "#111827", fontSize: "15px" }}>{item.c.name}</div>
                           <div style={{ fontSize: "15px", color: "#9ca3af", marginTop: "1px" }}>
-                            {c.active} active · {c.done} completed
+                            {item.activeCount} active · {item.completedCount} completed
                           </div>
                         </div>
                         <div style={{ textAlign: "right", flexShrink: 0 }}>
                           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                            fontWeight: 600, color: "#C4541A" }}>${c.spent}</div>
+                            fontWeight: 600, color: "#C4541A" }}>${item.totalSpend}</div>
                           <div style={{ fontSize: "14px", color: "#C4541A" }}>→ account</div>
                         </div>
                       </div>
@@ -904,7 +902,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 );
 
                 if (id === "allRev") {
-                  const topClients = clientList.filter(c => c.spent > 0).slice(0, 8);
+                  const topClients = clientList.filter(item => item.totalSpend > 0).slice(0, 8);
                   const walkerRows = walkerProfitRows(completedBookings);
                   return (
                     <div>
@@ -912,13 +910,13 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                         fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Top Clients by Revenue</div>
                       {topClients.length === 0
                         ? <div style={emptyStyle}>No completed walks yet.</div>
-                        : topClients.map((c, i) => (
-                        <div key={i} onClick={() => { changeTab("clients"); setSelectedClientId(c.id); setExpandedKpi(null); }}
+                        : topClients.map((item, i) => (
+                        <div key={i} onClick={() => { changeTab("clients"); setSelectedClientId(item.pin); setExpandedKpi(null); }}
                           style={{ ...rowStyle, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
-                          <div style={{ fontWeight: 500, color: "#111827" }}>{c.name}</div>
+                          <div style={{ fontWeight: 500, color: "#111827" }}>{item.c.name}</div>
                           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                              fontWeight: 600, color: "#7A4D6E" }}>${c.spent}</div>
+                              fontWeight: 600, color: "#7A4D6E" }}>${item.totalSpend}</div>
                             <span style={{ fontSize: "12px", color: "#7A4D6E" }}>→</span>
                           </div>
                         </div>
@@ -1451,10 +1449,10 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 }
 
                 if (id === "uninvoiced") {
-                  const uninvoicedByClient = Object.values(clients).filter(c => !c.deleted).map(c => {
+                  const uninvoicedByClient = Object.entries(clients).filter(([, c]) => !c.deleted).map(([pin, c]) => {
                     const ik = new Set((c.invoices||[]).filter(i=>i.status!=="draft").flatMap(i=>(i.items||[]).map(it=>it.bookingKey)));
                     const walks = (c.bookings||[]).filter(b=>b.adminCompleted&&!b.cancelled&&!ik.has(b.key));
-                    return { c, walks };
+                    return { c, pin, walks };
                   }).filter(x => x.walks.length > 0)
                     .sort((a, b) => b.walks.length - a.walks.length);
                   const totalUninv = uninvoicedByClient.reduce((s, x) => s + x.walks.length, 0);
@@ -1466,8 +1464,8 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       </div>
                       {uninvoicedByClient.length === 0
                         ? <div style={emptyStyle}>All completed walks have been invoiced.</div>
-                        : uninvoicedByClient.map(({ c, walks }) => (
-                          <div key={c.id} onClick={() => { changeTab("clients"); setSelectedClientId(c.id); setExpandedKpi(null); }}
+                        : uninvoicedByClient.map(({ c, pin, walks }) => (
+                          <div key={pin} onClick={() => { changeTab("clients"); setSelectedClientId(pin); setExpandedKpi(null); }}
                             style={{ ...rowStyle, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
                             <div>
                               <div style={{ fontWeight: 600, color: "#111827", fontSize: "15px" }}>{c.name}</div>
@@ -2779,7 +2777,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                         const draft = clientEditDraft;
                         const updated = {
                           ...clients,
-                          [c.id]: {
+                          [selectedClientId]: {
                             ...c,
                             name: draft.name,
                             email: draft.email,
@@ -3009,7 +3007,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                           color: "#9ca3af", minWidth: "130px", flexShrink: 0 }}>🗝️ Keyholder</div>
                         <select value={c.keyholder || ""} onChange={e => {
-                          const updated = { ...clients, [c.id]: { ...c, keyholder: e.target.value } };
+                          const updated = { ...clients, [selectedClientId]: { ...c, keyholder: e.target.value } };
                           setClients(updated); saveClients(updated);
                         }} style={{ flex: 1, padding: "7px 10px", borderRadius: "8px",
                           border: "1.5px solid #e4e7ec", background: "#fff",
@@ -3208,7 +3206,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                         const bookingsToCancel = (c.bookings || []).filter(b => !b.adminCompleted && !b.cancelled);
                         const updatedClients = {
                           ...clients,
-                          [c.id]: {
+                          [selectedClientId]: {
                             ...c,
                             deleted: true,
                             deletedAt: new Date().toISOString(),
@@ -3264,12 +3262,12 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
           }
 
           // ── Client list view ──────────────────────────────────────────────
-          const clientList = Object.values(clients).filter(c => !c.deleted).map(c => {
+          const clientList = Object.entries(clients).filter(([, c]) => !c.deleted).map(([pin, c]) => {
             const dogs  = c.dogs || c.pets || [];
             const cats  = c.cats || [];
             const nameParts = (c.name || "").trim().split(/\s+/);
             return {
-              c,
+              c, pin,
               dogs, cats,
               pets: [...dogs, ...cats],
               firstName:     nameParts[0] || "",
@@ -3411,17 +3409,17 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                     No clients registered yet.
                   </div>
                 </div>
-              ) : sortedClients.map(({ c, pets, activeCount, completedCount, totalSpend }) => {
+              ) : sortedClients.map(({ c, pin, pets, activeCount, completedCount, totalSpend }) => {
                 const isNew = isNewClient(c);
                 return (
                 <button key={c.id}
                   onClick={() => {
-                    setSelectedClientId(c.id);
+                    setSelectedClientId(pin);
                     // Mark as viewed by this admin if not already
                     if (isNew) {
                       const updated = {
                         ...clients,
-                        [c.id]: { ...c, adminViewedAt: new Date().toISOString() },
+                        [pin]: { ...c, adminViewedAt: new Date().toISOString() },
                       };
                       setClients(updated);
                     }
