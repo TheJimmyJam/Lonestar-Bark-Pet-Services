@@ -9,6 +9,180 @@ import StripePaymentModal from "./StripePaymentModal.jsx";
 //   1. Stripe Receipts  — confirmed bookings with stripeSessionId (paid at booking)
 //   2. Admin Invoices   — invoices created by admin post-walk (outstanding or paid)
 // ──────────────────────────────────────────────────────────────────────────────
+// ── Export helpers ────────────────────────────────────────────────────────────
+
+function exportCSV(client, allPaid) {
+  const rows = [
+    ["Date", "Day", "Service", "Time", "Duration", "Walker", "Pet", "Amount Paid", "Paid On"],
+  ];
+  allPaid.forEach(item => {
+    if (item._type === "stripe") {
+      const svc = item.service === "dog" ? "Dog Walk" : item.service === "cat" ? "Cat Visit" : "Meet & Greet";
+      const paidOn = item.paidAt ? new Date(item.paidAt).toLocaleDateString("en-US") : "";
+      rows.push([
+        item.date || "", item.day || "", svc,
+        item.slot?.time || "", item.slot?.duration || "",
+        item.form?.walker || "", item.form?.pet || "",
+        `$${(item.price || 0).toFixed(2)}`, paidOn,
+      ]);
+    } else {
+      // Admin invoice
+      const paidOn = item.paidAt ? new Date(item.paidAt).toLocaleDateString("en-US") : "";
+      (item.items || []).forEach(it => {
+        rows.push([
+          "", "", it.description || "",
+          "", "", "", "",
+          `$${it.amount || 0}`, paidOn,
+        ]);
+      });
+    }
+  });
+
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `LonestarBark_${client.name?.replace(/\s+/g, "_") || "receipts"}_${new Date().getFullYear()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportPDF(client, allPaid) {
+  const year = new Date().getFullYear();
+  const total = allPaid.reduce((sum, item) => {
+    if (item._type === "stripe") return sum + (item.price || 0);
+    return sum + (item.total || 0) + (item.gratuity || 0);
+  }, 0);
+
+  const rows = allPaid.map(item => {
+    if (item._type === "stripe") {
+      const svc = item.service === "dog" ? "Dog Walk" : item.service === "cat" ? "Cat Visit" : "Meet & Greet";
+      const paidOn = item.paidAt ? new Date(item.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+      return `
+        <tr>
+          <td>${item.day || ""}, ${item.date || ""}</td>
+          <td>${svc}</td>
+          <td>${item.slot?.time || "—"}</td>
+          <td>${item.slot?.duration || "—"}</td>
+          <td>${item.form?.walker || "—"}</td>
+          <td>${item.form?.pet || "—"}</td>
+          <td class="amount">$${(item.price || 0).toFixed(2)}</td>
+          <td>${paidOn}</td>
+        </tr>`;
+    } else {
+      const paidOn = item.paidAt ? new Date(item.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+      const desc = item.type === "week" && item.weekLabel ? `Week of ${item.weekLabel}` : `${(item.items || []).length} walk(s)`;
+      return `
+        <tr>
+          <td colspan="2">${desc}</td>
+          <td colspan="4" style="color:#6b7280;font-size:13px;">${(item.items || []).map(i => i.description).join("; ")}</td>
+          <td class="amount">$${((item.total || 0) + (item.gratuity || 0)).toFixed(2)}</td>
+          <td>${paidOn}</td>
+        </tr>`;
+    }
+  }).join("");
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Lonestar Bark Co. — Walk History</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', Helvetica, Arial, sans-serif; color: #111827; background: #fff; padding: 40px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 2px solid #0B1423; }
+  .brand { font-size: 20px; font-weight: 700; color: #0B1423; letter-spacing: 1px; text-transform: uppercase; }
+  .brand-sub { font-size: 12px; color: #9B7444; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
+  .doc-title { text-align: right; }
+  .doc-title h1 { font-size: 22px; font-weight: 700; color: #111827; }
+  .doc-title p { font-size: 13px; color: #6b7280; margin-top: 4px; }
+  .client-block { background: #f9fafb; border-radius: 10px; padding: 16px 20px; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center; }
+  .client-block .name { font-size: 16px; font-weight: 600; }
+  .client-block .email { font-size: 13px; color: #6b7280; margin-top: 2px; }
+  .tax-note { font-size: 13px; color: #059669; font-weight: 500; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 24px; }
+  thead tr { background: #0B1423; color: #fff; }
+  thead th { padding: 10px 12px; text-align: left; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  thead th.amount { text-align: right; }
+  tbody tr { border-bottom: 1px solid #f3f4f6; }
+  tbody tr:nth-child(even) { background: #f9fafb; }
+  td { padding: 10px 12px; vertical-align: top; }
+  td.amount { text-align: right; font-weight: 600; color: #059669; }
+  .totals { display: flex; justify-content: flex-end; margin-bottom: 32px; }
+  .totals-box { background: #0B1423; color: #fff; border-radius: 10px; padding: 16px 24px; min-width: 220px; }
+  .totals-box .label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin-bottom: 6px; }
+  .totals-box .value { font-size: 26px; font-weight: 700; color: #fff; }
+  .totals-box .sub { font-size: 12px; color: #6b7280; margin-top: 4px; }
+  .footer { border-top: 1px solid #e4e7ec; padding-top: 16px; font-size: 12px; color: #9ca3af; display: flex; justify-content: space-between; }
+  @media print {
+    body { padding: 20px; }
+    button { display: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="brand">🐾 Lonestar Bark Co.</div>
+      <div class="brand-sub">East Dallas Dog Walking</div>
+    </div>
+    <div class="doc-title">
+      <h1>Walk History & Receipts</h1>
+      <p>Tax Year ${year} &nbsp;·&nbsp; Generated ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
+    </div>
+  </div>
+
+  <div class="client-block">
+    <div>
+      <div class="name">${client.name || ""}</div>
+      <div class="email">${client.email || ""}</div>
+    </div>
+    <div class="tax-note">✓ For tax/expense documentation</div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Service</th>
+        <th>Time</th>
+        <th>Duration</th>
+        <th>Walker</th>
+        <th>Pet</th>
+        <th class="amount">Amount</th>
+        <th>Paid On</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || '<tr><td colspan="8" style="text-align:center;color:#9ca3af;padding:24px;">No paid records found.</td></tr>'}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div class="totals-box">
+      <div class="label">Total Paid — ${year}</div>
+      <div class="value">$${total.toFixed(2)}</div>
+      <div class="sub">${allPaid.length} transaction${allPaid.length !== 1 ? "s" : ""}</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Lonestar Bark Co. &nbsp;·&nbsp; hello@lonestarbarkco.com &nbsp;·&nbsp; East Dallas, TX</span>
+    <span>This document may be used for pet care expense documentation.</span>
+  </div>
+
+  <script>window.onload = () => window.print();</script>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank");
+  win.document.write(html);
+  win.document.close();
+}
+
+// ─── Client Invoices Page ──────────────────────────────────────────────────────
 function ClientInvoicesPage({ client, clients, setClients }) {
   const [selectedInv, setSelectedInv] = useState(null);
   const [payingInv, setPayingInv] = useState(null);
@@ -93,13 +267,41 @@ function ClientInvoicesPage({ client, clients, setClients }) {
 
       {/* Header */}
       <div style={{ marginBottom: "16px" }}>
-        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase",
-          letterSpacing: "1.5px", fontWeight: 600, color: "#111827", marginBottom: "4px" }}>
-          My Invoices
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase",
+              letterSpacing: "1.5px", fontWeight: 600, color: "#111827", marginBottom: "4px" }}>
+              My Invoices
+            </div>
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280" }}>
+              Paid receipts from Stripe bookings and any outstanding invoices from Lonestar Bark Co.
+            </p>
+          </div>
+          {allPaid.length > 0 && (
+            <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+              <button onClick={() => exportCSV(client, allPaid)}
+                title="Download CSV for spreadsheet / accounting software"
+                style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+                  borderRadius: "10px", border: "1.5px solid #e4e7ec", background: "#fff",
+                  fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600,
+                  color: "#374151", cursor: "pointer", transition: "all 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = orange; e.currentTarget.style.color = orange; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "#e4e7ec"; e.currentTarget.style.color = "#374151"; }}>
+                ↓ CSV
+              </button>
+              <button onClick={() => exportPDF(client, allPaid)}
+                title="Open print-ready PDF — choose 'Save as PDF' in print dialog"
+                style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+                  borderRadius: "10px", border: "1.5px solid #e4e7ec", background: "#fff",
+                  fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600,
+                  color: "#374151", cursor: "pointer", transition: "all 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = orange; e.currentTarget.style.color = orange; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "#e4e7ec"; e.currentTarget.style.color = "#374151"; }}>
+                ↓ PDF
+              </button>
+            </div>
+          )}
         </div>
-        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280" }}>
-          Paid receipts from Stripe bookings and any outstanding invoices from Lonestar Bark Co.
-        </p>
       </div>
 
       {/* Tabs */}
