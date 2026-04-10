@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useRef, useMemo } from "react";
 import {
-  saveClients, saveInvoiceToDB, updateInvoiceInDB, deleteInvoiceFromDB, notifyAdmin, sendInvoiceEmail, sendInvoicePaidEmail, loadInvoicesFromDB, mergeInvoicesIntoClients,
+  saveClients, saveInvoiceToDB, updateInvoiceInDB, deleteInvoiceFromDB, notifyAdmin, sendInvoiceEmail, sendInvoicePaidEmail,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout, fmt, firstName,
@@ -15,12 +15,6 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
   const [view, setView] = useState("list"); // "list" | "create"
   const [filterStatus, setFilterStatus] = useState("all");
 
-  // Reload fresh invoices from DB on mount so Stripe-paid invoices are always visible
-  useEffect(() => {
-    loadInvoicesFromDB().then(invRows => {
-      setClients(prev => mergeInvoicesIntoClients(prev, invRows));
-    }).catch(e => console.error("AdminInvoicesTab: failed to reload invoices", e));
-  }, []);
   const [expandedInv, setExpandedInv] = useState(null);
 
   // Create invoice state
@@ -39,6 +33,14 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
 
   const green = "#C4541A";
   const amber = "#b45309";
+
+  // All Stripe-paid bookings across every client (paid at booking time via Stripe)
+  const stripeReceiptsAll = Object.entries(clients).flatMap(([pin, c]) =>
+    (c.bookings || [])
+      .filter(b => b.stripeSessionId && b.paidAt)
+      .map(b => ({ ...b, clientPin: pin, clientName: c.name || [c.firstName, c.lastName].filter(Boolean).join(" "), clientEmail: c.email }))
+  ).sort((a, b) => new Date(b.paidAt) - new Date(a.paidAt));
+  const stripeTotal = stripeReceiptsAll.reduce((s, b) => s + (b.price || 0), 0);
 
   const allInvoices = getAllInvoices(clients);
   const filtered = (filterStatus === "all" ? allInvoices : allInvoices.filter(inv => {
@@ -456,9 +458,9 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
               </div>
             );
             const row1 = [
-              { label: "Pending",    value: fmt(pendingTotal, true), sub: `${pendingCount} invoice${pendingCount !== 1 ? "s" : ""}`, color: amber,      bg: "#fffbeb", border: "#fde68a" },
-              { label: "Overdue",    value: `${overdueCount}`,       sub: "unpaid past due",                                         color: "#dc2626",  bg: "#fef2f2", border: "#fecaca" },
-              { label: "Collected",  value: fmt(paidTotal, true),    sub: "total paid",                                              color: green,      bg: "#FDF5EC", border: "#D4A843" },
+              { label: "Pending",    value: fmt(pendingTotal, true),           sub: `${pendingCount} invoice${pendingCount !== 1 ? "s" : ""}`,              color: amber,      bg: "#fffbeb", border: "#fde68a" },
+              { label: "Overdue",    value: `${overdueCount}`,                 sub: "unpaid past due",                                                      color: "#dc2626",  bg: "#fef2f2", border: "#fecaca" },
+              { label: "Collected",  value: fmt(paidTotal + stripeTotal, true), sub: `invoices + ${stripeReceiptsAll.length} Stripe booking${stripeReceiptsAll.length !== 1 ? "s" : ""}`, color: green, bg: "#FDF5EC", border: "#D4A843" },
             ];
             const row2 = [
               { label: "Uninvoiced",             value: `${bulkWalkCount}`,                                          sub: `${bulkClientCount} client${bulkClientCount !== 1 ? "s" : ""}`, color: "#3D6B7A",  bg: "#EBF4F6", border: "#8ECAD4" },
@@ -503,6 +505,7 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
               { id: "overdue", label: "Overdue" },
               { id: "paid", label: "Paid" },
               { id: "draft", label: "Draft" },
+              { id: "stripe", label: `Stripe (${stripeReceiptsAll.length})` },
             ].map(f => (
               <button key={f.id} onClick={() => setFilterStatus(f.id)} style={{
                 padding: "6px 14px", borderRadius: "20px", cursor: "pointer",
@@ -515,8 +518,80 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
             ))}
           </div>
 
-          {/* Invoice list */}
-          {filtered.length === 0 ? (
+          {/* Stripe payments list */}
+          {filterStatus === "stripe" && (
+            stripeReceiptsAll.length === 0 ? (
+              <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
+                borderRadius: "16px", padding: "40px", textAlign: "center" }}>
+                <div style={{ fontSize: "32px", marginBottom: "12px" }}>💳</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                  fontWeight: 600, color: "#374151", marginBottom: "4px" }}>No Stripe payments yet</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af" }}>
+                  Payments made at booking time will appear here.
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {stripeReceiptsAll.map(b => {
+                  const isExp = expandedInv === b.key;
+                  const svcLabel = b.service === "dog" ? "Dog Walk" : b.service === "cat" ? "Cat Visit" : "Meet & Greet";
+                  return (
+                    <div key={b.key} style={{ background: "#fff",
+                      border: isExp ? `2px solid ${green}` : "1.5px solid #d1fae5",
+                      borderRadius: "16px", overflow: "hidden", transition: "all 0.15s" }}>
+                      <button onClick={() => setExpandedInv(isExp ? null : b.key)}
+                        style={{ width: "100%", background: "none", border: "none",
+                          cursor: "pointer", padding: "16px 18px", textAlign: "left" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginBottom: "4px" }}>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600, color: "#111827" }}>
+                                {b.clientName}
+                              </span>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 700,
+                                color: "#059669", background: "#d1fae5", border: "1px solid #a7f3d0",
+                                borderRadius: "5px", padding: "1px 7px" }}>STRIPE PAID</span>
+                            </div>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>
+                              {svcLabel} · {b.day}, {b.date} · {b.slot?.time || "—"} ({b.slot?.duration || "—"})
+                              {b.form?.walker ? ` · ${b.form.walker}` : ""}
+                              {b.paidAt ? ` · ${new Date(b.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}
+                            </div>
+                          </div>
+                          <div style={{ flexShrink: 0, textAlign: "right" }}>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "#059669" }}>
+                              ${(b.price || 0).toFixed(2)}
+                            </div>
+                            <div style={{ fontSize: "14px", color: isExp ? green : "#d1d5db",
+                              transform: isExp ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>⌄</div>
+                          </div>
+                        </div>
+                      </button>
+                      {isExp && (
+                        <div style={{ borderTop: "1px solid #f3f4f6", padding: "14px 18px" }}>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280", marginBottom: "6px" }}>
+                            <strong style={{ color: "#374151" }}>Client:</strong> {b.clientName} · {b.clientEmail}
+                          </div>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280", marginBottom: "6px" }}>
+                            <strong style={{ color: "#374151" }}>Pet:</strong> {b.form?.pet || "—"}
+                          </div>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280", marginBottom: "6px" }}>
+                            <strong style={{ color: "#374151" }}>Walker:</strong> {b.form?.walker || "Unassigned"}
+                          </div>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>
+                            💳 Stripe Session: {b.stripeSessionId}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          )}
+
+          {/* Admin invoice list (non-Stripe) */}
+          {filterStatus !== "stripe" && (filtered.length === 0 ? (
             <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
               borderRadius: "16px", padding: "40px", textAlign: "center" }}>
               <div style={{ fontSize: "32px", marginBottom: "12px" }}>🧾</div>
@@ -673,7 +748,7 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
                 );
               })}
             </div>
-          )}
+          ))}
         </>
       )}
 
