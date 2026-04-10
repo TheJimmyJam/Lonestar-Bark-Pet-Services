@@ -435,12 +435,16 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         const firstBooking = newBookings[0];
         const pricedBooking = bookingsWithStatus.find(b => b.key === firstBooking.key);
         const amount = pricedBooking?.price || 0;
+        // Resolve the PIN key — clients map is keyed by PIN, not client.id
+        const clientPin = client.pin
+          || Object.keys(clients).find(k => clients[k]?.id === client.id)
+          || String(client.id);
         try {
-          localStorage.setItem("dwi_stripe_return_clientId", client.pin || String(client.id));
+          localStorage.setItem("dwi_stripe_return_clientId", clientPin);
           localStorage.setItem("dwi_pending_booking_keys", JSON.stringify(newBookings.map(b => b.key)));
         } catch {}
         const { url } = await createBookingCheckout({
-          clientId: client.pin || String(client.id),
+          clientId: clientPin,
           clientName: client.name,
           clientEmail: client.email,
           bookingKey: firstBooking.key,

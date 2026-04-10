@@ -113,6 +113,8 @@ function repriceWeekBookings(bookings) {
   const tier = getPriceTier(count);
   const updated = [...bookings];
   weekIdxs.forEach(i => {
+    // Never reprice completed or Stripe-paid bookings — price is locked at what was charged
+    if (updated[i].adminCompleted || updated[i].stripeSessionId) return;
     const basePrice = tier.prices[updated[i].slot?.duration] || tier.prices["30 min"];
     const dogCharge = (updated[i].additionalDogCount || 0) * 10;
     updated[i] = { ...updated[i], price: basePrice + dogCharge, priceTier: tier.label, sameDayDiscount: false };
