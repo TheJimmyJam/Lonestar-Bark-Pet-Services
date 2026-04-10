@@ -440,6 +440,13 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         const firstBooking = newBookings[0];
         const pricedBooking = bookingsWithStatus.find(b => b.key === firstBooking.key);
         const amount = pricedBooking?.price || 0;
+        console.log("[BookingApp] Stripe checkout debug:", {
+          firstBookingKey: firstBooking?.key,
+          pricedBookingFound: !!pricedBooking,
+          pricedBookingPrice: pricedBooking?.price,
+          amount,
+          allBookingsKeys: bookingsWithStatus.map(b => ({ key: b.key, price: b.price })),
+        });
         try {
           localStorage.setItem("dwi_stripe_return_clientId", clientPinKey);
           localStorage.setItem("dwi_pending_booking_keys", JSON.stringify(newBookings.map(b => b.key)));
