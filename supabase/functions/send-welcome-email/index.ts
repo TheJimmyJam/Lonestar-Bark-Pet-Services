@@ -1,13 +1,11 @@
-// Supabase Edge Function: send-welcome-email
-// Deploy via Supabase Dashboard → Edge Functions → New Function
-// Required secret: RESEND_API_KEY
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const LOGO_URL = "https://mvkmxmhsudqwxrsiifms.supabase.co/storage/v1/object/sign/assets/IMG_8716.jpeg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9hNjBhM2MyYS1lNmRjLTQ1YWYtODdlYS05Yjg3Y2FjNTAxZmIiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvSU1HXzg3MTYuanBlZyIsImlhdCI6MTc3NTc5NzIzNSwiZXhwIjoxODA3MzMzMjM1fQ.ThJcfTliGcH6Vh_havhobfL6hU1Ih0QAkO1-DdFrijI";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -21,48 +19,63 @@ serve(async (req) => {
     const html = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Welcome to Lonestar Bark Co.</title></head>
+<title>Welcome to the Pack</title></head>
 <body style="margin:0;padding:0;background:#f4f5f7;font-family:Helvetica,Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 16px;">
     <tr><td align="center">
       <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,0.08);">
 
-        <!-- Header -->
-        <tr><td style="background:#0B1423;padding:36px 40px;text-align:center;">
-          <div style="font-size:36px;margin-bottom:10px;">🐾</div>
-          <div style="color:#ffffff;font-size:18px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Lonestar Bark Co.</div>
-          <div style="color:#9B7444;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin-top:6px;">East Dallas Dog Walking</div>
+        <!-- Header with logo -->
+        <tr><td style="background:#0B1423;padding:32px 40px;text-align:center;">
+          <img src="${LOGO_URL}" alt="Lonestar Bark Co." width="160" style="display:block;margin:0 auto;max-width:160px;height:auto;border-radius:8px;" />
+          <div style="color:#9B7444;font-size:11px;letter-spacing:3px;text-transform:uppercase;margin-top:14px;">East Dallas Dog Walking</div>
+        </td></tr>
+
+        <!-- Hero -->
+        <tr><td style="background:#C4541A;padding:22px 40px;text-align:center;">
+          <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;line-height:1.3;">
+            🐾 Welcome to the Pack, ${firstName}!
+          </p>
         </td></tr>
 
         <!-- Body -->
-        <tr><td style="padding:40px;">
-          <h1 style="margin:0 0 10px;font-size:26px;color:#111827;font-weight:700;">Welcome, ${firstName}! 🎉</h1>
-          <p style="margin:0 0 20px;color:#6b7280;font-size:15px;line-height:1.7;">
-            You're officially part of the Lonestar Bark Co. family. We're a small, tight-knit team of dog walkers here in East Dallas — and we genuinely can't wait to meet your pup.
+        <tr><td style="padding:36px 40px 20px;">
+          <p style="margin:0 0 18px;color:#111827;font-size:16px;line-height:1.7;font-weight:600;">
+            You're in. Your dog is already our favorite person.
+          </p>
+          <p style="margin:0 0 18px;color:#4b5563;font-size:15px;line-height:1.8;">
+            We're Lonestar Bark Co. — a small crew of genuine dog people here in East Dallas.
+            We take tail wags seriously, we know a zoomie from a bad day, and we treat every
+            pup like they're our own.
+          </p>
+          <p style="margin:0 0 18px;color:#4b5563;font-size:15px;line-height:1.8;">
+            (We're also pretty fond of you, ${firstName}. But let's be honest — we're really here for the dog.)
           </p>
 
-          <!-- Next Steps box -->
-          <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:28px;">
+          <!-- Meet & Greet box -->
+          <table cellpadding="0" cellspacing="0" width="100%" style="margin:8px 0 28px;">
             <tr><td style="background:#FDF5EC;border-radius:12px;border-left:4px solid #C4541A;padding:20px 24px;">
-              <p style="margin:0 0 6px;color:#92400e;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">What's Next</p>
+              <p style="margin:0 0 8px;color:#92400e;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">🤝 First things first</p>
               <p style="margin:0;color:#7c3d12;font-size:15px;line-height:1.7;">
-                Your first step is a free <strong>15-minute meet &amp; greet</strong> — your walker will come to you, meet your dog, and get familiar with your home. No pressure, just introductions.
+                Your next step is a free <strong>15-minute Meet &amp; Greet</strong>. Your walker comes to you,
+                meets your pup on their turf, and gets the full rundown — quirks, routines, the whole nine yards.
+                No pressure, no commitment. Just sniffs and handshakes.
               </p>
             </td></tr>
           </table>
 
-          <!-- CTA Button -->
+          <!-- CTA -->
           <table cellpadding="0" cellspacing="0" width="100%">
-            <tr><td align="center" style="padding-bottom:32px;">
-              <a href="https://lonestarbarkco.com" style="display:inline-block;padding:14px 36px;background:#C4541A;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:10px;letter-spacing:0.3px;">
-                Log In &amp; Book Your Meet &amp; Greet →
+            <tr><td align="center" style="padding-bottom:28px;">
+              <a href="https://lonestarbarkco.com" style="display:inline-block;padding:15px 40px;background:#C4541A;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;border-radius:10px;letter-spacing:0.3px;">
+                Book Your Meet &amp; Greet →
               </a>
             </td></tr>
           </table>
 
-          <!-- Trust line -->
           <p style="margin:0;color:#9ca3af;font-size:14px;line-height:1.6;text-align:center;">
-            Questions before your first walk? Just reply to this email — we're real people and we actually respond.
+            Got questions? Just reply here — we're real humans, not a chatbot.<br/>
+            (Well… we use one occasionally. But this email? All us.)
           </p>
         </td></tr>
 
@@ -89,7 +102,7 @@ serve(async (req) => {
       body: JSON.stringify({
         from: "Lonestar Bark Co. <hello@lonestarbarkco.com>",
         to: [clientEmail],
-        subject: `Welcome to Lonestar Bark Co., ${firstName}! 🐾`,
+        subject: `Welcome to the Pack, ${firstName}! 🐾`,
         html,
       }),
     });
