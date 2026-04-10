@@ -141,10 +141,12 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
         backdropFilter: navScrolled ? "blur(12px)" : "none",
         borderBottom: navScrolled ? "1px solid rgba(255,255,255,0.06)" : "none",
         transition: "all 0.3s ease",
-        padding: "0 24px",
       }}>
         <div style={{ maxWidth: "1100px", margin: "0 auto", height: "64px",
-          display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          paddingLeft: lpMobile ? "16px" : "24px",
+          paddingRight: lpMobile ? "16px" : "24px",
+          boxSizing: "border-box", width: "100%" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 
             <LogoBadge size={32} />
@@ -170,7 +172,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
               padding: lpMobile ? "7px 14px" : "9px 22px", borderRadius: "8px", border: "none",
               background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
               fontSize: lpMobile ? "13px" : "15px", fontWeight: 500, cursor: "pointer", letterSpacing: "0.3px",
-              whiteSpace: "nowrap", marginRight: lpMobile ? "4px" : "0",
+              whiteSpace: "nowrap",
             }}>Sign Up</button>
           </div>
         </div>
