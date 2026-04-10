@@ -9,6 +9,7 @@ import {
   loadAllWalkersAvailability,
   saveInvoiceToDB, updateInvoiceInDB, sendInvoiceEmail,
   loadContactSubmissions,
+  logAuditEvent,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout,
@@ -28,12 +29,13 @@ import AdminInvoicesTab from "./AdminInvoicesTab.jsx";
 import AdminAdminsTab from "./AdminAdminsTab.jsx";
 import AdminMyInfo from "./AdminMyInfo.jsx";
 import AdminContactTab from "./AdminContactTab.jsx";
+import AdminAuditTab from "./AdminAuditTab.jsx";
 import { autoCreateWalkInvoice, generateInvoiceId, getAllInvoices, invoiceStatusMeta } from "../invoices/invoiceHelpers.js";
 import { generateRecurringBookings, extendRecurringBookings, spawnNextRecurringOccurrence } from "../recurring.js";
 import { GLOBAL_STYLES } from "../../styles.js";
 import { WALKER_CREDENTIALS, getAllWalkers, injectCustomWalkers } from "../auth/WalkerAuthScreen.jsx";
 import Header from "../shared/Header.jsx";
-import { SUPABASE_ANON_KEY, SUPABASE_URL, loadClients, loadTrades, loadWalkerProfiles, sendWalkerCancellationNotification } from "../../supabase.js";
+import { SUPABASE_ANON_KEY, SUPABASE_URL, loadClients, loadTrades, loadWalkerProfiles, sendWalkerCancellationNotification, sendClientCancellationNotification } from "../../supabase.js";
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, setWalkerProfiles, trades, setTrades, adminList, setAdminList, onLogout }) {
@@ -306,6 +308,10 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
       date: booking.date,
       price: effectivePrice(booking),
     });
+    logAuditEvent({ adminId: admin.id, adminName: admin.name, action: "walk_completed",
+      entityType: "booking", entityId: booking.key,
+      details: { clientName: booking.clientName || c.name, walkerName: booking.form?.walker,
+        pet: booking.form?.pet, date: booking.date, amount: effectivePrice(booking) } });
     setCompletingKey(null);
     setExpandedBooking(null);
   };
@@ -328,6 +334,10 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     };
     setClients(updatedClients);
     saveClients(updatedClients);
+    logAuditEvent({ adminId: admin.id, adminName: admin.name, action: "walk_uncompleted",
+      entityType: "booking", entityId: booking.key,
+      details: { clientName: booking.clientName, walkerName: booking.form?.walker,
+        pet: booking.form?.pet, date: booking.date } });
     setUndoingKey(null);
   };
 
@@ -445,6 +455,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     { id: "admins",        label: "Admins",         icon: "🛡️" },
     { id: "myinfo",        label: "My Info",        icon: "👤" },
     { id: "contact",       label: "Contact",        icon: "📨" },
+    { id: "audit",         label: "Audit Log",      icon: "🕵️" },
   ];
 
   const amber = "#b45309";
@@ -1956,6 +1967,9 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
             };
             setClients(updatedClients);
             saveClients(updatedClients);
+            logAuditEvent({ adminId: admin.id, adminName: admin.name,
+              action: "booking_edited", entityType: "booking", entityId: editingBookingKey,
+              details: { date: editDraft.date, walkerName: editDraft.walker } });
             setEditingBookingKey(null);
             setEditDraft(null);
             setExpandedBooking(null);
@@ -2286,6 +2300,10 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                                   };
                                   setClients(updatedClients);
                                   saveClients(updatedClients);
+                                  logAuditEvent({ adminId: admin.id, adminName: admin.name,
+                                    action: "booking_deleted", entityType: "booking", entityId: b.key,
+                                    details: { clientName: b.clientName, walkerName: b.form?.walker,
+                                      pet: b.form?.pet, date: b.date } });
                                   setDeletingKey(null);
                                   setExpandedBooking(null);
                                 }}
@@ -3220,7 +3238,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                         };
                         setClients(updatedClients);
                         saveClients(updatedClients);
-                        // Notify each assigned walker of their cancelled bookings
+                        // Notify each assigned walker and the client of their cancelled bookings
                         bookingsToCancel.forEach(b => {
                           const walkerName = b.form?.walker || "";
                           const walkerObj = getAllWalkers(walkerProfiles).find(w => w.name === walkerName);
@@ -3237,7 +3255,24 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                               duration: b.slot?.duration || "—",
                             });
                           }
+                          if (c.email) {
+                            sendClientCancellationNotification({
+                              clientName: c.name,
+                              clientEmail: c.email,
+                              pet: b.form?.pet || "",
+                              service: b.form?.service || "",
+                              date: b.date || "",
+                              day: b.day || "",
+                              time: b.slot?.time || "—",
+                              duration: b.slot?.duration || "—",
+                              walker: walkerName || "",
+                            });
+                          }
                         });
+                        logAuditEvent({ adminId: admin.id, adminName: admin.name,
+                          action: "client_deleted", entityType: "client", entityId: selectedClientId,
+                          details: { clientName: c.name, email: c.email,
+                            bookingsCancelled: bookingsToCancel.length } });
                         setConfirmDeleteClientId(null);
                         setSelectedClientId(null);
                       }} style={{ flex: 1, padding: "11px", borderRadius: "9px", border: "none",
@@ -3376,6 +3411,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       setClients={setClients}
                       onDone={() => setShowAdminAddClient(false)}
                       walkerProfiles={walkerProfiles}
+                      admin={admin}
                     />
                   </div>
                 </div>
@@ -3580,6 +3616,10 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
 
               // 3. Remove from runtime registries
               injectCustomWalkers(updatedProfiles);
+
+              logAuditEvent({ adminId: admin.id, adminName: admin.name,
+                action: "walker_deleted", entityType: "walker", entityId: w.id,
+                details: { walkerName: w.name, role: w.role } });
 
               setConfirmDeleteWalkerId(null);
               setSelectedWalkerId(null);
@@ -4663,6 +4703,10 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
 
                       // Inject immediately into runtime so they can log in + appear everywhere
                       injectCustomWalkers(updatedProfiles);
+
+                      logAuditEvent({ adminId: admin.id, adminName: admin.name,
+                        action: "walker_added", entityType: "walker", entityId: newId,
+                        details: { walkerName: newProf.name, email: newProf.email, role: newProf.role } });
 
                       setWalkerForm({ name: "", email: "", years: "", bio: "", avatar: "🐾", color: "#C4541A", services: [] });
                       setWalkerFormErrors({});
@@ -5875,6 +5919,11 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
               await saveCompletedPayrolls(updated);
               setCompletedPayrolls(updated);
               setPayrollStale(false);
+              logAuditEvent({ adminId: admin.id, adminName: admin.name,
+                action: "payroll_completed", entityType: "payroll",
+                entityId: record.walkerId,
+                details: { walkerName: record.walkerName, amount: record.totalPayout,
+                  walkCount: record.walks?.length, weekLabel: record.weekLabel } });
               setConfirmPayrollWalker(null);
             } catch (err) {
               setPayrollSaveError(err.message || "Payroll could not be saved. Please try again.");
@@ -6593,7 +6642,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
 
         {/* ── Invoices ── */}
         {tab === "invoices" && (
-          <AdminInvoicesTab key={invoicesKey} clients={clients} setClients={setClients} completedPayrolls={completedPayrolls} />
+          <AdminInvoicesTab key={invoicesKey} clients={clients} setClients={setClients} completedPayrolls={completedPayrolls} admin={admin} />
         )}
 
         {/* ── Map ── */}
@@ -6634,6 +6683,11 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
         {/* ── Contact Submissions ── */}
         {tab === "contact" && (
           <AdminContactTab />
+        )}
+
+        {/* ── Audit Log ── */}
+        {tab === "audit" && (
+          <AdminAuditTab admin={admin} />
         )}
 
       </div>

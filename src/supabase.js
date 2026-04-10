@@ -468,6 +468,7 @@ async function loadAllWalkersAvailability(startDate, endDate) {
 export {
   SUPABASE_URL, SUPABASE_ANON_KEY,
   notifyAdmin, sbFetch,
+  logAuditEvent, loadAuditLog,
   loadClients, saveClients,
   loadWalkerProfiles, saveWalkerProfiles,
   loadInvoicesFromDB, saveInvoiceToDB, updateInvoiceInDB, deleteInvoiceFromDB,
@@ -481,8 +482,52 @@ export {
   DEFAULT_ADMIN, loadAdminList, saveAdminList, removeAdminFromDB,
   loadContactSubmissions, saveContactSubmission, updateContactSubmission, deleteContactSubmission,
   sendInvoiceEmail, sendWelcomeEmail, sendBookingConfirmation, sendInvoicePaidEmail, sendWalkerBookingNotification, sendPinResetCode,
-  createBookingCheckout, createRefund, sendWalkerCancellationNotification,
+  createBookingCheckout, createRefund, sendWalkerCancellationNotification, sendClientCancellationNotification,
 };
+
+// ─── Audit Log ───────────────────────────────────────────────────────────────
+// Fire-and-forget — never throws, so it never blocks an admin action.
+async function logAuditEvent({ adminId = "", adminName = "", action = "", entityType = "", entityId = "", details = {} } = {}) {
+  try {
+    await sbFetch("audit_log", {
+      method: "POST",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        admin_id:    adminId,
+        admin_name:  adminName,
+        action,
+        entity_type: entityType,
+        entity_id:   String(entityId),
+        details,
+        created_at:  new Date().toISOString(),
+      }),
+    });
+  } catch (e) {
+    console.warn("[logAuditEvent] failed (non-fatal):", e);
+  }
+}
+
+async function loadAuditLog({ limit = 200, entityType = null, adminId = null } = {}) {
+  try {
+    let path = `audit_log?select=*&order=created_at.desc&limit=${limit}`;
+    if (entityType) path += `&entity_type=eq.${encodeURIComponent(entityType)}`;
+    if (adminId)    path += `&admin_id=eq.${encodeURIComponent(adminId)}`;
+    const rows = await sbFetch(path);
+    return (rows || []).map(r => ({
+      id:         r.id,
+      adminId:    r.admin_id,
+      adminName:  r.admin_name,
+      action:     r.action,
+      entityType: r.entity_type,
+      entityId:   r.entity_id,
+      details:    r.details || {},
+      createdAt:  r.created_at,
+    }));
+  } catch (e) {
+    console.error("loadAuditLog failed:", e);
+    return [];
+  }
+}
 
 // ─── Admin List DB Functions ──────────────────────────────────────────────────
 const DEFAULT_ADMIN = {
@@ -687,6 +732,21 @@ async function sendWalkerCancellationNotification({ walkerName, walkerEmail, cli
     console.log(`[sendWalkerCancellationNotification] ${walkerEmail} → ${res.status}`, body);
   } catch (e) {
     console.error("[sendWalkerCancellationNotification] failed:", e);
+  }
+}
+
+async function sendClientCancellationNotification({ clientName, clientEmail, pet, service, date, day, time, duration, walker }) {
+  if (!clientEmail) return;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-client-cancellation-notification`, {
+      method: "POST",
+      headers: edgeHeaders,
+      body: JSON.stringify({ clientName, clientEmail, pet, service, date, day, time, duration, walker }),
+    });
+    const body = await res.json();
+    console.log(`[sendClientCancellationNotification] ${clientEmail} → ${res.status}`, body);
+  } catch (e) {
+    console.error("[sendClientCancellationNotification] failed:", e);
   }
 }
 
