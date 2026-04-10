@@ -699,7 +699,7 @@ async function createBookingCheckout({ clientId, clientName, clientEmail, bookin
 }
 
 async function createRefund({ stripeSessionId, reason = "requested_by_customer" }) {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/create-refund`, {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/dynamic-api`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ stripeSessionId, reason }),
