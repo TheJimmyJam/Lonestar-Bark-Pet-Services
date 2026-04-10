@@ -31,12 +31,12 @@ function PinPad({ length = 6, onComplete, label, color = "#C4541A", error }) {
   const KEYS = [["1","2","3"],["4","5","6"],["7","8","9"],["←","0","✓"]];
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-      <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#9ca3af", fontSize: "16px",
-        letterSpacing: "1px", textTransform: "uppercase", marginBottom: "20px" }}>{label}</div>
-      <div className={shake ? "shake" : ""} style={{ display: "flex", gap: "14px", marginBottom: "28px" }}>
+      <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#9ca3af", fontSize: "14px",
+        letterSpacing: "1px", textTransform: "uppercase", marginBottom: "12px" }}>{label}</div>
+      <div className={shake ? "shake" : ""} style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
         {Array.from({ length }).map((_, i) => (
           <div key={i} style={{
-            width: "14px", height: "14px", borderRadius: "50%",
+            width: "12px", height: "12px", borderRadius: "50%",
             background: error ? "#ef4444" : pin.length > i ? color : "transparent",
             border: `2px solid ${error ? "#ef4444" : pin.length > i ? color : "#1a2d45"}`,
             transition: "all 0.15s",
@@ -44,17 +44,17 @@ function PinPad({ length = 6, onComplete, label, color = "#C4541A", error }) {
           }} />
         ))}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         {KEYS.map((row, ri) => (
-          <div key={ri} style={{ display: "flex", gap: "10px" }}>
+          <div key={ri} style={{ display: "flex", gap: "8px" }}>
             {row.map(k => (
               <button key={k} className="key-btn"
                 onClick={() => k === "←" ? del() : k === "✓" ? (pin.length === length && onComplete(pin)) : press(k)}
                 style={{
-                  width: "68px", height: "68px", borderRadius: "14px",
+                  width: "58px", height: "58px", borderRadius: "12px",
                   border: "1.5px solid #4A2E18",
                   background: k === "✓" ? color : k === "←" ? "#1e3550" : "#0B1423",
-                  color: "#fff", fontSize: k === "←" || k === "✓" ? "18px" : "20px",
+                  color: "#fff", fontSize: k === "←" || k === "✓" ? "16px" : "18px",
                   fontFamily: "'DM Sans', sans-serif", fontWeight: 500, cursor: "pointer",
                 }}>{k}</button>
             ))}

@@ -30,6 +30,103 @@ import AddressFields from "../shared/AddressFields.jsx";
 import { PRICE_TIERS, addrFromString } from "../../helpers.js";
 import { loadInvoicesFromDB } from "../../supabase.js";
 
+// ─── Scroll Picker ────────────────────────────────────────────────────────────
+function ScrollPicker({ items, value, onChange, itemHeight = 44, visibleCount = 5, renderItem }) {
+  const scrollRef = useRef(null);
+  const timerRef  = useRef(null);
+
+  const getIndex = (val) => {
+    if (!val && val !== 0) return 0;
+    const idx = items.findIndex(item => (item?.id ?? item) === val);
+    return idx >= 0 ? idx : 0;
+  };
+
+  // Sync scroll position when value or items change
+  useEffect(() => {
+    if (!scrollRef.current || items.length === 0) return;
+    const idx = getIndex(value);
+    scrollRef.current.scrollTop = idx * itemHeight;
+  }, [value, items]);
+
+  const handleScroll = () => {
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      if (!scrollRef.current) return;
+      const idx = Math.round(scrollRef.current.scrollTop / itemHeight);
+      const clamped = Math.max(0, Math.min(idx, items.length - 1));
+      scrollRef.current.scrollTo({ top: clamped * itemHeight, behavior: "smooth" });
+      const item = items[clamped];
+      const val = item?.id ?? item;
+      if (val !== value) onChange(val);
+    }, 90);
+  };
+
+  const padding = Math.floor(visibleCount / 2) * itemHeight;
+
+  return (
+    <div style={{ position: "relative", height: visibleCount * itemHeight, overflow: "hidden" }}>
+      <style>{`.sp-scroll::-webkit-scrollbar{display:none}`}</style>
+      {/* Selection highlight */}
+      <div style={{
+        position: "absolute", left: "6px", right: "6px",
+        top: "50%", transform: "translateY(-50%)",
+        height: itemHeight, background: "#f3f4f6",
+        borderRadius: "8px", pointerEvents: "none", zIndex: 1,
+      }} />
+      {/* Top fade */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, height: padding * 0.75,
+        background: "linear-gradient(to bottom, rgba(255,255,255,0.97), rgba(255,255,255,0))",
+        pointerEvents: "none", zIndex: 2,
+      }} />
+      {/* Bottom fade */}
+      <div style={{
+        position: "absolute", bottom: 0, left: 0, right: 0, height: padding * 0.75,
+        background: "linear-gradient(to top, rgba(255,255,255,0.97), rgba(255,255,255,0))",
+        pointerEvents: "none", zIndex: 2,
+      }} />
+      {/* Scrollable list */}
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="sp-scroll"
+        style={{
+          height: "100%", overflowY: "scroll",
+          scrollSnapType: "y mandatory",
+          paddingTop: `${padding}px`,
+          paddingBottom: `${padding}px`,
+          msOverflowStyle: "none", scrollbarWidth: "none",
+        }}
+      >
+        {items.map((item, i) => {
+          const itemVal = item?.id ?? item;
+          const isSelected = value ? itemVal === value : i === 0;
+          const label = renderItem ? renderItem(item) : (item?.time ?? item?.label ?? String(item));
+          return (
+            <div
+              key={String(itemVal)}
+              onClick={() => {
+                onChange(itemVal);
+                scrollRef.current?.scrollTo({ top: i * itemHeight, behavior: "smooth" });
+              }}
+              style={{
+                height: itemHeight, scrollSnapAlign: "center",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: isSelected ? 15 : 13,
+                fontWeight: isSelected ? 600 : 400,
+                color: isSelected ? "#111827" : "#9ca3af",
+                cursor: "pointer", userSelect: "none",
+                transition: "all 0.1s", position: "relative", zIndex: 0,
+              }}
+            >{label}</div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Booking App ─────────────────────────────────────────────────────────
 function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {} }) {
   // clients map is keyed by PIN — always use this key when writing back to the map
@@ -2583,6 +2680,12 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   onBooked={() => {}}
                 />
 
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af",
+                    marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span>🕐</span>
+                  <span>We require <strong style={{ color: "#6b7280" }}>24 hours notice</strong> — only dates more than 24 hours from now are available.</span>
+                </div>
+
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                     marginBottom: "10px" }}>
                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
@@ -2757,73 +2860,93 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                             <div key={idx} style={{ background: "#fff", border: `1.5px solid ${walk.slotId && walk.duration ? svc.color : svc.border}`,
                               borderRadius: "14px", padding: "14px 16px",
                               boxShadow: "0 2px 6px rgba(0,0,0,0.04)" }}>
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-                                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                                  fontWeight: 600, color: "#374151" }}>
-                                  {service === "cat" ? "Sitting time" : "Walk time"}
-                                </div>
-                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                  {sameDayDiscountActive && walk.slotId && walk.duration && (
-                                    <span style={{ fontSize: "16px", background: "#fffbeb",
-                                      color: "#b45309", border: "1px solid #fcd34d",
-                                      borderRadius: "4px", padding: "2px 6px",
-                                      fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>
-                                      20% off same day
-                                    </span>
-                                  )}
-
-                                </div>
+                              {/* Header */}
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                                fontWeight: 600, color: "#374151", marginBottom: "10px" }}>
+                                {service === "cat" ? "Sitting time" : "Walk time"}
                               </div>
 
-                              {/* Time dropdown */}
-                              <select value={walk.slotId}
-                                onChange={e => setSelectedWalks(w => w.map((ww, i) => i === idx ? { ...ww, slotId: e.target.value, duration: null } : ww))}
-                                style={{ width: "100%", padding: "11px 14px", borderRadius: "10px",
-                                  border: `1.5px solid ${walk.slotId ? svc.color : "#d1d5db"}`,
-                                  background: "#fff", fontSize: "15px",
-                                  fontFamily: "'DM Sans', sans-serif",
-                                  color: walk.slotId ? "#111827" : "#9ca3af",
-                                  cursor: "pointer", appearance: "none", marginBottom: "10px",
-                                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239ca3af' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")`,
-                                  backgroundRepeat: "no-repeat", backgroundPosition: "right 14px center",
-                                  paddingRight: "36px",
-                                }}>
-                                <option value="">Select a start time…</option>
-                                {availableSlots.map(slot => (
-                                  <option key={slot.id} value={slot.id}>{slot.time}</option>
-                                ))}
-                              </select>
-
-                              {/* Duration toggle */}
-                              {walk.slotId && (
-                                <div className="fade-up" style={{ display: "flex", gap: "8px" }}>
-                                  {["30 min", "60 min"].map(d => {
-                                    const btnBase = getSessionPrice(d, weekBookingCount + selectedWalks.filter((w,i) => i <= idx && w.slotId && w.duration).length);
-                                    const btnPrice = sameDayDiscountActive ? Math.round(btnBase * 0.8) : btnBase;
-                                    const btnBaseOrig = sameDayDiscountActive ? btnBase : null;
-                                    return (
-                                      <button key={d}
-                                        onClick={() => setSelectedWalks(w => w.map((ww, i) => i === idx ? { ...ww, duration: d } : ww))}
-                                        style={{ flex: 1, padding: "10px", borderRadius: "10px", cursor: "pointer",
-                                          border: walk.duration === d ? `2px solid ${svc.color}` : "1.5px solid #d1d5db",
-                                          background: walk.duration === d ? svc.color : "#fff",
-                                          color: walk.duration === d ? "#fff" : "#9ca3af",
-                                          fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                                          fontWeight: walk.duration === d ? 600 : 400,
-                                          transition: "all 0.12s" }}>
-                                        <div>{d}</div>
-                                        <div style={{ fontSize: "16px", marginTop: "2px",
-                                          color: walk.duration === d ? "rgba(255,255,255,0.85)" : "#9ca3af" }}>
-                                          {sameDayDiscountActive && btnBaseOrig && (
-                                            <span style={{ textDecoration: "line-through", marginRight: "4px",
-                                              opacity: 0.6 }}>${btnBaseOrig.toFixed(2)}</span>
-                                          )}
-                                          ${btnPrice.toFixed(2)}
-                                        </div>
-                                      </button>
-                                    );
-                                  })}
+                              {availableSlots.length === 0 ? (
+                                <div style={{ padding: "20px", textAlign: "center",
+                                  fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                                  color: "#9ca3af", background: "#f9fafb", borderRadius: "10px" }}>
+                                  No times available — try another day.
                                 </div>
+                              ) : (
+                                <>
+                                  {/* Two-column scroll picker */}
+                                  <div style={{ display: "flex", border: "1.5px solid #e4e7ec",
+                                    borderRadius: "12px", overflow: "hidden", background: "#fff",
+                                    marginBottom: "10px" }}>
+                                    {/* Time column */}
+                                    <div style={{ flex: 1, borderRight: "1px solid #e4e7ec" }}>
+                                      <div style={{ textAlign: "center", padding: "6px 0",
+                                        fontFamily: "'DM Sans', sans-serif", fontSize: "10px",
+                                        color: "#9ca3af", letterSpacing: "1.5px",
+                                        textTransform: "uppercase", fontWeight: 600,
+                                        borderBottom: "1px solid #f0f0f0" }}>
+                                        Start Time
+                                      </div>
+                                      <ScrollPicker
+                                        key={`time-${activeDay}-${idx}`}
+                                        items={availableSlots}
+                                        value={walk.slotId}
+                                        onChange={(val) => setSelectedWalks(w => w.map((ww, i) =>
+                                          i === idx ? { ...ww, slotId: val } : ww
+                                        ))}
+                                        itemHeight={44}
+                                        visibleCount={5}
+                                        renderItem={(item) => item.time}
+                                      />
+                                    </div>
+                                    {/* Duration column */}
+                                    <div style={{ width: "88px" }}>
+                                      <div style={{ textAlign: "center", padding: "6px 0",
+                                        fontFamily: "'DM Sans', sans-serif", fontSize: "10px",
+                                        color: "#9ca3af", letterSpacing: "1.5px",
+                                        textTransform: "uppercase", fontWeight: 600,
+                                        borderBottom: "1px solid #f0f0f0" }}>
+                                        Duration
+                                      </div>
+                                      <ScrollPicker
+                                        key={`dur-${activeDay}-${idx}`}
+                                        items={["30 min", "60 min"]}
+                                        value={walk.duration}
+                                        onChange={(val) => setSelectedWalks(w => w.map((ww, i) =>
+                                          i === idx ? { ...ww, duration: val } : ww
+                                        ))}
+                                        itemHeight={44}
+                                        visibleCount={5}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Price row */}
+                                  {walk.slotId && walk.duration && price !== null && (
+                                    <div className="fade-up" style={{ display: "flex",
+                                      alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                                      {sameDayDiscountActive && basePrice !== null && (
+                                        <span style={{ fontFamily: "'DM Sans', sans-serif",
+                                          fontSize: "13px", color: "#9ca3af",
+                                          textDecoration: "line-through" }}>
+                                          ${basePrice.toFixed(2)}
+                                        </span>
+                                      )}
+                                      <span style={{ fontFamily: "'DM Sans', sans-serif",
+                                        fontSize: "17px", fontWeight: 700, color: svc.color }}>
+                                        ${price.toFixed(2)}
+                                      </span>
+                                      {sameDayDiscountActive && (
+                                        <span style={{ fontFamily: "'DM Sans', sans-serif",
+                                          fontSize: "11px", fontWeight: 600, color: "#b45309",
+                                          background: "#fffbeb", border: "1px solid #fcd34d",
+                                          borderRadius: "4px", padding: "2px 6px" }}>
+                                          20% off
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </>
                               )}
                             </div>
                           );

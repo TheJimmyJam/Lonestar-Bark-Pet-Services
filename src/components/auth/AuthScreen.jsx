@@ -152,11 +152,11 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
 
   return (
     <div style={{ minHeight: "100svh", background: "linear-gradient(135deg,#0a1220 0%,#0B1423 50%,#0a1220 100%)",
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: "clamp(20px, 5vw, 48px) 16px" }}>
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: "clamp(12px, 3vw, 28px) 16px" }}>
       <style>{GLOBAL_STYLES}</style>
 
-      <div style={{ textAlign: "center", marginBottom: "40px" }}>
-        <LogoBadge size={72} />
+      <div style={{ textAlign: "center", marginBottom: "20px" }}>
+        <LogoBadge size={60} />
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
           fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "2px", marginBottom: "6px" }}>
           Lonestar Bark Co.
@@ -168,7 +168,7 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
       </div>
 
       <div className="auth-card" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
-        borderRadius: "24px", padding: "36px 32px" }}>
+        borderRadius: "24px", padding: "24px 28px" }}>
 
         {/* Email entry */}
         {stage === "entry" && (
@@ -214,7 +214,7 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
                   fontSize: "15px", padding: 0, lineHeight: 1 }}>✕</button>
               </div>
             </div>
-            <div style={{ marginTop: "24px" }}>
+            <div style={{ marginTop: "12px" }}>
               {rateLimiter.locked ? (
                 <div style={{ textAlign: "center", padding: "24px 16px" }}>
                   <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔒</div>
@@ -237,14 +237,14 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
               )}
             </div>
             <button onClick={() => { forgetSavedEmail(); }}
-              style={{ marginTop: "20px", background: "none", border: "none", color: "#ffffffaa",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "16px", cursor: "pointer",
+              style={{ marginTop: "12px", background: "none", border: "none", color: "#ffffffaa",
+                fontFamily: "'DM Sans', sans-serif", fontSize: "15px", cursor: "pointer",
                 width: "100%", textAlign: "center" }}>
               Not you? Use a different account
             </button>
             <button onClick={() => { setResetEmail(email); setResetEmailError(""); setStage("forgot-email"); }}
-              style={{ marginTop: "10px", background: "none", border: "none", color: "#C4541A",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "14px", cursor: "pointer",
+              style={{ marginTop: "6px", background: "none", border: "none", color: "#C4541A",
+                fontFamily: "'DM Sans', sans-serif", fontSize: "13px", cursor: "pointer",
                 width: "100%", textAlign: "center", textDecoration: "underline" }}>
               Forgot PIN?
             </button>
