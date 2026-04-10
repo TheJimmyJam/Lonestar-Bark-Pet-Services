@@ -688,7 +688,7 @@ async function sendWalkerCancellationNotification({ walkerName, walkerEmail, cli
 }
 
 async function createBookingCheckout({ clientId, clientName, clientEmail, bookingKey, service, date, day, time, duration, walker, pet, amount }) {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/dynamic-action`, {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/create-booking-checkout`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ clientId, clientName, clientEmail, bookingKey, service, date, day, time, duration, walker, pet, amount }),
@@ -699,7 +699,7 @@ async function createBookingCheckout({ clientId, clientName, clientEmail, bookin
 }
 
 async function createRefund({ stripeSessionId, reason = "requested_by_customer" }) {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/dynamic-api`, {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/create-refund`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ stripeSessionId, reason }),
