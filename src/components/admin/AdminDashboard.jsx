@@ -2633,6 +2633,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 {children}
               </div>
             );
+            const LegacySection = Section;
 
             const Field = ({ label, value, missing }) => (
               <div style={{ display: "flex", gap: "12px", paddingBottom: "10px",
