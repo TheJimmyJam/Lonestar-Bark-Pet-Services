@@ -237,6 +237,23 @@ function formatPhone(raw) {
   return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
 }
 
+// ─── Meet & Greet 24-hour gate helpers ───────────────────────────────────────
+// Returns true if the given date has at least one meet & greet slot ≥24h from now.
+// Requires ALL_HANDOFF_SLOTS to be passed in to avoid a circular import.
+function handoffDayHasValidSlot(date, ALL_HANDOFF_SLOTS) {
+  const cutoff = new Date().getTime() + 24 * 60 * 60 * 1000;
+  return ALL_HANDOFF_SLOTS.some(slot => {
+    const slotDt = new Date(date.getFullYear(), date.getMonth(), date.getDate(), slot.hour, slot.minute);
+    return slotDt.getTime() >= cutoff;
+  });
+}
+// Returns true if a specific slot on a given date is ≥24h from now.
+function handoffSlotIsValid(date, slot) {
+  const cutoff = new Date().getTime() + 24 * 60 * 60 * 1000;
+  const slotDt = new Date(date.getFullYear(), date.getMonth(), date.getDate(), slot.hour, slot.minute);
+  return slotDt.getTime() >= cutoff;
+}
+
 export {
   effectivePrice, getWalkerPayout,
   PRICE_TIERS, getCurrentWeekRange, getWeekRangeForOffset,
@@ -247,4 +264,5 @@ export {
   generateCode,
   addrToString, addrFromString, emptyAddr, US_STATES,
   toDateKey, fmt, formatPhone,
+  handoffDayHasValidSlot, handoffSlotIsValid,
 };

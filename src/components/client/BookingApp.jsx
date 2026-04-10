@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { SERVICES, SERVICE_SLOTS, PRICING_TIERS, ADD_ONS, DAYS, FULL_DAYS } from "../../constants.js";
+import { SERVICES, SERVICE_SLOTS, PRICING_TIERS, ADD_ONS, DAYS, FULL_DAYS, ALL_HANDOFF_SLOTS } from "../../constants.js";
 import {
   saveClients, notifyAdmin,
   loadChatMessages, saveChatMessage, formatChatTime,
@@ -14,6 +14,7 @@ import {
   repriceWeekBookings, applySameDayDiscount,
   getWeekDates, firstName, parseDateLocal, dateStrFromDate,
   fmt, formatPhone, addrToString, toDateKey,
+  handoffDayHasValidSlot, handoffSlotIsValid,
 } from "../../helpers.js";
 import ClientNav from "../shared/ClientNav.jsx";
 import Header from "../shared/Header.jsx";
@@ -538,8 +539,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               <div style={{ display: "flex", gap: "6px", marginBottom: "16px" }}>
                 {[0,1,2,3,4].map(i => {
                   const date = wDates[i];
-                  const today = new Date(); today.setHours(0,0,0,0);
-                  const disabled = date < today;
+                  // Disabled if no slot on this day is ≥24h from now
+                  const disabled = !handoffDayHasValidSlot(date, ALL_HANDOFF_SLOTS);
                   const active = handoffReschedDay === i;
                   return (
                     <button key={i} onClick={() => { if (!disabled) { setHandoffReschedDay(i); setHandoffReschedWindow(null); } }}
@@ -563,15 +564,22 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
                   {ALL_HANDOFF_SLOTS.map(slot => {
                     const active = handoffReschedWindow?.id === slot.id;
+                    const slotDisabled = !handoffSlotIsValid(wDates[handoffReschedDay], slot);
                     return (
-                      <button key={slot.id} onClick={() => setHandoffReschedWindow(slot)}
-                        style={{ padding: "16px 12px", borderRadius: "12px", cursor: "pointer",
+                      <button key={slot.id}
+                        onClick={() => { if (!slotDisabled) setHandoffReschedWindow(slot); }}
+                        disabled={slotDisabled}
+                        style={{ padding: "16px 12px", borderRadius: "12px",
+                          cursor: slotDisabled ? "default" : "pointer",
                           border: active ? `2px solid ${purple}` : "1.5px solid #e4e7ec",
-                          background: active ? "#F5EFF3" : "#fff",
-                          color: active ? purple : "#374151",
-                          textAlign: "center", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s" }}>
+                          background: active ? "#F5EFF3" : slotDisabled ? "#f9fafb" : "#fff",
+                          color: active ? purple : slotDisabled ? "#d1d5db" : "#374151",
+                          textAlign: "center", fontFamily: "'DM Sans', sans-serif",
+                          transition: "all 0.15s", opacity: slotDisabled ? 0.5 : 1 }}>
                         <div style={{ fontWeight: 700, fontSize: "15px", marginBottom: "3px" }}>{slot.label}</div>
-                        <div style={{ fontSize: "12px", color: active ? purple : "#9ca3af" }}>15-min meet & greet</div>
+                        <div style={{ fontSize: "12px", color: active ? purple : slotDisabled ? "#d1d5db" : "#9ca3af" }}>
+                          {slotDisabled ? "< 24 hrs out" : "15-min meet & greet"}
+                        </div>
                       </button>
                     );
                   })}
