@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { WALKER_SERVICES } from "../../constants.js";
 import { notifyAdmin, loadWalkerProfiles } from "../../supabase.js";
 import { generateCode, formatPhone, emptyAddr, addrToString } from "../../helpers.js";
+import { GLOBAL_STYLES } from "../../styles.js";
 import PinPad from "../shared/PinPad.jsx";
 import LogoBadge from "../shared/LogoBadge.jsx";
 import AddressFields from "../shared/AddressFields.jsx";

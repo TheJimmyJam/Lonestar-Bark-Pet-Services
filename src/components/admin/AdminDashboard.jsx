@@ -20,6 +20,7 @@ import {
 } from "../../helpers.js";
 import LogoBadge from "../shared/LogoBadge.jsx";
 import AddressFields from "../shared/AddressFields.jsx";
+import { GLOBAL_STYLES } from "../../styles.js";
 import ScheduleWalkForm from "./ScheduleWalkForm.jsx";
 import AddLegacyClientForm from "./AddLegacyClientForm.jsx";
 import AdminMapView from "./AdminMapView.jsx";

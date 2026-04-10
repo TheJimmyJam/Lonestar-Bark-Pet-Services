@@ -18,6 +18,7 @@ import {
 } from "../../helpers.js";
 import ClientNav from "../shared/ClientNav.jsx";
 import Header from "../shared/Header.jsx";
+import { GLOBAL_STYLES } from "../../styles.js";
 import ClientMyInfoPage from "./ClientMyInfoPage.jsx";
 import QuickRebookBanner from "./QuickRebookBanner.jsx";
 import ClientInvoicesPage from "../invoices/ClientInvoicesPage.jsx";

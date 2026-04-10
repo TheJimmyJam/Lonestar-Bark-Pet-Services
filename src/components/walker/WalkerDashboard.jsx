@@ -18,6 +18,7 @@ import {
 } from "../../helpers.js";
 import LogoBadge from "../shared/LogoBadge.jsx";
 import AddressFields from "../shared/AddressFields.jsx";
+import { GLOBAL_STYLES } from "../../styles.js";
 import WalkerClientEditor from "./WalkerClientEditor.jsx";
 import { slotsToShifts, shiftsToSlots, ShiftSlider, DayAvailSliders } from "./AvailabilityComponents.jsx";
 import { autoCreateWalkInvoice, generateInvoiceId } from "../invoices/invoiceHelpers.js";

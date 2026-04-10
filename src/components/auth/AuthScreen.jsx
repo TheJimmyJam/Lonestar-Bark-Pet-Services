@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { SERVICES } from "../../constants.js";
 import { notifyAdmin } from "../../supabase.js";
 import { generateCode, formatPhone, addrToString, emptyAddr } from "../../helpers.js";
+import { GLOBAL_STYLES } from "../../styles.js";
 import PinPad from "../shared/PinPad.jsx";
 import LogoBadge from "../shared/LogoBadge.jsx";
 import AddressFields from "../shared/AddressFields.jsx";

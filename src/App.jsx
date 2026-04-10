@@ -346,10 +346,10 @@ export default function LonestarBark() {
   );
 
   // ── Landing page (public) ─────────────────────────────────────────────────
-  if (!showApp && !showLogin) return <LandingPage onSignUp={() => { setSelectedRole("customer"); setShowApp(true); }} onLogin={() => setShowLogin(true)} walkerProfiles={walkerProfiles} />;
+  if (!showApp && !showLogin) return <CustomerErrorBoundary><LandingPage onSignUp={() => { setSelectedRole("customer"); setShowApp(true); }} onLogin={() => setShowLogin(true)} walkerProfiles={walkerProfiles} /></CustomerErrorBoundary>;
 
   // ── Role selection (via Login button) ─────────────────────────────────────
-  if (showLogin && !selectedRole) return <RoleSelectScreen onSelectRole={(role) => { setSelectedRole(role); setShowApp(true); }} onBack={() => setShowLogin(false)} />;
+  if (showLogin && !selectedRole) return <CustomerErrorBoundary><RoleSelectScreen onSelectRole={(role) => { setSelectedRole(role); setShowApp(true); }} onBack={() => setShowLogin(false)} /></CustomerErrorBoundary>;
 
   // ── ADMIN flow ────────────────────────────────────────────────────────────
   if (selectedRole === "admin") {
