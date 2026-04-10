@@ -48,6 +48,15 @@ function ScrollPicker({ items, value, onChange, itemHeight = 44, visibleCount = 
     scrollRef.current.scrollTop = idx * itemHeight;
   }, [value, items]);
 
+  // Auto-commit the first item when value is empty (on mount or items swap)
+  useEffect(() => {
+    if (items.length === 0) return;
+    if (value === "" || value === null || value === undefined) {
+      const first = items[0];
+      onChange(first?.id ?? first);
+    }
+  }, [items]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleScroll = () => {
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
@@ -1410,6 +1419,12 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       {page === "mywalks" && (() => {
         const now = new Date();
         const { monday, sunday } = getCurrentWeekRange();
+        // Format "April 18" from scheduledDateTime, falling back to b.date
+        const fmtBookingDate = (dt) => {
+          if (!dt) return "";
+          const [y, m, d] = dt.slice(0, 10).split("-").map(Number);
+          return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "long", day: "numeric" });
+        };
         const walksQ = walksSearch.toLowerCase();
         const allActive = myBookings.filter(b => {
           if (b.cancelled) return false;
@@ -1762,7 +1777,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                                       fontWeight: 600, color: "#7A4D6E" }}>Meet & Greet Appointment</div>
                                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
-                                      {b.day} · {b.slot?.time} · 15 min
+                                      {b.day} {fmtBookingDate(b.scheduledDateTime)} · {b.slot?.time} · 15 min
                                     </div>
                                   </div>
                                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
@@ -1808,7 +1823,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                                     )}
                                   </div>
                                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280" }}>
-                                    {b.day} at {b.slot?.time} · {b.slot?.duration}
+                                    {b.day} {fmtBookingDate(b.scheduledDateTime)} at {b.slot?.time} · {b.slot?.duration}
                                     {b.sameDayDiscount && (
                                       <span style={{ marginLeft: "6px", fontSize: "16px", background: "#fffbeb",
                                         color: "#b45309", border: "1px solid #fcd34d",
@@ -1951,7 +1966,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                           <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
                             fontSize: "15px", color: "#374151" }}>{b.form.pet}</div>
                           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
-                            {b.day} at {b.slot?.time} · {b.slot?.duration}
+                            {b.day} {fmtBookingDate(b.scheduledDateTime)} at {b.slot?.time} · {b.slot?.duration}
                           </div>
                         </div>
                         {b.price > 0 && (
@@ -1996,7 +2011,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       <div>
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", color: "#111827" }}>{s.label}</div>
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: s.color }}>
-                          {b.day} at {b.slot?.time} · {b.slot?.duration}
+                          {b.day} {fmtBookingDate(b.scheduledDateTime)} at {b.slot?.time} · {b.slot?.duration}
                         </div>
                       </div>
                     </div>
@@ -3007,6 +3022,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
 
                 {(() => {
                   const now = new Date();
+                  const fmtUpcomingDate = (dt) => {
+                    if (!dt) return "";
+                    const [y, m, d] = dt.slice(0, 10).split("-").map(Number);
+                    return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "long", day: "numeric" });
+                  };
                   const upcomingBookings = myBookings.filter(b => !b.cancelled && b.scheduledDateTime && new Date(b.scheduledDateTime) > now);
                   return upcomingBookings.length > 0 && (
                   <div>
@@ -3036,7 +3056,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                                 {b.form.pet} <span style={{ color: "#9ca3af", fontWeight: 400 }}>({b.form.name})</span>
                               </div>
                               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#6b7280" }}>
-                                {s.label} · {b.slot?.duration} · {b.day} at {b.slot?.time}
+                                {s.label} · {b.slot?.duration} · {b.day}{fmtUpcomingDate(b.scheduledDateTime) ? `, ${fmtUpcomingDate(b.scheduledDateTime)}` : ""} at {b.slot?.time}
                               </div>
                               {b.price > 0 && (
                                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
