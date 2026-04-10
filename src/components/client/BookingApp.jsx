@@ -143,6 +143,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const [isRecurring, setIsRecurring] = useState(false);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [expandedWalker, setExpandedWalker] = useState(null);
   const [cancelConfirm, setCancelConfirm] = useState(null);
   const [handoffEditOpen, setHandoffEditOpen] = useState(false);
@@ -342,11 +343,13 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     return e;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     setSubmitting(true);
-    setTimeout(() => {
+    setSubmitError("");
+    await new Promise(r => setTimeout(r, 800));
+    try {
       const newBookings = [];
 
       // Single day, single walk booking
@@ -410,7 +413,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       };
       const updatedClients = { ...clients, [client.id]: updated };
       setClients(updatedClients);
-      saveClients(updatedClients);
+      await saveClients(updatedClients);
 
       // Send booking confirmation email + notify admins
       const assignedWalkerObj = getAllWalkers(walkerProfiles).find(w => w.name === form.walker);
@@ -450,7 +453,10 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       });
       setSubmitting(false);
       setStep("confirm");
-    }, 800);
+    } catch (err) {
+      setSubmitting(false);
+      setSubmitError(err.message || "Something went wrong saving your booking. Please check your connection and try again.");
+    }
   };
 
   const handleReset = () => {
@@ -3303,6 +3309,19 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   </div>
                 </div>
 
+                {submitError && (
+                  <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "10px",
+                    padding: "12px 16px", marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                    <span style={{ fontSize: "18px", lineHeight: 1 }}>⚠️</span>
+                    <div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                        fontWeight: 600, color: "#991b1b", marginBottom: "2px" }}>Booking not saved</div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#b91c1c", lineHeight: 1.5 }}>
+                        {submitError}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <button onClick={handleSubmit} disabled={submitting} style={{ width: "100%",
                   padding: "16px", borderRadius: "12px", border: "none", background: svc.color,
                   color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",

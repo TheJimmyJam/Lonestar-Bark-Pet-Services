@@ -23,6 +23,7 @@ import { generateRecurringBookings, extendRecurringBookings } from "./components
 import HandoffFlow from "./components/HandoffFlow.jsx";
 import { addrFromString, applySameDayDiscount, dateStrFromDate, getSessionPrice, repriceWeekBookings } from "./helpers.js";
 import { SUPABASE_URL, notifyAdmin, updateInvoiceInDB, sendWelcomeEmail, sendInvoicePaidEmail, sendPinResetCode } from "./supabase.js";
+import OfflineBanner from "./components/shared/OfflineBanner.jsx";
 
 export default function LonestarBark() {
   // Ensure proper mobile viewport
@@ -316,6 +317,7 @@ export default function LonestarBark() {
     <div style={{ minHeight: "100vh", background: "#0B1423", display: "flex",
       alignItems: "center", justifyContent: "center" }}>
       <style>{GLOBAL_STYLES}</style>
+      <OfflineBanner />
       <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa", fontSize: "16px" }}>Loading…</div>
     </div>
   );
@@ -353,7 +355,7 @@ export default function LonestarBark() {
   );
 
   // ── Landing page (public) ─────────────────────────────────────────────────
-  if (!showApp && !showLogin) return <LandingPage onSignUp={() => { setSelectedRole("customer"); setShowApp(true); }} onLogin={() => setShowLogin(true)} walkerProfiles={walkerProfiles} />;
+  if (!showApp && !showLogin) return <><OfflineBanner /><LandingPage onSignUp={() => { setSelectedRole("customer"); setShowApp(true); }} onLogin={() => setShowLogin(true)} walkerProfiles={walkerProfiles} /></>;
 
   // ── Role selection (via Login button) ─────────────────────────────────────
   if (showLogin && !selectedRole) return <RoleSelectScreen onSelectRole={(role) => { setSelectedRole(role); setShowApp(true); }} onBack={() => setShowLogin(false)} />;
@@ -457,6 +459,7 @@ export default function LonestarBark() {
   // ── CUSTOMER flow ─────────────────────────────────────────────────────────
   if (!activeUser) return (
     <CustomerErrorBoundary>
+      <OfflineBanner />
       <AuthScreen
         clients={clients}
         onLogin={handleCustomerLogin}

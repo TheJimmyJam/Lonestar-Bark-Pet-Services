@@ -19,8 +19,8 @@ async function notifyAdmin(type, data) {
   }
 }
 
-async function sbFetch(path, options = {}) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+async function sbFetch(path, options = {}, { retries = 1, retryDelay = 1200 } = {}) {
+  const doFetch = () => fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
     headers: {
       "apikey": SUPABASE_ANON_KEY,
@@ -30,12 +30,25 @@ async function sbFetch(path, options = {}) {
       ...(options.headers || {}),
     },
   });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Supabase error: ${err}`);
+
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await doFetch();
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Supabase error: ${err}`);
+      }
+      const text = await res.text();
+      return text ? JSON.parse(text) : null;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, retryDelay));
+      }
+    }
   }
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
+  throw lastErr;
 }
 
 // ─── Supabase Storage Functions ───────────────────────────────────────────────
@@ -74,6 +87,7 @@ async function saveClients(clients) {
     });
   } catch (e) {
     console.error("saveClients failed:", e);
+    throw new Error("Your booking could not be saved — database unavailable. Please try again.");
   }
 }
 
