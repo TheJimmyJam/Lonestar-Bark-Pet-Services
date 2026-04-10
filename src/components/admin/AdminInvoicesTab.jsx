@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
-  saveClients, saveInvoiceToDB, updateInvoiceInDB, deleteInvoiceFromDB, notifyAdmin,
+  saveClients, saveInvoiceToDB, updateInvoiceInDB, deleteInvoiceFromDB, notifyAdmin, sendInvoiceEmail,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout, fmt, firstName,
@@ -8,6 +8,7 @@ import {
 } from "../../helpers.js";
 import { generateInvoiceId, getInvoiceDueDate, invoiceStatusMeta, getAllInvoices } from "../invoices/invoiceHelpers.js";
 import StripePaymentModal from "../invoices/StripePaymentModal.jsx";
+import Header from "../shared/Header.jsx";
 
 // ─── Admin Invoices Tab ────────────────────────────────────────────────────────
 function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
@@ -153,6 +154,7 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
         };
         upd[client.id] = { ...client, invoices: [...(client.invoices || []), inv] };
         saveInvoiceToDB(inv, client.id, client.name || "", client.email || "");
+        sendInvoiceEmail(inv, client.name || "", client.email || "");
       });
       setClients(upd);
       saveClients(upd);
@@ -188,6 +190,7 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
       saveClients(updatedClients);
       // Persist to dedicated invoices table
       saveInvoiceToDB(newInv, selectedClientId, selectedClient.name || "", selectedClient.email || "");
+      sendInvoiceEmail(newInv, selectedClient.name || "", selectedClient.email || "");
       setSending(false);
       setSentConfirm(newInv);
     }, 900);

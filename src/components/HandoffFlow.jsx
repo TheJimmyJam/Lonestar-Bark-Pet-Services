@@ -1,21 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 import { ALL_HANDOFF_SLOTS, DAYS, FULL_DAYS, WALKER_SERVICES } from "../constants.js";
 import { saveClients, notifyAdmin } from "../supabase.js";
-import {
-  firstName, addrToString, addrFromString, generateCode,
-  getWeekDates, dateStrFromDate, formatPhone,
-  handoffDayHasValidSlot, handoffSlotIsValid,
-} from "../helpers.js";
-import AddressFields from "./shared/AddressFields.jsx";
+import { addrFromString, addrToString, dateStrFromDate, firstName, fmt, formatPhone, generateCode, getSessionPrice, getWeekDates } from "../helpers.js";
 import { GLOBAL_STYLES } from "../styles.js";
+import { getAllWalkers } from "./auth/WalkerAuthScreen.jsx";
+import AddressFields from "./shared/AddressFields.jsx";
 
 // ─── Meet & Greet Flow ─────────────────────────────────────────────────────────────
-// Find the first available Mon–Fri day that has at least one slot ≥24h out
+// ─── Meet & Greet Flow ─────────────────────────────────────────────────────────────
+// Find the first available Mon–Fri day + first non-past meet & greet slot
 function getInitialHandoff() {
+  const now = new Date();
   for (let w = 0; w <= 8; w++) {
     const wDates = getWeekDates(w);
     for (let d = 0; d < 5; d++) { // Mon–Fri only
-      if (handoffDayHasValidSlot(wDates[d], ALL_HANDOFF_SLOTS)) return [w, d, null];
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      if (wDates[d] >= midnight) return [w, d, null];
     }
   }
   return [0, 0, null];
@@ -294,9 +294,10 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
                 {/* Mon–Fri only: indices 0–4 */}
                 {[0,1,2,3,4].map(i => {
                   const date = weekDates[i];
+                  const now = new Date();
+                  const isPast = date < new Date(now.getFullYear(), now.getMonth(), now.getDate());
                   const active = selDay === i;
-                  // Disabled if no slot on this day is ≥24h from now
-                  const disabled = !handoffDayHasValidSlot(date, ALL_HANDOFF_SLOTS);
+                  const disabled = isPast;
                   return (
                     <button key={i} onClick={() => { if (!disabled) { setSelDay(i); setSelSlot(null); } }}
                       disabled={disabled}
@@ -331,25 +332,19 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                   {ALL_HANDOFF_SLOTS.map(slot => {
                     const active = selSlot?.id === slot.id;
-                    const slotDisabled = !handoffSlotIsValid(weekDates[selDay], slot);
                     return (
-                      <button key={slot.id}
-                        onClick={() => { if (!slotDisabled) setSelSlot(slot); }}
-                        disabled={slotDisabled}
+                      <button key={slot.id} onClick={() => setSelSlot(slot)}
                         style={{
-                          padding: "16px 12px", borderRadius: "12px",
-                          cursor: slotDisabled ? "default" : "pointer",
+                          padding: "16px 12px", borderRadius: "12px", cursor: "pointer",
                           border: active ? `2px solid ${accentColor}` : "1.5px solid #e4e7ec",
-                          background: active ? "#FDF5EC" : slotDisabled ? "#f9fafb" : "#fff",
-                          color: active ? accentColor : slotDisabled ? "#d1d5db" : "#374151",
+                          background: active ? "#FDF5EC" : "#fff",
+                          color: active ? accentColor : "#374151",
                           textAlign: "center", fontFamily: "'DM Sans', sans-serif",
                           boxShadow: active ? `0 2px 12px ${accentColor}22` : "0 2px 6px rgba(0,0,0,0.04)",
-                          transition: "all 0.15s", opacity: slotDisabled ? 0.5 : 1,
+                          transition: "all 0.15s",
                         }}>
                         <div style={{ fontWeight: 700, fontSize: "16px", marginBottom: "4px" }}>{slot.label}</div>
-                        <div style={{ fontSize: "13px", color: active ? accentColor : slotDisabled ? "#d1d5db" : "#9ca3af" }}>
-                          {slotDisabled ? "< 24 hrs out" : "15-min meet & greet"}
-                        </div>
+                        <div style={{ fontSize: "13px", color: active ? accentColor : "#9ca3af" }}>15-min meet & greet</div>
                       </button>
                     );
                   })}

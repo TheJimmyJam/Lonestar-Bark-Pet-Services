@@ -1,8 +1,17 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { SERVICES } from "../../constants.js";
 import { addrToString, firstName } from "../../helpers.js";
+import { getAllWalkers } from "../auth/WalkerAuthScreen.jsx";
+import Header from "../shared/Header.jsx";
 
 // ─── Admin Map View ───────────────────────────────────────────────────────────
+const TIME_BANDS = [
+  { id: "morning",   label: "Morning",   range: "7–10 AM",  hours: [7,  10], color: "#3b82f6" },
+  { id: "midday",    label: "Midday",    range: "10 AM–1 PM", hours: [10, 13], color: "#059669" },
+  { id: "afternoon", label: "Afternoon", range: "1–4 PM",   hours: [13, 16], color: "#f97316" },
+  { id: "evening",   label: "Evening",   range: "4–7 PM",   hours: [16, 19], color: "#A07090" },
+];
+
 function getTimeBand(isoOrDate) {
   const d = new Date(isoOrDate);
   const h = d.getHours() + d.getMinutes() / 60;

@@ -7,7 +7,8 @@ import {
   loadWalkerAvailability, saveWalkerAvailabilityDay,
   loadCompletedPayrolls, saveCompletedPayrolls,
   loadAllWalkersAvailability,
-  saveInvoiceToDB, updateInvoiceInDB,
+  saveInvoiceToDB, updateInvoiceInDB, sendInvoiceEmail,
+  loadContactSubmissions,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout,
@@ -20,15 +21,19 @@ import {
 } from "../../helpers.js";
 import LogoBadge from "../shared/LogoBadge.jsx";
 import AddressFields from "../shared/AddressFields.jsx";
-import { GLOBAL_STYLES } from "../../styles.js";
 import ScheduleWalkForm from "./ScheduleWalkForm.jsx";
 import AddLegacyClientForm from "./AddLegacyClientForm.jsx";
 import AdminMapView from "./AdminMapView.jsx";
 import AdminInvoicesTab from "./AdminInvoicesTab.jsx";
 import AdminAdminsTab from "./AdminAdminsTab.jsx";
 import AdminMyInfo from "./AdminMyInfo.jsx";
-import { autoCreateWalkInvoice, generateInvoiceId } from "../invoices/invoiceHelpers.js";
+import AdminContactTab from "./AdminContactTab.jsx";
+import { autoCreateWalkInvoice, generateInvoiceId, getAllInvoices, invoiceStatusMeta } from "../invoices/invoiceHelpers.js";
 import { generateRecurringBookings, extendRecurringBookings, spawnNextRecurringOccurrence } from "../recurring.js";
+import { GLOBAL_STYLES } from "../../styles.js";
+import { WALKER_CREDENTIALS, getAllWalkers, injectCustomWalkers } from "../auth/WalkerAuthScreen.jsx";
+import Header from "../shared/Header.jsx";
+import { SUPABASE_ANON_KEY, SUPABASE_URL, loadClients, loadTrades, loadWalkerProfiles } from "../../supabase.js";
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, setWalkerProfiles, trades, setTrades, adminList, setAdminList, onLogout }) {
@@ -79,9 +84,35 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     setConfirmPayrollWalker(null);
     setBookingsView("upcoming");
     if (newTab === "invoices") setInvoicesKey(k => k + 1);
+    if (newTab === "contact") {
+      try { localStorage.setItem(CONTACT_SEEN_KEY, new Date().toISOString()); } catch {}
+      setNewContactCount(0);
+    }
     setClientSearch(""); setWalkerSearch(""); setAppSearch(""); setBookingSearch("");
     setAssignSearch(""); setAssignDateFilter("");
   };
+  // ── Contact notification badge ──
+  const [newContactCount, setNewContactCount] = useState(0);
+  const CONTACT_SEEN_KEY = "lsb_contact_last_seen";
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const subs = await loadContactSubmissions();
+        const lastSeen = (() => { try { return localStorage.getItem(CONTACT_SEEN_KEY) || ""; } catch { return ""; } })();
+        if (lastSeen) {
+          const unseenCount = subs.filter(s => s.createdAt && new Date(s.createdAt) > new Date(lastSeen)).length;
+          setNewContactCount(unseenCount);
+        } else {
+          // Never opened contact tab — all "new" status submissions are unseen
+          setNewContactCount(subs.filter(s => s.status === "new").length);
+        }
+      } catch (e) {
+        console.error("Failed to load contact count:", e);
+      }
+    })();
+  }, [tab]); // re-check when switching tabs (in case new ones came in)
+
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [expandedKpi, setExpandedKpi] = useState(null);
   const [kpiWalkDetail, setKpiWalkDetail] = useState(null);
@@ -245,7 +276,10 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     );
     // Persist new invoice to the dedicated DB table
     const newInv = (updatedClientRecord.invoices || []).find(i => !existingIds.has(i.id));
-    if (newInv) saveInvoiceToDB(newInv, booking.clientId, booking.clientName || "", booking.clientEmail || "");
+    if (newInv) {
+      saveInvoiceToDB(newInv, booking.clientId, booking.clientName || "", booking.clientEmail || "");
+      sendInvoiceEmail(newInv, booking.clientName || c.name, booking.clientEmail || c.email);
+    }
 
     const updatedClients = { ...clients, [clientId]: updatedClientRecord };
     setClients(updatedClients);
@@ -373,6 +407,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
       const { effectiveStatus } = invoiceStatusMeta(inv.status, inv.dueDate);
       return effectiveStatus === "overdue";
     }).length,
+    contact:      newContactCount,
   };
 
   const TABS = [
@@ -390,6 +425,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     { id: "map",           label: "Map",            icon: "🗺️" },
     { id: "admins",        label: "Admins",         icon: "🛡️" },
     { id: "myinfo",        label: "My Info",        icon: "👤" },
+    { id: "contact",       label: "Contact",        icon: "📨" },
   ];
 
   const amber = "#b45309";
@@ -6508,6 +6544,11 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
             setAdminList={setAdminList}
             onLogout={onLogout}
           />
+        )}
+
+        {/* ── Contact Submissions ── */}
+        {tab === "contact" && (
+          <AdminContactTab />
         )}
 
       </div>

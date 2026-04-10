@@ -31,7 +31,7 @@ function AdminMyInfo({ admin, setAdmin, adminList, setAdminList, onLogout }) {
     const errs = {};
     if (!draftName.trim()) errs.name = "Name is required.";
     if (draftPin) {
-      if (!/^\d{4}$/.test(draftPin)) errs.pin = "PIN must be exactly 4 digits.";
+      if (!/^\d{6}$/.test(draftPin)) errs.pin = "PIN must be exactly 6 digits.";
       else if (draftPin !== draftPin2) errs.pin2 = "PINs don't match.";
       else {
         const dup = adminList.find(a => a.id !== admin.id && a.pin === draftPin && a.status === "active");
@@ -123,7 +123,7 @@ function AdminMyInfo({ admin, setAdmin, adminList, setAdminList, onLogout }) {
             </div>
             <div>
               <label style={labelStyle}>New PIN (leave blank to keep current)</label>
-              <input type="password" inputMode="numeric" maxLength={4} placeholder="••••" value={draftPin}
+              <input type="password" inputMode="numeric" maxLength={6} placeholder="••••••" value={draftPin}
                 onChange={e => { setDraftPin(e.target.value.replace(/\D/g,"")); setInfoErrors(p => ({ ...p, pin: "" })); }}
                 style={{ ...iStyle(infoErrors.pin), letterSpacing: "8px", fontSize: "20px" }} />
               {infoErrors.pin && <div style={{ color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
@@ -132,7 +132,7 @@ function AdminMyInfo({ admin, setAdmin, adminList, setAdminList, onLogout }) {
             {draftPin && (
               <div>
                 <label style={labelStyle}>Confirm New PIN</label>
-                <input type="password" inputMode="numeric" maxLength={4} placeholder="••••" value={draftPin2}
+                <input type="password" inputMode="numeric" maxLength={6} placeholder="••••••" value={draftPin2}
                   onChange={e => { setDraftPin2(e.target.value.replace(/\D/g,"")); setInfoErrors(p => ({ ...p, pin2: "" })); }}
                   style={{ ...iStyle(infoErrors.pin2), letterSpacing: "8px", fontSize: "20px" }} />
                 {infoErrors.pin2 && <div style={{ color: "#ef4444", fontFamily: "'DM Sans', sans-serif",

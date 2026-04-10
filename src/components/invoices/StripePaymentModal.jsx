@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { SUPABASE_URL } from "../../supabase.js";
 import { fmt } from "../../helpers.js";
+import Header from "../shared/Header.jsx";
 
 // ─── Stripe Payment Modal (framework) ─────────────────────────────────────────
 function StripePaymentModal({ invoice, client, onClose, onPaid }) {

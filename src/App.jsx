@@ -1,23 +1,18 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { SERVICES, FULL_DAYS } from "./constants.js";
+import { FULL_DAYS, SERVICES } from "./constants.js";
 import {
   loadClients, saveClients,
   loadWalkerProfiles, saveWalkerProfiles,
   loadInvoicesFromDB, mergeInvoicesIntoClients,
   loadTrades, saveTrades,
   sbFetch,
-  SUPABASE_URL, notifyAdmin,
-  updateInvoiceInDB,
+  loadAdminList, saveAdminList,
 } from "./supabase.js";
-import {
-  dateStrFromDate, getSessionPrice,
-  applySameDayDiscount, repriceWeekBookings, addrFromString,
-} from "./helpers.js";
 import { GLOBAL_STYLES } from "./styles.js";
 import LandingPage from "./components/LandingPage.jsx";
 import RoleSelectScreen from "./components/auth/RoleSelectScreen.jsx";
 import AuthScreen from "./components/auth/AuthScreen.jsx";
-import WalkerAuthScreen, { getAllWalkers, injectCustomWalkers, loadAdminList, saveAdminList } from "./components/auth/WalkerAuthScreen.jsx";
+import WalkerAuthScreen, { getAllWalkers, injectCustomWalkers } from "./components/auth/WalkerAuthScreen.jsx";
 import AdminAuthScreen from "./components/auth/AdminAuthScreen.jsx";
 import BookingApp from "./components/client/BookingApp.jsx";
 import WalkerDashboard from "./components/walker/WalkerDashboard.jsx";
@@ -25,6 +20,9 @@ import WalkerApplicationPage from "./components/walker/WalkerApplicationPage.jsx
 import AdminDashboard from "./components/admin/AdminDashboard.jsx";
 import CustomerErrorBoundary from "./components/ErrorBoundary.jsx";
 import { generateRecurringBookings, extendRecurringBookings } from "./components/recurring.js";
+import HandoffFlow from "./components/HandoffFlow.jsx";
+import { addrFromString, applySameDayDiscount, dateStrFromDate, getSessionPrice, repriceWeekBookings } from "./helpers.js";
+import { SUPABASE_URL, notifyAdmin, updateInvoiceInDB } from "./supabase.js";
 
 export default function LonestarBark() {
   // Ensure proper mobile viewport
@@ -138,7 +136,7 @@ export default function LonestarBark() {
             setShowApp(true);
             setActiveUser(returningClient);
           }
-        }).catch(e => { console.error("Stripe return data load failed:", e); setLoading(false); });
+        }).catch(e => { console.error("Stripe return load failed:", e); setLoading(false); });
         return; // Skip the second Promise.all below
       }
     } else if (payment === "cancelled") {
@@ -164,7 +162,7 @@ export default function LonestarBark() {
             setShowApp(true);
             setActiveUser(returningClient);
           }
-        }).catch(e => { console.error("Stripe cancel data load failed:", e); setLoading(false); });
+        }).catch(e => { console.error("Stripe cancel load failed:", e); setLoading(false); });
         return;
       }
     }
@@ -206,7 +204,6 @@ export default function LonestarBark() {
     }
 
     Promise.all([loadClients(), loadWalkerProfiles(), loadTrades(), loadInvoicesFromDB(), loadAdminList()]).then(([c, wp, tr, invRows, admins]) => {
-      console.log("[LB] Data loaded — clients:", Object.keys(c).length, "walkers:", Object.keys(wp).length, "admins:", admins.length, "invoices:", invRows.length);
       // Inject any admin-created walkers into runtime registries
       injectCustomWalkers(wp);
       // Extend recurring booking instances forward as weeks roll by
@@ -219,11 +216,7 @@ export default function LonestarBark() {
       setTrades(tr);
       setAdminList(admins);
       setLoading(false);
-      console.log("[LB] State set — ready.");
-    }).catch(e => {
-      console.error("[LB] Initial data load FAILED:", e);
-      setLoading(false);
-    });
+    }).catch(e => { console.error("Initial data load failed:", e); setLoading(false); });
   }, []);
 
   const [pendingVerification, setPendingVerification] = useState(null); // { name, email } while awaiting verification
@@ -348,10 +341,10 @@ export default function LonestarBark() {
   );
 
   // ── Landing page (public) ─────────────────────────────────────────────────
-  if (!showApp && !showLogin) return <CustomerErrorBoundary><LandingPage onSignUp={() => { setSelectedRole("customer"); setShowApp(true); }} onLogin={() => setShowLogin(true)} walkerProfiles={walkerProfiles} /></CustomerErrorBoundary>;
+  if (!showApp && !showLogin) return <LandingPage onSignUp={() => { setSelectedRole("customer"); setShowApp(true); }} onLogin={() => setShowLogin(true)} walkerProfiles={walkerProfiles} />;
 
   // ── Role selection (via Login button) ─────────────────────────────────────
-  if (showLogin && !selectedRole) return <CustomerErrorBoundary><RoleSelectScreen onSelectRole={(role) => { setSelectedRole(role); setShowApp(true); }} onBack={() => setShowLogin(false)} /></CustomerErrorBoundary>;
+  if (showLogin && !selectedRole) return <RoleSelectScreen onSelectRole={(role) => { setSelectedRole(role); setShowApp(true); }} onBack={() => setShowLogin(false)} />;
 
   // ── ADMIN flow ────────────────────────────────────────────────────────────
   if (selectedRole === "admin") {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { WALKER_SERVICES } from "../../constants.js";
-import { notifyAdmin } from "../../supabase.js";
-import { formatPhone, emptyAddr, addrToString } from "../../helpers.js";
+import { SUPABASE_ANON_KEY, SUPABASE_URL, notifyAdmin } from "../../supabase.js";
+import { addrToString, emptyAddr, firstName, formatPhone } from "../../helpers.js";
 import LogoBadge from "../shared/LogoBadge.jsx";
 import AddressFields from "../shared/AddressFields.jsx";
 
@@ -14,9 +14,7 @@ function WalkerApplicationPage({ onBack }) {
     // Step 2 — Experience
     hasDogExp: null, expYears: "", expDesc: "",
     firstAid: false, petCpr: false, otherCerts: "",
-    // Step 3 — References & Availability
-    ref1Name: "", ref1Phone: "", ref1Rel: "",
-    ref2Name: "", ref2Phone: "", ref2Rel: "",
+    // Step 3 — Availability
     days: [], times: [], hoursPerWeek: "",
   };
 
@@ -102,10 +100,6 @@ function WalkerApplicationPage({ onBack }) {
 
   const handleFinalSubmit = async () => {
     const errs = {};
-    if (!form.ref1Name.trim())                            errs.ref1Name  = "Required";
-    if (form.ref1Phone.replace(/\D/g,"").length < 10)    errs.ref1Phone = "Valid phone required";
-    if (!form.ref2Name.trim())                            errs.ref2Name  = "Required";
-    if (form.ref2Phone.replace(/\D/g,"").length < 10)    errs.ref2Phone = "Valid phone required";
     if (form.days.length === 0)                           errs.days      = "Select at least one day";
     if (form.times.length === 0)                          errs.times     = "Select at least one time window";
     if (Object.keys(errs).length) { setErrors(errs); return; }
@@ -134,12 +128,6 @@ function WalkerApplicationPage({ onBack }) {
           first_aid:         form.firstAid,
           pet_cpr:           form.petCpr,
           message:           form.otherCerts,
-          ref1_name:         form.ref1Name,
-          ref1_phone:        form.ref1Phone,
-          ref1_rel:          form.ref1Rel,
-          ref2_name:         form.ref2Name,
-          ref2_phone:        form.ref2Phone,
-          ref2_rel:          form.ref2Rel,
           days:              form.days,
           times:             form.times,
           hours_per_week:    form.hoursPerWeek,
@@ -202,16 +190,10 @@ function WalkerApplicationPage({ onBack }) {
               to {form.email} within 3–5 business days.
             </p>
             <div style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
-              <button onClick={onBack} style={{ padding: "11px 24px", borderRadius: "10px",
-                border: "1.5px solid #e4e7ec", background: "#fff", color: "#374151",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "16px", cursor: "pointer" }}>
-                ← Back to Site
-              </button>
-              <button onClick={() => { setForm(blank); setDone(false); setStep(1); setErrors({}); setZipLookup("idle"); }}
-                style={{ padding: "11px 24px", borderRadius: "10px", border: "none",
-                  background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
-                  fontSize: "16px", fontWeight: 500, cursor: "pointer" }}>
-                Submit Another
+              <button onClick={onBack} style={{ padding: "11px 24px", borderRadius: "10px", border: "none",
+                background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
+                fontSize: "16px", fontWeight: 500, cursor: "pointer" }}>
+                ← Back to Homepage
               </button>
             </div>
           </div>
@@ -463,56 +445,18 @@ function WalkerApplicationPage({ onBack }) {
               )}
 
               {/* ══════════════════════════════════════════════
-                  STEP 3 — References & Availability
+                  STEP 3 — Availability
               ══════════════════════════════════════════════ */}
               {step === 3 && (
                 <div>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
                     fontWeight: 600, color: "#111827", marginBottom: "6px" }}>
-                    References & availability.
+                    Availability.
                   </div>
                   <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
                     color: "#9ca3af", marginBottom: "24px" }}>
-                    Two references and your general schedule. Almost done.
+                    Your general schedule. Almost done.
                   </p>
-
-                  {/* References */}
-                  {[
-                    { prefix: "ref1", label: "Reference 1" },
-                    { prefix: "ref2", label: "Reference 2" },
-                  ].map(({ prefix, label }) => (
-                    <div key={prefix} style={{ background: "#f9fafb", borderRadius: "12px",
-                      padding: "16px", marginBottom: "14px", border: "1.5px solid #e4e7ec" }}>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
-                        fontWeight: 700, color: "#9ca3af", marginBottom: "12px",
-                        textTransform: "uppercase", letterSpacing: "1px" }}>{label}</div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
-                        <div>
-                          <label style={lbl}>Name *</label>
-                          <input value={form[`${prefix}Name`]}
-                            onChange={e => { f(`${prefix}Name`, e.target.value); clrErr(`${prefix}Name`); }}
-                            placeholder="Full name"
-                            style={{ ...inp(errors[`${prefix}Name`]), padding: "9px 11px" }} />
-                          {errMsg(`${prefix}Name`)}
-                        </div>
-                        <div>
-                          <label style={lbl}>Phone *</label>
-                          <input value={form[`${prefix}Phone`]}
-                            onChange={e => { f(`${prefix}Phone`, formatPhone(e.target.value)); clrErr(`${prefix}Phone`); }}
-                            placeholder="214.555.0000" maxLength={12}
-                            style={{ ...inp(errors[`${prefix}Phone`]), padding: "9px 11px" }} />
-                          {errMsg(`${prefix}Phone`)}
-                        </div>
-                      </div>
-                      <div>
-                        <label style={lbl}>Relationship</label>
-                        <input value={form[`${prefix}Rel`]}
-                          onChange={e => f(`${prefix}Rel`, e.target.value)}
-                          placeholder="Former employer, colleague, client…"
-                          style={{ ...inp(false), padding: "9px 11px" }} />
-                      </div>
-                    </div>
-                  ))}
 
                   {/* Days */}
                   <div style={{ marginBottom: "18px" }}>

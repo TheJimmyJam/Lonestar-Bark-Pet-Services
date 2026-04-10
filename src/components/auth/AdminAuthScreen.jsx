@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { sbFetch, notifyAdmin } from "../../supabase.js";
+import { sbFetch, notifyAdmin, saveAdminList } from "../../supabase.js";
 import { generateCode } from "../../helpers.js";
 import PinPad from "../shared/PinPad.jsx";
 import LogoBadge from "../shared/LogoBadge.jsx";
 import { GLOBAL_STYLES } from "../../styles.js";
+import useRateLimiter from "../../hooks/useRateLimiter.js";
 
 // ─── Admin Auth Screen ────────────────────────────────────────────────────────
 function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdminList }) {
@@ -15,6 +16,8 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
   const [savedEmail, setSavedEmail] = useState(null);
   const [emailError, setEmailError] = useState("");
   const [pinError, setPinError]   = useState("");
+
+  const rateLimiter = useRateLimiter(savedEmail || email);
 
   // Setup (invite onboarding) state
   const [setupName, setSetupName]   = useState("");
@@ -51,20 +54,28 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
   };
 
   const handlePin = (pin) => {
+    if (rateLimiter.locked) return;
     const e = (savedEmail || email).trim().toLowerCase();
     const found = adminList.find(a => a.email.toLowerCase() === e && a.status === "active");
     if (found && pin === found.pin) {
+      rateLimiter.clearFailures();
       try { localStorage.setItem(STORAGE_KEY, found.email); } catch {}
       onLogin({ id: found.id, name: found.name, role: "admin", email: found.email });
     } else {
-      setPinError("Incorrect PIN."); setTimeout(() => setPinError(""), 100);
+      const nowLocked = rateLimiter.recordFailure();
+      if (nowLocked) {
+        setPinError("Too many failed attempts. Account locked."); setTimeout(() => setPinError(""), 100);
+      } else {
+        setPinError(`Incorrect PIN. ${rateLimiter.attemptsLeft - 1} attempt${rateLimiter.attemptsLeft - 1 === 1 ? "" : "s"} remaining.`);
+        setTimeout(() => setPinError(""), 100);
+      }
     }
   };
 
   const handleSetupSubmit = () => {
     const errs = {};
     if (!setupName.trim()) errs.name = "Please enter your name.";
-    if (!/^\d{4}$/.test(setupPin)) errs.pin = "PIN must be exactly 4 digits.";
+    if (!/^\d{6}$/.test(setupPin)) errs.pin = "PIN must be exactly 6 digits.";
     if (setupPin !== setupPin2) errs.pin2 = "PINs don't match.";
     // Check PIN uniqueness
     const dupPin = adminList.find(a => a.id !== pendingAdmin.id && a.pin === setupPin && a.status === "active");
@@ -155,7 +166,25 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
               )}
             </div>
             <div style={{ marginTop: "24px" }}>
-              <PinPad label="Enter your PIN" onComplete={handlePin} error={pinError} color={amber} />
+              {rateLimiter.locked ? (
+                <div style={{ textAlign: "center", padding: "24px 16px" }}>
+                  <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔒</div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ef4444",
+                    fontSize: "15px", fontWeight: 600, marginBottom: "8px" }}>
+                    Account Locked
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
+                    fontSize: "15px", lineHeight: "1.6", marginBottom: "12px" }}>
+                    Too many failed PIN attempts. Try again in:
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', monospace", color: "#fff",
+                    fontSize: "28px", fontWeight: 700, letterSpacing: "2px" }}>
+                    {rateLimiter.formatRemaining()}
+                  </div>
+                </div>
+              ) : (
+                <PinPad label="Enter your PIN" onComplete={handlePin} error={pinError} color={amber} />
+              )}
             </div>
             <button onClick={handleForgetMe} style={{
               marginTop: "20px", background: "none", border: "1px solid rgba(255,255,255,0.2)",
@@ -196,8 +225,8 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
             <div style={{ marginBottom: "16px" }}>
               <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif",
                 fontSize: "15px", fontWeight: 700, color: "#ffffffaa", letterSpacing: "1px",
-                textTransform: "uppercase", marginBottom: "6px" }}>Choose a 4-Digit PIN</label>
-              <input type="password" inputMode="numeric" maxLength={4} placeholder="••••" value={setupPin}
+                textTransform: "uppercase", marginBottom: "6px" }}>Choose a 6-Digit PIN</label>
+              <input type="password" inputMode="numeric" maxLength={6} placeholder="••••••" value={setupPin}
                 onChange={e => { setSetupPin(e.target.value.replace(/\D/g,"")); setSetupErrors(p => ({ ...p, pin: "" })); }}
                 style={{ width: "100%", padding: "13px 14px", borderRadius: "12px", boxSizing: "border-box",
                   border: setupErrors.pin ? "1.5px solid #ef4444" : "1.5px solid #8B5220",
@@ -211,7 +240,7 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
               <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif",
                 fontSize: "15px", fontWeight: 700, color: "#ffffffaa", letterSpacing: "1px",
                 textTransform: "uppercase", marginBottom: "6px" }}>Confirm PIN</label>
-              <input type="password" inputMode="numeric" maxLength={4} placeholder="••••" value={setupPin2}
+              <input type="password" inputMode="numeric" maxLength={6} placeholder="••••••" value={setupPin2}
                 onChange={e => { setSetupPin2(e.target.value.replace(/\D/g,"")); setSetupErrors(p => ({ ...p, pin2: "" })); }}
                 style={{ width: "100%", padding: "13px 14px", borderRadius: "12px", boxSizing: "border-box",
                   border: setupErrors.pin2 ? "1.5px solid #ef4444" : "1.5px solid #8B5220",

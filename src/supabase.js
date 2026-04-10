@@ -457,4 +457,167 @@ export {
   loadClientMessages, saveClientMessage,
   PAYROLL_LS_KEY, loadCompletedPayrolls, saveCompletedPayrolls,
   loadWalkerAvailability, saveWalkerAvailabilityDay, loadAllWalkersAvailability,
+  DEFAULT_ADMIN, loadAdminList, saveAdminList, removeAdminFromDB,
+  loadContactSubmissions, saveContactSubmission, updateContactSubmission, deleteContactSubmission,
+  sendInvoiceEmail,
 };
+
+// ─── Admin List DB Functions ──────────────────────────────────────────────────
+const DEFAULT_ADMIN = {
+  id: "admin-1",
+  name: "Admin",
+  email: "admin@lonestarbark.com",
+  pin: "000000",
+  status: "active",
+  isMaster: true,
+  invitedBy: null,
+  createdAt: new Date(0).toISOString(),
+};
+
+async function loadAdminList() {
+  try {
+    const rows = await sbFetch("admins?select=*&order=created_at.asc");
+    if (rows && rows.length > 0) {
+      return rows.map(r => ({
+        id: r.id,
+        name: r.name || "",
+        email: r.email,
+        pin: r.pin || "",
+        status: r.status || "active",
+        isMaster: r.is_master || false,
+        invitedBy: r.invited_by || null,
+        createdAt: r.created_at || new Date().toISOString(),
+      }));
+    }
+    await saveAdminList([DEFAULT_ADMIN]);
+    return [DEFAULT_ADMIN];
+  } catch (e) {
+    console.error("loadAdminList failed:", e);
+    return [DEFAULT_ADMIN];
+  }
+}
+
+async function saveAdminList(list) {
+  try {
+    const rows = list.map(a => ({
+      id: a.id,
+      name: a.name || "",
+      email: a.email,
+      pin: a.pin || "",
+      status: a.status || "active",
+      is_master: a.isMaster || false,
+      invited_by: a.invitedBy || null,
+      created_at: a.createdAt || new Date().toISOString(),
+    }));
+    await sbFetch("admins?on_conflict=id", {
+      method: "POST",
+      headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify(rows),
+    });
+  } catch (e) {
+    console.error("saveAdminList failed:", e);
+  }
+}
+
+async function removeAdminFromDB(id) {
+  try {
+    await sbFetch(`admins?id=eq.${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: { "Prefer": "" },
+    });
+  } catch (e) {
+    console.error("removeAdminFromDB failed:", e);
+  }
+}
+
+// ─── Contact Submissions DB Functions ────────────────────────────────────────
+async function loadContactSubmissions() {
+  try {
+    const rows = await sbFetch("contact_submissions?select=*&order=created_at.desc");
+    return (rows || []).map(r => ({
+      id: r.id,
+      name: r.name || "",
+      email: r.email || "",
+      phone: r.phone || "",
+      subject: r.subject || "",
+      message: r.message || "",
+      contactPref: r.contact_pref || "email",
+      status: r.status || "new",
+      adminNotes: r.admin_notes || "",
+      source: r.source || "landing",
+      createdAt: r.created_at,
+    }));
+  } catch (e) {
+    console.error("loadContactSubmissions failed:", e);
+    return [];
+  }
+}
+
+async function saveContactSubmission(sub) {
+  try {
+    const row = {
+      name: sub.name || "",
+      email: sub.email || "",
+      phone: sub.phone || "",
+      subject: sub.subject || "",
+      message: sub.message || "",
+      contact_pref: sub.contactPref || "email",
+      status: "new",
+      source: sub.source || "landing",
+      admin_notes: "",
+      created_at: new Date().toISOString(),
+    };
+    const result = await sbFetch("contact_submissions", {
+      method: "POST",
+      body: JSON.stringify(row),
+    });
+    return result;
+  } catch (e) {
+    console.error("saveContactSubmission failed:", e);
+    return null;
+  }
+}
+
+async function updateContactSubmission(id, updates) {
+  try {
+    const row = {};
+    if (updates.status !== undefined) row.status = updates.status;
+    if (updates.adminNotes !== undefined) row.admin_notes = updates.adminNotes;
+    await sbFetch(`contact_submissions?id=eq.${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(row),
+    });
+  } catch (e) {
+    console.error("updateContactSubmission failed:", e);
+  }
+}
+
+async function deleteContactSubmission(id) {
+  try {
+    await sbFetch(`contact_submissions?id=eq.${id}`, {
+      method: "DELETE",
+      headers: { "Prefer": "" },
+    });
+  } catch (e) {
+    console.error("deleteContactSubmission failed:", e);
+  }
+}
+
+// ─── Invoice Email ───────────────────────────────────────────────────────────
+async function sendInvoiceEmail(invoice, clientName, clientEmail) {
+  if (!clientEmail) {
+    console.warn("[sendInvoiceEmail] No email for client, skipping.");
+    return;
+  }
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-invoice-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientName, clientEmail, invoice }),
+    });
+    const body = await res.json();
+    console.log(`[sendInvoiceEmail] ${clientEmail} → ${res.status}`, body);
+  } catch (e) {
+    console.error("[sendInvoiceEmail] failed:", e);
+  }
+}

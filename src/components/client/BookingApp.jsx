@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { SERVICES, SERVICE_SLOTS, PRICING_TIERS, ADD_ONS, DAYS, FULL_DAYS, ALL_HANDOFF_SLOTS } from "../../constants.js";
+import { ADD_ONS, ALL_HANDOFF_SLOTS, DAYS, FULL_DAYS, PRICING_TIERS, SERVICES, SERVICE_SLOTS, WALKER_SERVICES } from "../../constants.js";
 import {
   saveClients, notifyAdmin,
   loadChatMessages, saveChatMessage, formatChatTime,
   loadClientMessages, saveClientMessage,
   loadAllWalkersAvailability,
+  saveContactSubmission,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout,
@@ -14,17 +15,20 @@ import {
   repriceWeekBookings, applySameDayDiscount,
   getWeekDates, firstName, parseDateLocal, dateStrFromDate,
   fmt, formatPhone, addrToString, toDateKey,
-  handoffDayHasValidSlot, handoffSlotIsValid,
 } from "../../helpers.js";
 import ClientNav from "../shared/ClientNav.jsx";
 import Header from "../shared/Header.jsx";
-import { GLOBAL_STYLES } from "../../styles.js";
 import ClientMyInfoPage from "./ClientMyInfoPage.jsx";
 import QuickRebookBanner from "./QuickRebookBanner.jsx";
 import ClientInvoicesPage from "../invoices/ClientInvoicesPage.jsx";
 import HandoffFlow from "../HandoffFlow.jsx";
-import { autoCreateWalkInvoice, generateInvoiceId } from "../invoices/invoiceHelpers.js";
+import { autoCreateWalkInvoice, generateInvoiceId, invoiceStatusMeta } from "../invoices/invoiceHelpers.js";
 import { spawnNextRecurringOccurrence } from "../recurring.js";
+import { GLOBAL_STYLES } from "../../styles.js";
+import { getAllWalkers } from "../auth/WalkerAuthScreen.jsx";
+import AddressFields from "../shared/AddressFields.jsx";
+import { PRICE_TIERS, addrFromString } from "../../helpers.js";
+import { loadInvoicesFromDB } from "../../supabase.js";
 
 // ─── Main Booking App ─────────────────────────────────────────────────────────
 function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {} }) {
@@ -69,8 +73,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   }, [paymentBanner]);
 
   // ── Contact Us form state ──
-  const [contactForm, setContactForm] = useState({ subject: "", message: "" });
+  const [contactForm, setContactForm] = useState({ subject: "", message: "", contactPref: "email" });
   const [contactSent, setContactSent] = useState(false);
+  const [contactSending, setContactSending] = useState(false);
 
   // ── Client ↔ Walker messaging state ──
   const [clientMsgs, setClientMsgs]       = useState([]);
@@ -540,8 +545,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               <div style={{ display: "flex", gap: "6px", marginBottom: "16px" }}>
                 {[0,1,2,3,4].map(i => {
                   const date = wDates[i];
-                  // Disabled if no slot on this day is ≥24h from now
-                  const disabled = !handoffDayHasValidSlot(date, ALL_HANDOFF_SLOTS);
+                  const today = new Date(); today.setHours(0,0,0,0);
+                  const disabled = date < today;
                   const active = handoffReschedDay === i;
                   return (
                     <button key={i} onClick={() => { if (!disabled) { setHandoffReschedDay(i); setHandoffReschedWindow(null); } }}
@@ -565,22 +570,15 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
                   {ALL_HANDOFF_SLOTS.map(slot => {
                     const active = handoffReschedWindow?.id === slot.id;
-                    const slotDisabled = !handoffSlotIsValid(wDates[handoffReschedDay], slot);
                     return (
-                      <button key={slot.id}
-                        onClick={() => { if (!slotDisabled) setHandoffReschedWindow(slot); }}
-                        disabled={slotDisabled}
-                        style={{ padding: "16px 12px", borderRadius: "12px",
-                          cursor: slotDisabled ? "default" : "pointer",
+                      <button key={slot.id} onClick={() => setHandoffReschedWindow(slot)}
+                        style={{ padding: "16px 12px", borderRadius: "12px", cursor: "pointer",
                           border: active ? `2px solid ${purple}` : "1.5px solid #e4e7ec",
-                          background: active ? "#F5EFF3" : slotDisabled ? "#f9fafb" : "#fff",
-                          color: active ? purple : slotDisabled ? "#d1d5db" : "#374151",
-                          textAlign: "center", fontFamily: "'DM Sans', sans-serif",
-                          transition: "all 0.15s", opacity: slotDisabled ? 0.5 : 1 }}>
+                          background: active ? "#F5EFF3" : "#fff",
+                          color: active ? purple : "#374151",
+                          textAlign: "center", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s" }}>
                         <div style={{ fontWeight: 700, fontSize: "15px", marginBottom: "3px" }}>{slot.label}</div>
-                        <div style={{ fontSize: "12px", color: active ? purple : slotDisabled ? "#d1d5db" : "#9ca3af" }}>
-                          {slotDisabled ? "< 24 hrs out" : "15-min meet & greet"}
-                        </div>
+                        <div style={{ fontSize: "12px", color: active ? purple : "#9ca3af" }}>15-min meet & greet</div>
                       </button>
                     );
                   })}
@@ -807,7 +805,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               {renderKpiCard({
                 label: "Current Tier",
                 value: currentTier.label,
-                sub: `$${currentTier.prices["30 min"]}/30 min · $${currentTier.prices["60 min"]}/60 min`,
+                sub: `$${currentTier.prices["30 min"].toFixed(2)}/30 min · $${currentTier.prices["60 min"].toFixed(2)}/60 min`,
                 accent: tierColor[currentTier.label],
                 onClick: () => setPage("pricing"),
               })}
@@ -879,15 +877,17 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
             border: `1.5px solid ${weekBookingCount >= 5 ? "#3D6B7A" : weekBookingCount >= 3 ? "#C4541A" : "#e4e7ec"}` }}>
             <div style={{ padding: "12px 14px",
               background: weekBookingCount >= 5 ? "#EBF4F6" : weekBookingCount >= 3 ? "#FDF5EC" : "#f9fafb",
-              display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
+              display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ flex: 1 }}>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
                   fontSize: "15px", color: "#111827", marginBottom: "2px" }}>
                   {currentTier.label} rate this week
-                  <span style={{ marginLeft: "8px", fontSize: "15px", fontWeight: 500,
-                    padding: "2px 8px", borderRadius: "20px",
-                    background: weekBookingCount >= 5 ? "#3D6B7A" : weekBookingCount >= 3 ? "#C4541A" : "#e4e7ec",
-                    color: weekBookingCount >= 1 ? "#fff" : "#6b7280" }}>
+                </div>
+                <div style={{ marginBottom: "12px" }}>
+                  <span style={{ marginRight: "8px", fontSize: "15px", fontWeight: 600,
+                    padding: "3px 10px", borderRadius: "20px",
+                    background: weekBookingCount >= 5 ? "#3D6B7A" : weekBookingCount >= 3 ? "#C4541A" : "#6b7280",
+                    color: "#fff" }}>
                     {weekBookingCount} booked this week
                   </span>
                 </div>
@@ -904,7 +904,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               </div>
               <div style={{ textAlign: "right", flexShrink: 0 }}>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                  fontWeight: 600, color: "#111827" }}>${currentTier.prices["30 min"]}</div>
+                  fontWeight: 600, color: "#111827" }}>${currentTier.prices["30 min"].toFixed(2)}</div>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>30 min</div>
               </div>
             </div>
@@ -919,6 +919,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               <div key={i} style={{ background: "#fff",
                 border: tier.badge === "Popular" ? "2px solid #8B5E3C" : "1.5px solid #e4e7ec",
                 borderRadius: "16px", padding: "20px 22px", position: "relative",
+                display: "flex", flexDirection: "column",
                 boxShadow: tier.badge === "Popular" ? "0 4px 20px rgba(26,107,74,0.10)" : "0 2px 8px rgba(0,0,0,0.04)" }}>
                 {tier.badge && (
                   <div style={{ position: "absolute", top: "-12px", left: "20px",
@@ -931,16 +932,16 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   fontWeight: 600, color: "#111827", marginBottom: "2px" }}>{tier.label}</div>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                   color: "#6b7280", marginBottom: "4px" }}>{tier.freq}</div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af", marginBottom: "14px" }}>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af", marginBottom: "14px", flex: 1 }}>
                   {tier.description}
                 </div>
-                <div style={{ display: "flex", gap: "8px" }}>
+                <div style={{ display: "flex", gap: "8px", marginTop: "auto" }}>
                   {Object.entries(tier.prices).map(([dur, price]) => (
                     <div key={dur} style={{ flex: 1, background: "#f5f6f8", borderRadius: "10px",
                       padding: "8px 12px", textAlign: "center" }}>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af", marginBottom: "2px" }}>{dur}</div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", textTransform: "uppercase", letterSpacing: "1px",
-                        fontWeight: 600, color: "#111827" }}>${price}</div>
+                        fontWeight: 600, color: "#111827" }}>${price.toFixed(2)}</div>
                     </div>
                   ))}
                 </div>
@@ -954,18 +955,18 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" }}>
             {ADD_ONS.map((addon, i) => (
               <div key={i} style={{ background: "#fff", border: "1.5px solid #e4e7ec",
-                borderRadius: "12px", padding: "16px 18px", display: "flex", alignItems: "center", gap: "14px" }}>
+                borderRadius: "12px", padding: "16px 18px", display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
                 <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: "#FDF5EC",
                   display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", flexShrink: 0 }}>
                   {addon.icon}
                 </div>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: "1 1 150px", minWidth: 0 }}>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: "16px",
                     color: "#111827", marginBottom: "2px" }}>{addon.label}</div>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#9ca3af" }}>{addon.note}</div>
                 </div>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                  fontWeight: 600, color: "#C4541A", whiteSpace: "nowrap" }}>{addon.price}</div>
+                  fontWeight: 600, color: "#C4541A", flexShrink: 0 }}>{addon.price}</div>
               </div>
             ))}
           </div>
@@ -1370,15 +1371,17 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               border: `1.5px solid ${weekBookingCount >= 5 ? "#3D6B7A" : weekBookingCount >= 3 ? "#C4541A" : "#e4e7ec"}` }}>
               <div style={{ padding: "12px 14px",
                 background: weekBookingCount >= 5 ? "#EBF4F6" : weekBookingCount >= 3 ? "#FDF5EC" : "#f9fafb",
-                display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
+                display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
                     fontSize: "15px", color: "#111827", marginBottom: "2px" }}>
                     {currentTier.label} rate this week
-                    <span style={{ marginLeft: "8px", fontSize: "15px", fontWeight: 500,
-                      padding: "2px 8px", borderRadius: "20px",
-                      background: weekBookingCount >= 5 ? "#3D6B7A" : weekBookingCount >= 3 ? "#C4541A" : "#e4e7ec",
-                      color: weekBookingCount >= 1 ? "#fff" : "#6b7280" }}>
+                  </div>
+                  <div style={{ marginBottom: "12px" }}>
+                    <span style={{ marginRight: "8px", fontSize: "15px", fontWeight: 600,
+                      padding: "3px 10px", borderRadius: "20px",
+                      background: weekBookingCount >= 5 ? "#3D6B7A" : weekBookingCount >= 3 ? "#C4541A" : "#6b7280",
+                      color: "#fff" }}>
                       {weekBookingCount} booked this week
                     </span>
                   </div>
@@ -1395,7 +1398,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                    fontWeight: 600, color: "#111827" }}>${currentTier.prices["30 min"]}</div>
+                    fontWeight: 600, color: "#111827" }}>${currentTier.prices["30 min"].toFixed(2)}</div>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>30 min</div>
                 </div>
               </div>
@@ -1707,7 +1710,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                         </div>
                         {b.price > 0 && (
                           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                            fontWeight: 600, color: "#9ca3af" }}>${b.price}</div>
+                            fontWeight: 600, color: "#9ca3af" }}>${Number(b.price).toFixed(2)}</div>
                         )}
                       </div>
                     );
@@ -2015,7 +2018,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   lineHeight: "1.6", marginBottom: "16px" }}>
                   Thanks for reaching out. We'll get back to you as soon as possible.
                 </p>
-                <button onClick={() => { setContactForm({ subject: "", message: "" }); setContactSent(false); }} style={{
+                <button onClick={() => { setContactForm({ subject: "", message: "", contactPref: "email" }); setContactSent(false); }} style={{
                   padding: "10px 24px", borderRadius: "10px", border: "1.5px solid #D4A843",
                   background: "transparent", color: "#C4541A", fontFamily: "'DM Sans', sans-serif",
                   fontSize: "15px", fontWeight: 600, cursor: "pointer",
@@ -2034,6 +2037,37 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   </div>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280" }}>
                     {client.email || "—"} {client.phone ? `· ${client.phone}` : ""}
+                  </div>
+                </div>
+
+                {/* Contact Preference */}
+                <div>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                    fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
+                    color: "#9ca3af", marginBottom: "8px" }}>How should we reach you?</label>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    {[
+                      { val: "email", icon: "📧", label: "Email" },
+                      { val: "text",  icon: "💬", label: "Text" },
+                      { val: "cell",  icon: "📞", label: "Call" },
+                    ].map(opt => (
+                      <button key={opt.val}
+                        onClick={() => setContactForm(f => ({ ...f, contactPref: opt.val }))}
+                        style={{
+                          flex: 1, padding: "10px 8px", borderRadius: "10px",
+                          border: contactForm.contactPref === opt.val
+                            ? "2px solid #C4541A" : "1.5px solid #e4e7ec",
+                          background: contactForm.contactPref === opt.val
+                            ? "#FDF5EC" : "#fff",
+                          cursor: "pointer", textAlign: "center",
+                        }}>
+                        <div style={{ fontSize: "18px", marginBottom: "2px" }}>{opt.icon}</div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                          fontWeight: contactForm.contactPref === opt.val ? 700 : 400,
+                          color: contactForm.contactPref === opt.val ? "#C4541A" : "#6b7280",
+                        }}>{opt.label}</div>
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -2064,16 +2098,30 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 </div>
 
                 {/* Submit */}
-                <button onClick={() => { if (contactForm.message.trim()) setContactSent(true); }}
-                  disabled={!contactForm.message.trim()}
+                <button onClick={async () => {
+                    if (!contactForm.message.trim()) return;
+                    setContactSending(true);
+                    await saveContactSubmission({
+                      name: client.name || "",
+                      email: client.email || "",
+                      phone: client.phone || "",
+                      subject: contactForm.subject,
+                      message: contactForm.message,
+                      contactPref: contactForm.contactPref,
+                      source: "client",
+                    });
+                    setContactSending(false);
+                    setContactSent(true);
+                  }}
+                  disabled={!contactForm.message.trim() || contactSending}
                   style={{
                     padding: "13px 28px", borderRadius: "10px", border: "none",
-                    background: contactForm.message.trim() ? "#C4541A" : "#e4e7ec",
-                    color: contactForm.message.trim() ? "#fff" : "#9ca3af",
+                    background: contactForm.message.trim() && !contactSending ? "#C4541A" : "#e4e7ec",
+                    color: contactForm.message.trim() && !contactSending ? "#fff" : "#9ca3af",
                     fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
-                    cursor: contactForm.message.trim() ? "pointer" : "default",
+                    cursor: contactForm.message.trim() && !contactSending ? "pointer" : "default",
                     alignSelf: "flex-end", transition: "all 0.2s ease",
-                  }}>Send Message →</button>
+                  }}>{contactSending ? "Sending..." : "Send Message →"}</button>
               </div>
             )}
           </div>
@@ -2688,9 +2736,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                                           color: walk.duration === d ? "rgba(255,255,255,0.85)" : "#9ca3af" }}>
                                           {sameDayDiscountActive && btnBaseOrig && (
                                             <span style={{ textDecoration: "line-through", marginRight: "4px",
-                                              opacity: 0.6 }}>${btnBaseOrig}</span>
+                                              opacity: 0.6 }}>${btnBaseOrig.toFixed(2)}</span>
                                           )}
-                                          ${btnPrice}
+                                          ${btnPrice.toFixed(2)}
                                         </div>
                                       </button>
                                     );
@@ -2827,7 +2875,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                               {b.price > 0 && (
                                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                                   color: "#C4541A", fontWeight: 500, marginTop: "2px" }}>
-                                  ${b.price} · {b.priceTier} rate
+                                  ${Number(b.price).toFixed(2)} · {b.priceTier} rate
                                 </div>
                               )}
                               {policy && (

@@ -14,7 +14,7 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
     { id: "mywalks",  label: "My Walks",    icon: "📅" },
     { id: "invoices", label: "Invoices",    icon: "🧾" },
     { id: "pricing",  label: "Pricing",     icon: "💰" },
-    // { id: "about",    label: "Our Team",    icon: "👥" },
+    { id: "about",    label: "Our Team",    icon: "👥" },
     ...(client.keyholder ? [{ id: "messages", label: "Messages", icon: "💬" }] : []),
     { id: "myinfo",   label: "My Info",     icon: "👤" },
     { id: "contact",  label: "Contact Us",  icon: "✉️" },

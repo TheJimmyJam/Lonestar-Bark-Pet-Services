@@ -6,6 +6,7 @@ import {
   loadDirectMessages, saveDirectMessage,
   loadWalkerAvailability, saveWalkerAvailabilityDay,
   loadCompletedPayrolls, saveCompletedPayrolls,
+  loadClientMessages, saveClientMessage, saveInvoiceToDB,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout,
@@ -18,11 +19,15 @@ import {
 } from "../../helpers.js";
 import LogoBadge from "../shared/LogoBadge.jsx";
 import AddressFields from "../shared/AddressFields.jsx";
-import { GLOBAL_STYLES } from "../../styles.js";
 import WalkerClientEditor from "./WalkerClientEditor.jsx";
-import { slotsToShifts, shiftsToSlots, ShiftSlider, DayAvailSliders } from "./AvailabilityComponents.jsx";
-import { autoCreateWalkInvoice, generateInvoiceId } from "../invoices/invoiceHelpers.js";
+import { slotsToShifts, shiftsToSlots, ShiftSlider, DayAvailSliders, AVAIL_SLIDER_CSS } from "./AvailabilityComponents.jsx";
+import { autoCreateWalkInvoice, generateInvoiceId, invoiceStatusMeta } from "../invoices/invoiceHelpers.js";
 import { spawnNextRecurringOccurrence } from "../recurring.js";
+import { GLOBAL_STYLES } from "../../styles.js";
+import { WALKER_CREDENTIALS, getAllWalkers } from "../auth/WalkerAuthScreen.jsx";
+import AddLegacyClientForm from "../admin/AddLegacyClientForm.jsx";
+import ScheduleWalkForm from "../admin/ScheduleWalkForm.jsx";
+import Header from "../shared/Header.jsx";
 
 // ─── Walker Dashboard ─────────────────────────────────────────────────────────
 function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalkerProfiles, trades, setTrades, onLogout }) {
@@ -4187,7 +4192,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                 const handlePinSave = () => {
                   const errs = {};
                   if (!myCred || currentPin !== myCred.pin) errs.current = "Current PIN is incorrect.";
-                  if (!/^\d{4}$/.test(newPinVal))           errs.new = "New PIN must be exactly 4 digits.";
+                  if (!/^\d{6}$/.test(newPinVal))           errs.new = "New PIN must be exactly 6 digits.";
                   if (newPinVal !== confirmPin)              errs.confirm = "PINs don't match.";
                   if (newPinVal === currentPin && !errs.current) errs.new = "New PIN must be different from your current PIN.";
                   if (Object.keys(errs).length) { setPinErrors(errs); return; }
@@ -4241,8 +4246,8 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                             textTransform: "uppercase", color: accentBlue, marginBottom: "6px" }}>
                             Current PIN
                           </label>
-                          <input type="password" inputMode="numeric" maxLength={4}
-                            placeholder="••••" value={currentPin}
+                          <input type="password" inputMode="numeric" maxLength={6}
+                            placeholder="••••••" value={currentPin}
                             onChange={e => { setCurrentPin(e.target.value.replace(/\D/g, "")); setPinErrors(p => ({ ...p, current: "" })); }}
                             style={pinFieldStyle(pinErrors.current)} />
                           {pinErrors.current && <div style={{ color: "#ef4444",
@@ -4254,8 +4259,8 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                             textTransform: "uppercase", color: accentBlue, marginBottom: "6px" }}>
                             New PIN
                           </label>
-                          <input type="password" inputMode="numeric" maxLength={4}
-                            placeholder="••••" value={newPinVal}
+                          <input type="password" inputMode="numeric" maxLength={6}
+                            placeholder="••••••" value={newPinVal}
                             onChange={e => { setNewPinVal(e.target.value.replace(/\D/g, "")); setPinErrors(p => ({ ...p, new: "" })); }}
                             style={pinFieldStyle(pinErrors.new)} />
                           {pinErrors.new && <div style={{ color: "#ef4444",
@@ -4267,8 +4272,8 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                             textTransform: "uppercase", color: accentBlue, marginBottom: "6px" }}>
                             Confirm New PIN
                           </label>
-                          <input type="password" inputMode="numeric" maxLength={4}
-                            placeholder="••••" value={confirmPin}
+                          <input type="password" inputMode="numeric" maxLength={6}
+                            placeholder="••••••" value={confirmPin}
                             onChange={e => { setConfirmPin(e.target.value.replace(/\D/g, "")); setPinErrors(p => ({ ...p, confirm: "" })); }}
                             style={pinFieldStyle(pinErrors.confirm)} />
                           {pinErrors.confirm && <div style={{ color: "#ef4444",
@@ -4276,11 +4281,11 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                         </div>
                         <div style={{ display: "flex", gap: "10px" }}>
                           <button onClick={handlePinSave}
-                            disabled={currentPin.length < 4 || newPinVal.length < 4 || confirmPin.length < 4}
+                            disabled={currentPin.length < 6 || newPinVal.length < 6 || confirmPin.length < 6}
                             style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "none",
-                              background: (currentPin.length < 4 || newPinVal.length < 4 || confirmPin.length < 4)
+                              background: (currentPin.length < 6 || newPinVal.length < 6 || confirmPin.length < 6)
                                 ? "#e4e7ec" : accentBlue,
-                              color: (currentPin.length < 4 || newPinVal.length < 4 || confirmPin.length < 4)
+                              color: (currentPin.length < 6 || newPinVal.length < 6 || confirmPin.length < 6)
                                 ? "#9ca3af" : "#fff",
                               fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                               fontWeight: 600, cursor: "pointer" }}>
@@ -4537,13 +4542,5 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     </div>
   );
 }
-
-// ─── Admin Map View ───────────────────────────────────────────────────────────
-const TIME_BANDS = [
-  { id: "morning",   label: "Morning",   range: "7–10 AM",  hours: [7,  10], color: "#3b82f6" },
-  { id: "midday",    label: "Midday",    range: "10 AM–1 PM", hours: [10, 13], color: "#059669" },
-  { id: "afternoon", label: "Afternoon", range: "1–4 PM",   hours: [13, 16], color: "#f97316" },
-  { id: "evening",   label: "Evening",   range: "4–7 PM",   hours: [16, 19], color: "#A07090" },
-];
 
 export default WalkerDashboard;

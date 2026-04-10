@@ -1,11 +1,17 @@
 import { useState, useEffect, useRef } from "react";
 import { WALKER_SERVICES } from "../../constants.js";
-import { notifyAdmin, loadWalkerProfiles, sbFetch } from "../../supabase.js";
-import { generateCode, formatPhone, emptyAddr, addrToString } from "../../helpers.js";
-import { GLOBAL_STYLES } from "../../styles.js";
+import { notifyAdmin, loadWalkerProfiles } from "../../supabase.js";
+import { generateCode, formatPhone, emptyAddr, addrToString, firstName } from "../../helpers.js";
 import PinPad from "../shared/PinPad.jsx";
 import LogoBadge from "../shared/LogoBadge.jsx";
 import AddressFields from "../shared/AddressFields.jsx";
+import { GLOBAL_STYLES } from "../../styles.js";
+import useRateLimiter from "../../hooks/useRateLimiter.js";
+
+// ─── Shared mutable walker state ──────────────────────────────────────────────
+// These are module-level so all files importing from here share the same references.
+let WALKER_CREDENTIALS = {};
+let CUSTOM_WALKERS = [];
 
 // ─── Walker helpers ───────────────────────────────────────────────────────────
 function getAllWalkers() {
@@ -52,6 +58,7 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin }) {
   const [pinError, setPinError] = useState("");
   const [savedEmail, setSavedEmail] = useState(null);
   const [newPin, setNewPin]     = useState(null);
+  const rateLimiter = useRateLimiter(email);
 
   // On mount: check for a previously saved email
   useEffect(() => {
@@ -76,14 +83,22 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin }) {
   };
 
   const handlePin = (pin) => {
+    if (rateLimiter.locked) return;
     const e = email.trim().toLowerCase();
     const cred = WALKER_CREDENTIALS[e];
     if (cred && cred.pin === pin) {
+      rateLimiter.clearFailures();
       try { localStorage.setItem(STORAGE_KEY, e); } catch {}
       const walkerData = getAllWalkers().find(w => w.id === cred.walkerId);
       onLogin({ ...walkerData, email: e, role: "walker" });
     } else {
-      setPinError("Incorrect PIN."); setTimeout(() => setPinError(""), 100);
+      const nowLocked = rateLimiter.recordFailure();
+      if (nowLocked) {
+        setPinError("Too many failed attempts. Account locked."); setTimeout(() => setPinError(""), 100);
+      } else {
+        setPinError(`Incorrect PIN. ${rateLimiter.attemptsLeft - 1} attempt${rateLimiter.attemptsLeft - 1 === 1 ? "" : "s"} remaining.`);
+        setTimeout(() => setPinError(""), 100);
+      }
     }
   };
 
@@ -182,7 +197,25 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin }) {
               )}
             </div>
             <div style={{ marginTop: "24px" }}>
-              <PinPad label="Enter your walker PIN" onComplete={handlePin} error={pinError} color={accentBlue} />
+              {rateLimiter.locked ? (
+                <div style={{ textAlign: "center", padding: "24px 16px" }}>
+                  <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔒</div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ef4444",
+                    fontSize: "15px", fontWeight: 600, marginBottom: "8px" }}>
+                    Account Locked
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
+                    fontSize: "15px", lineHeight: "1.6", marginBottom: "12px" }}>
+                    Too many failed PIN attempts. Try again in:
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', monospace", color: "#fff",
+                    fontSize: "28px", fontWeight: 700, letterSpacing: "2px" }}>
+                    {rateLimiter.formatRemaining()}
+                  </div>
+                </div>
+              ) : (
+                <PinPad label="Enter your walker PIN" onComplete={handlePin} error={pinError} color={accentBlue} />
+              )}
             </div>
             <button onClick={handleForgetMe} style={{
               marginTop: "20px", background: "none", border: "none", color: "#ffffffaa",
@@ -203,12 +236,12 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin }) {
               <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#4E7A8C",
                 fontSize: "16px", lineHeight: "1.6" }}>
                 {stage === "setpin"
-                  ? "Welcome to Lonestar Bark Co.! Choose a 4-digit PIN you'll use to log in."
+                  ? "Welcome to Lonestar Bark Co.! Choose a 6-digit PIN you'll use to log in."
                   : "Enter your PIN one more time to confirm."}
               </div>
             </div>
             <PinPad
-              label={stage === "setpin" ? "Choose a 4-digit PIN" : "Confirm PIN"}
+              label={stage === "setpin" ? "Choose a 6-digit PIN" : "Confirm PIN"}
               onComplete={handleSetPin}
               error={pinError}
               color={accentBlue}
@@ -238,77 +271,5 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin }) {
 }
 
 // ─── Admin Auth Screen ────────────────────────────────────────────────────────
-// ─── Admin List Storage (localStorage) ───────────────────────────────────────
-// ─── Admin Supabase Functions ─────────────────────────────────────────────────
-const DEFAULT_ADMIN = {
-  id: "admin-1",
-  name: "Admin",
-  email: "admin@lonestarbark.com",
-  pin: "0000",
-  status: "active",
-  isMaster: true,
-  invitedBy: null,
-  createdAt: new Date(0).toISOString(),
-};
-
-async function loadAdminList() {
-  try {
-    const rows = await sbFetch("admins?select=*&order=created_at.asc");
-    if (rows && rows.length > 0) {
-      return rows.map(r => ({
-        id: r.id,
-        name: r.name || "",
-        email: r.email,
-        pin: r.pin || "",
-        status: r.status || "active",
-        isMaster: r.is_master || false,
-        invitedBy: r.invited_by || null,
-        createdAt: r.created_at || new Date().toISOString(),
-      }));
-    }
-    // Table is empty — seed with the legacy default admin
-    await saveAdminList([DEFAULT_ADMIN]);
-    return [DEFAULT_ADMIN];
-  } catch (e) {
-    console.error("loadAdminList failed:", e);
-    return [DEFAULT_ADMIN];
-  }
-}
-
-async function saveAdminList(list) {
-  try {
-    // Upsert all admins by id
-    const rows = list.map(a => ({
-      id: a.id,
-      name: a.name || "",
-      email: a.email,
-      pin: a.pin || "",
-      status: a.status || "active",
-      is_master: a.isMaster || false,
-      invited_by: a.invitedBy || null,
-      created_at: a.createdAt || new Date().toISOString(),
-    }));
-    await sbFetch("admins?on_conflict=id", {
-      method: "POST",
-      headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify(rows),
-    });
-  } catch (e) {
-    console.error("saveAdminList failed:", e);
-  }
-}
-
-async function removeAdminFromDB(id) {
-  try {
-    await sbFetch(`admins?id=eq.${encodeURIComponent(id)}`, {
-      method: "DELETE",
-      headers: { "Prefer": "" },
-    });
-  } catch (e) {
-    console.error("removeAdminFromDB failed:", e);
-  }
-}
-
-
-export { getAllWalkers, injectCustomWalkers, loadAdminList, saveAdminList };
+export { getAllWalkers, injectCustomWalkers, WALKER_CREDENTIALS, CUSTOM_WALKERS };
 export default WalkerAuthScreen;

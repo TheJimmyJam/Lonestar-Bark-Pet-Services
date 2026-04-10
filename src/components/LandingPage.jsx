@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { PRICING_TIERS, ADD_ONS, SERVICES } from "../constants.js";
+import { ADD_ONS, PRICING_TIERS, SERVICES, WALKER_SERVICES } from "../constants.js";
 import { firstName } from "../helpers.js";
+import { saveContactSubmission } from "../supabase.js";
 import LogoBadge from "./shared/LogoBadge.jsx";
+import { getAllWalkers } from "./auth/WalkerAuthScreen.jsx";
 import WalkerApplicationPage from "./walker/WalkerApplicationPage.jsx";
 
 // ─── Landing Page ─────────────────────────────────────────────────────────────
@@ -10,14 +12,17 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
   const [navScrolled, setNavScrolled] = useState(false);
   const [landingMenuOpen, setLandingMenuOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(null); // index of open FAQ item
-  const [expandedTier, setExpandedTier] = useState(null);
-  const [expandedService, setExpandedService] = useState(null);
+  const [expandedTier, setExpandedTier] = useState(null); // index of expanded pricing card on mobile
+  const [expandedService, setExpandedService] = useState(null); // index of expanded service card on mobile
   const [lpMobile, setLpMobile] = useState(typeof window !== "undefined" && window.innerWidth < 768);
   useEffect(() => {
     const onResize = () => setLpMobile(window.innerWidth < 768);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+  const [lpContact, setLpContact] = useState({ name: "", email: "", phone: "", subject: "", message: "", contactPref: "email" });
+  const [lpContactSent, setLpContactSent] = useState(false);
+  const [lpContactSending, setLpContactSending] = useState(false);
   const [landingView, setLandingView] = useState(
     () => window.location.hash === "#apply" ? "apply" : "home"
   ); // "home" | "apply"
@@ -56,7 +61,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
     { id: "services", label: "Services" },
     { id: "pricing", label: "Pricing" },
     { id: "handoff", label: "How It Works" },
-    // { id: "team", label: "Our Team" },
+    { id: "team", label: "Our Team" },
   ];
 
   const FAQ_ITEMS = [
@@ -117,8 +122,6 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
     .section-divider { width: 48px; height: 3px; background: #8B5E3C; border-radius: 2px; margin: 0 auto 14px; }
     .lp-hamburger { display: flex; flex-direction: column; gap: 4px; align-items: center; background: transparent; border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; padding: 8px 10px; cursor: pointer; }
     @media (max-width: 767px) { .lp-nav { border-top: 9px solid #0B1423 !important; border-bottom: 9px solid #0B1423 !important; } }
-    .lp-section { padding: 64px 20px; }
-    @media (min-width: 768px) { .lp-section { padding: 96px 24px; } }
   `;
 
   return (
@@ -138,16 +141,15 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
         backdropFilter: navScrolled ? "blur(12px)" : "none",
         borderBottom: navScrolled ? "1px solid rgba(255,255,255,0.06)" : "none",
         transition: "all 0.3s ease",
-        padding: lpMobile ? "0 12px" : "0 24px",
+        padding: "0 24px",
       }}>
         <div style={{ maxWidth: "1100px", margin: "0 auto", height: "64px",
           display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: lpMobile ? "8px" : "10px", minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 
-            <LogoBadge size={lpMobile ? 26 : 32} />
+            <LogoBadge size={32} />
             <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
-              fontSize: lpMobile ? "12px" : "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: lpMobile ? "0.8px" : "1.5px",
-              whiteSpace: "nowrap" }}>
+              fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "1.5px" }}>
               Lonestar Bark Co.
             </div>
           </div>
@@ -295,8 +297,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             color: "rgba(255,255,255,0.55)", fontSize: "clamp(10px, 1.5vw, 11px)", lineHeight: "2.2",
             marginBottom: "40px", fontWeight: 500, maxWidth: "600px", margin: "0 auto 40px",
             letterSpacing: "0.15em", textAlign: "center" }}>
-            <div>INSURED & VETTED WALKERS &nbsp;·&nbsp; TRANSPARENT PRICING</div>
-            <div>FREE 15-MIN MEET & GREET &nbsp;·&nbsp; YOUR PEACE OF MIND</div>
+            TRANSPARENT PRICING &nbsp;/&nbsp; FREE 15-MIN MEET & GREET &nbsp;/&nbsp; INSURED & VETTED WALKERS &nbsp;/&nbsp; YOUR PEACE OF MIND
           </div>
           <div className="lp-fade-4 lp-hero-ctas">
             <button onClick={onSignUp} className="lp-cta-btn" style={{
@@ -350,9 +351,9 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
               { icon: "🐈", color: "#3D6B7A", light: "#EBF4F6", border: "#8EBCC6",
                 title: "Cat-sitting", desc: "Your cat gets one-on-one attention from their dedicated sitter — in the comfort of home, on their own terms. Every visit is tailored to your cat's routine, with feeding, playtime, litter box care, and plenty of affection." },
               { icon: "🌙", color: "#7A4D6E", light: "#F5EFF3", border: "#C4A0B8",
-                title: "Overnight Stays", desc: "When you're away overnight, your pet stays comfortable in their own home with a dedicated sitter by their side.\n\n🕖 Hours: 7 PM – 7 AM\n\n🏡 At our place — $100/night\n🔑 At your place — $150/night" },
+                title: "Overnight Stays", desc: "When you're away overnight, your pet stays comfortable in their own home with a dedicated sitter by their side.\n\n🏡 At our place — $100/night\n🔑 At your place — $150/night" },
               { icon: "🚗", color: "#b45309", light: "#fffbeb", border: "#fde68a",
-                title: "Pet Transportation", desc: "Vet visit? Groomer calling? We'll handle the ride so you don't have to. Your pet travels safely and stress-free with someone they already trust — door to door, no detours.\n\n*Prices vary based on size and distance. Contact us for an estimate." },
+                title: "Pet Transportation", desc: "Vet visit? Groomer calling? We'll handle the ride so you don't have to. Your pet travels safely and stress-free with someone they already trust — door to door, no detours.\n\n*Prices vary based on size and distance." },
             ];
 
             const renderFullCard = (svc) => (
@@ -372,12 +373,14 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
               </div>
             );
 
+            /* ── Desktop: 2-col grid ── */
             if (!lpMobile) return (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
                 {svcs.map(renderFullCard)}
               </div>
             );
 
+            /* ── Mobile: stacked overlapping cards ── */
             const PEEK = 56;
             return (
               <div style={{ position: "relative", marginBottom: "0px",
@@ -405,6 +408,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                         marginBottom: expandedService !== null ? (isOther ? "0px" : "12px") : 0,
                         maxHeight: isOther ? `${PEEK}px` : "600px",
                       }}>
+                      {/* Peek banner — icon + title + chevron */}
                       <div style={{ display: "flex", alignItems: "center", padding: "12px 16px",
                         minHeight: `${PEEK - 3}px`, boxSizing: "border-box", gap: "12px" }}>
                         <div style={{ width: "36px", height: "36px", borderRadius: "10px", flexShrink: 0,
@@ -418,6 +422,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                           transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
                           lineHeight: 1 }}>▾</span>
                       </div>
+                      {/* Expandable description */}
                       <div style={{
                         maxHeight: isExpanded ? "400px" : "0px",
                         overflow: "hidden",
@@ -544,11 +549,11 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             );
 
             /* ── Mobile: stacked overlapping cards ── */
-            const COLLAPSED_PEEK = 52;
+            const COLLAPSED_PEEK = 52; // height of the peeking banner strip
             return (
               <div style={{ position: "relative", marginBottom: "28px",
                 height: expandedTier !== null
-                  ? undefined
+                  ? undefined  // auto height when one is expanded
                   : `${COLLAPSED_PEEK * tiers.length + 16}px`,
                 transition: "height 0.3s ease" }}>
                 {tiers.map((tier, i) => {
@@ -569,9 +574,12 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                           ? "0 8px 32px rgba(0,0,0,0.18)"
                           : "0 2px 8px rgba(0,0,0,0.08)",
                         transition: "all 0.3s ease",
+                        display: isOther ? "block" : "block",
                         marginBottom: expandedTier !== null ? (isOther ? "0px" : "12px") : 0,
                         maxHeight: isOther ? `${COLLAPSED_PEEK}px` : "500px",
+                        opacity: 1,
                       }}>
+                      {/* Banner — always visible as the peek strip */}
                       <div style={{ background: tier.bannerBg, padding: "10px 16px",
                         display: "flex", justifyContent: "space-between", alignItems: "center",
                         minHeight: `${COLLAPSED_PEEK - 4}px`, boxSizing: "border-box" }}>
@@ -598,6 +606,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                             lineHeight: 1 }}>▾</span>
                         </div>
                       </div>
+                      {/* Card body — slides open */}
                       <div style={{
                         maxHeight: isExpanded ? "300px" : "0px",
                         overflow: "hidden",
@@ -769,11 +778,228 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
         </div>
       </section>
 
-      {/* ── Team ── HIDDEN FOR NOW */}
+      {/* ── Team ── */}
+      <section id="team" className="lp-section" style={{ background: "#f5f6f8" }}>
+        <div style={{ maxWidth: "700px", margin: "0 auto", textAlign: "center" }}>
+          <div className="section-divider" />
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "36px",
+            fontWeight: 600, color: "#111827", marginBottom: "12px" }}>Meet the Team</div>
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
+            marginBottom: "48px", lineHeight: "1.7", maxWidth: "480px", margin: "0 auto 48px" }}>
+            Here's your East Dallas dog walking team.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "52px" }}>
+            {getAllWalkers(walkerProfiles).filter(walker => (walkerProfiles[walker.id]?.showOnTeamPage ?? true) !== false).map(walker => {
+              const open = expandedWalker === walker.id;
+              return (
+                <div key={walker.id} className="lp-walker-card" style={{ background: "#fff",
+                  border: open ? `2px solid ${walker.color}` : "1.5px solid #e4e7ec",
+                  borderRadius: "16px", overflow: "hidden", textAlign: "left",
+                  boxShadow: open ? `0 4px 20px ${walker.color}22` : "0 2px 8px rgba(0,0,0,0.04)" }}>
+                  <button onClick={() => setExpandedWalker(open ? null : walker.id)} style={{
+                    width: "100%", background: "none", border: "none", padding: "18px 22px",
+                    cursor: "pointer", display: "flex", alignItems: "center", gap: "14px" }}>
+                    <div style={{ width: "50px", height: "50px", borderRadius: "50%",
+                      background: walker.color + "18", border: `2px solid ${walker.color}44`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: "22px", flexShrink: 0 }}>{walker.avatar}</div>
+                    <div style={{ flex: 1, textAlign: "left" }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
+                        fontWeight: 600, color: "#111827", marginBottom: "2px" }}>{firstName(walker.name)}</div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                        color: walker.color, fontWeight: 500 }}>{(walker.role || "").replace(/ & /g, " / ")}</div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                        color: "#9ca3af" }}>{walker.years >= 10 ? "10+" : walker.years} yrs exp.</div>
+                      <div style={{ fontSize: "18px", color: "#9ca3af",
+                        transform: open ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>⌄</div>
+                    </div>
+                  </button>
+                  {open && (
+                    <div style={{ padding: "0 22px 20px", borderTop: "1px solid #f3f4f6" }}>
+                      <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                        color: "#374151", lineHeight: "1.65", margin: "16px 0 12px" }}>
+                        {(walkerProfiles[walker.id]?.bio) || walker.bio}
+                      </p>
+                      {(() => {
+                        const svcs = walkerProfiles[walker.id]?.services || [];
+                        if (!svcs.length) return null;
+                        return (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "4px" }}>
+                            {WALKER_SERVICES.filter(s => svcs.includes(s.id)).map(s => (
+                              <span key={s.id} style={{
+                                display: "inline-flex", alignItems: "center", gap: "5px",
+                                padding: "4px 10px", borderRadius: "20px", fontSize: "16px",
+                                fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                                color: s.color, background: s.bg, border: `1px solid ${s.border}`,
+                              }}>
+                                {s.icon} {s.label}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
 
-      {/* Final CTA */}
-      <section className="lp-section" style={{ background: "#f5f6f8" }}>
-        <div style={{ maxWidth: "700px", margin: "0 auto" }}>
+          {/* ── Contact Us Section ── */}
+          <div id="contact" style={{ background: "#fff", borderRadius: "24px", padding: "48px 32px",
+            border: "1.5px solid #e4e7ec", marginBottom: "40px" }}>
+            <div style={{ textAlign: "center", marginBottom: "28px" }}>
+              <div style={{ fontSize: "28px", marginBottom: "10px" }}>📨</div>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase",
+                letterSpacing: "1.5px", fontWeight: 600, color: "#111827", marginBottom: "8px" }}>
+                Contact Us
+              </div>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
+                lineHeight: "1.6", maxWidth: "400px", margin: "0 auto" }}>
+                Have a question or want to learn more? Drop us a message and we'll get back to you.
+              </p>
+            </div>
+
+            {lpContactSent ? (
+              <div style={{ background: "#FDF5EC", border: "1.5px solid #D4A843", borderRadius: "14px",
+                padding: "24px", textAlign: "center", maxWidth: "420px", margin: "0 auto" }}>
+                <div style={{ fontSize: "32px", marginBottom: "12px" }}>✅</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "17px", fontWeight: 600,
+                  color: "#C4541A", marginBottom: "8px" }}>Message Sent!</div>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
+                  lineHeight: "1.6", marginBottom: "16px" }}>
+                  Thanks for reaching out. We'll get back to you as soon as possible.
+                </p>
+                <button onClick={() => { setLpContact({ name: "", email: "", phone: "", subject: "", message: "", contactPref: "email" }); setLpContactSent(false); }}
+                  style={{ padding: "10px 24px", borderRadius: "10px", border: "1.5px solid #D4A843",
+                    background: "transparent", color: "#C4541A", fontFamily: "'DM Sans', sans-serif",
+                    fontSize: "15px", fontWeight: 600, cursor: "pointer" }}>Send Another Message</button>
+              </div>
+            ) : (
+              <div style={{ maxWidth: "420px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "14px" }}>
+                {/* Name + Email row */}
+                <div style={{ display: "flex", gap: "12px" }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                      fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
+                      color: "#9ca3af", marginBottom: "5px" }}>Name</label>
+                    <input type="text" placeholder="Your name" value={lpContact.name}
+                      onChange={e => setLpContact(f => ({ ...f, name: e.target.value }))}
+                      style={{ width: "100%", padding: "11px 14px", borderRadius: "10px", boxSizing: "border-box",
+                        border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                        color: "#111827", outline: "none" }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                      fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
+                      color: "#9ca3af", marginBottom: "5px" }}>Email</label>
+                    <input type="email" placeholder="you@email.com" value={lpContact.email}
+                      onChange={e => setLpContact(f => ({ ...f, email: e.target.value }))}
+                      style={{ width: "100%", padding: "11px 14px", borderRadius: "10px", boxSizing: "border-box",
+                        border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                        color: "#111827", outline: "none" }} />
+                  </div>
+                </div>
+
+                {/* Phone */}
+                <div>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                    fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
+                    color: "#9ca3af", marginBottom: "5px" }}>Phone (optional)</label>
+                  <input type="tel" placeholder="(214) 555-1234" value={lpContact.phone}
+                    onChange={e => setLpContact(f => ({ ...f, phone: e.target.value }))}
+                    style={{ width: "100%", padding: "11px 14px", borderRadius: "10px", boxSizing: "border-box",
+                      border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                      color: "#111827", outline: "none" }} />
+                </div>
+
+                {/* Contact Preference */}
+                <div>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                    fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
+                    color: "#9ca3af", marginBottom: "8px" }}>How should we reach you?</label>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    {[
+                      { val: "email", icon: "📧", label: "Email" },
+                      { val: "text",  icon: "💬", label: "Text" },
+                      { val: "cell",  icon: "📞", label: "Call" },
+                    ].map(opt => (
+                      <button key={opt.val}
+                        onClick={() => setLpContact(f => ({ ...f, contactPref: opt.val }))}
+                        style={{
+                          flex: 1, padding: "10px 8px", borderRadius: "10px",
+                          border: lpContact.contactPref === opt.val
+                            ? "2px solid #1A6B4A" : "1.5px solid #e4e7ec",
+                          background: lpContact.contactPref === opt.val
+                            ? "#f0fdf4" : "#fff",
+                          cursor: "pointer", textAlign: "center",
+                        }}>
+                        <div style={{ fontSize: "18px", marginBottom: "2px" }}>{opt.icon}</div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                          fontWeight: lpContact.contactPref === opt.val ? 700 : 400,
+                          color: lpContact.contactPref === opt.val ? "#1A6B4A" : "#6b7280",
+                        }}>{opt.label}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Subject */}
+                <div>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                    fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
+                    color: "#9ca3af", marginBottom: "5px" }}>Subject</label>
+                  <input type="text" placeholder="e.g. Pricing question, service area..." value={lpContact.subject}
+                    onChange={e => setLpContact(f => ({ ...f, subject: e.target.value }))}
+                    style={{ width: "100%", padding: "11px 14px", borderRadius: "10px", boxSizing: "border-box",
+                      border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                      color: "#111827", outline: "none" }} />
+                </div>
+
+                {/* Message */}
+                <div>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                    fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
+                    color: "#9ca3af", marginBottom: "5px" }}>Message</label>
+                  <textarea rows={4} placeholder="How can we help?" value={lpContact.message}
+                    onChange={e => setLpContact(f => ({ ...f, message: e.target.value }))}
+                    style={{ width: "100%", padding: "11px 14px", borderRadius: "10px", boxSizing: "border-box",
+                      border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                      color: "#111827", outline: "none", resize: "vertical" }} />
+                </div>
+
+                {/* Submit */}
+                <button onClick={async () => {
+                    if (!lpContact.message.trim() || !lpContact.name.trim()) return;
+                    setLpContactSending(true);
+                    await saveContactSubmission({
+                      name: lpContact.name,
+                      email: lpContact.email,
+                      phone: lpContact.phone,
+                      subject: lpContact.subject,
+                      message: lpContact.message,
+                      contactPref: lpContact.contactPref,
+                      source: "landing",
+                    });
+                    setLpContactSending(false);
+                    setLpContactSent(true);
+                  }}
+                  disabled={!lpContact.message.trim() || !lpContact.name.trim() || lpContactSending}
+                  style={{
+                    padding: "14px 28px", borderRadius: "10px", border: "none",
+                    background: lpContact.message.trim() && lpContact.name.trim() && !lpContactSending ? "#1A6B4A" : "#e4e7ec",
+                    color: lpContact.message.trim() && lpContact.name.trim() && !lpContactSending ? "#fff" : "#9ca3af",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
+                    cursor: lpContact.message.trim() && lpContact.name.trim() && !lpContactSending ? "pointer" : "default",
+                    alignSelf: "center", transition: "all 0.2s ease",
+                  }}>{lpContactSending ? "Sending..." : "Send Message →"}</button>
+              </div>
+            )}
+          </div>
+
+          {/* Final CTA */}
           <div style={{ background: "#0B1423", borderRadius: "24px", padding: "56px 40px",
             textAlign: "center", position: "relative", overflow: "hidden" }}>
             <div style={{ position: "absolute", inset: 0,
@@ -788,7 +1014,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
               <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                 color: "#ffffffcc", lineHeight: "1.7", marginBottom: "32px",
                 maxWidth: "380px", margin: "0 auto 32px" }}>
-                Create your account, schedule your free Meet & Greet Appointment, and book your first walk —
+                Create your account, schedule your free Meet & Greet Appointment, and book your first walk — 
                 all in minutes.
               </p>
               <button onClick={onSignUp} className="lp-cta-btn" style={{
@@ -814,7 +1040,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
         </div>
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff44",
           fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase" }}>
-          East Dallas · Dallas, TX
+          East Dallas
         </div>
       </footer>
       </>)}

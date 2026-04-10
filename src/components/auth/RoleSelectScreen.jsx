@@ -15,16 +15,12 @@ function RoleSelectScreen({ onSelectRole, onBack }) {
 
       {/* Header block */}
       <div style={{ textAlign: "center", marginBottom: "36px" }}>
-        <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
-          fontSize: "clamp(28px,7vw,42px)", fontWeight: 700, letterSpacing: "2px", marginBottom: "8px" }}>
-          Lonestar Bark Co.
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "12px" }}>
+          <LogoBadge size={120} />
         </div>
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff88",
-          fontSize: "13px", letterSpacing: "3.5px", textTransform: "uppercase", marginBottom: "28px" }}>
+          fontSize: "13px", letterSpacing: "3.5px", textTransform: "uppercase" }}>
           BORN HERE / WALK HERE / DALLAS, TX
-        </div>
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          <LogoBadge size={120} />
         </div>
       </div>
 
@@ -92,12 +88,4 @@ function RoleSelectScreen({ onSelectRole, onBack }) {
 // ─── Walker Auth Screen ───────────────────────────────────────────────────────
 // Hard-coded walker credentials matching WALKERS array
 // In production these would be in the DB; here PIN is walker.id * 1111
-// This is a mutable object so custom walkers added by admin can be injected at runtime
-let WALKER_CREDENTIALS = {};
-
-// Registry of walkers added by admin at runtime (populated from walkerProfiles on load)
-let CUSTOM_WALKERS = [];
-
-// Returns the full merged walker list (built-in + custom), excluding deleted walkers
-
 export default RoleSelectScreen;

@@ -181,4 +181,4 @@ function DayAvailSliders({ slots, onChange, color, isPast }) {
 }
 
 
-export { slotsToShifts, shiftsToSlots, ShiftSlider, DayAvailSliders };
+export { slotsToShifts, shiftsToSlots, ShiftSlider, DayAvailSliders, AVAIL_SLIDER_CSS };
