@@ -309,5 +309,5 @@ async function removeAdminFromDB(id) {
 }
 
 
-export { getAllWalkers, injectCustomWalkers };
+export { getAllWalkers, injectCustomWalkers, loadAdminList };
 export default WalkerAuthScreen;
