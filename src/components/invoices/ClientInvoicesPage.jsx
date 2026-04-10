@@ -67,7 +67,7 @@ function ClientInvoicesPage({ client, clients, setClients }) {
         <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
           fontWeight: 600, color: "#111827", marginBottom: "4px" }}>My Invoices</div>
         <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280" }}>
-          View and pay your outstanding invoices from Lonestar Bark Co.
+          View your paid receipts and any outstanding invoices from Lonestar Bark Co.
         </p>
       </div>
 
@@ -127,7 +127,7 @@ function ClientInvoicesPage({ client, clients, setClients }) {
           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
             fontWeight: 600, color: "#111827", marginBottom: "8px" }}>No invoices yet</div>
           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
-            When Lonestar Bark Co. sends you an invoice, it'll show up here.
+            Your paid receipts and invoices will show up here.
           </div>
         </div>
       )}
