@@ -174,7 +174,8 @@ export default function LonestarBark() {
           const keysToRemove = pendingKeys.length > 0 ? pendingKeys : [bookingKey];
           const cleanedBookings = (returningClient.bookings || []).filter(b => !keysToRemove.includes(b.key));
           const cleanedClient = { ...returningClient, bookings: cleanedBookings };
-          const updatedClients = { ...withInvoices, [cleanedClient.id]: cleanedClient };
+          const cancelledPinKey = bookingClientId || returnClientId;
+          const updatedClients = { ...withInvoices, [cancelledPinKey]: cleanedClient };
           setClients(updatedClients);
           try { await saveClients(updatedClients); } catch {}
           setSelectedRole("customer");

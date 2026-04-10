@@ -1937,7 +1937,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                               {policy.penalty === 0 ? "Cancel for free?" : `Cancel with a $${penaltyAmount} fee?`}
                             </div>
                             <div style={{ display: "flex", gap: "8px" }}>
-                              <button onClick={() => { handleCancel(b.key); setSelectedBooking(null); setRecurringCancelConfirm(null); }}
+                              <button onClick={() => { handleCancel(b.key); setSelectedBooking(null); setRecurringCancelConfirm(null); setCancelConfirm(null); }}
                                 style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "none", background: "#dc2626",
                                   color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, cursor: "pointer" }}>
                                 Yes, cancel
@@ -3083,7 +3083,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                             : "You're within 12 hours of your appointment. The full session fee applies."}
                         </div>
                         <div style={{ display: "flex", gap: "8px" }}>
-                          <button onClick={() => { handleCancel(b.key); setSelectedBooking(null); setRecurringCancelConfirm(null); }}
+                          <button onClick={() => { handleCancel(b.key); setSelectedBooking(null); setRecurringCancelConfirm(null); setCancelConfirm(null); }}
                             style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "none",
                               background: "#dc2626", color: "#fff", fontFamily: "'DM Sans', sans-serif",
                               fontSize: "15px", fontWeight: 500, cursor: "pointer" }}>
