@@ -459,7 +459,7 @@ export {
   loadWalkerAvailability, saveWalkerAvailabilityDay, loadAllWalkersAvailability,
   DEFAULT_ADMIN, loadAdminList, saveAdminList, removeAdminFromDB,
   loadContactSubmissions, saveContactSubmission, updateContactSubmission, deleteContactSubmission,
-  sendInvoiceEmail, sendWelcomeEmail, sendBookingConfirmation, sendInvoicePaidEmail, sendWalkerBookingNotification, sendPinResetCode,
+  sendInvoiceEmail, sendWelcomeEmail, sendBookingConfirmation, sendInvoicePaidEmail, sendWalkerBookingNotification, sendPinResetCode, sendWalkerCancellationNotification,
 };
 
 // ─── Admin List DB Functions ──────────────────────────────────────────────────
@@ -650,6 +650,21 @@ async function sendBookingConfirmation({ clientName, clientEmail, service, date,
     console.log(`[sendBookingConfirmation] ${clientEmail} → ${res.status}`, body);
   } catch (e) {
     console.error("[sendBookingConfirmation] failed:", e);
+  }
+}
+
+async function sendWalkerCancellationNotification({ walkerName, walkerEmail, clientName, pet, service, date, day, time, duration }) {
+  if (!walkerEmail) return;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-walker-cancellation-notification`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walkerName, walkerEmail, clientName, pet, service, date, day, time, duration }),
+    });
+    const body = await res.json();
+    console.log(`[sendWalkerCancellationNotification] ${walkerEmail} → ${res.status}`, body);
+  } catch (e) {
+    console.error("[sendWalkerCancellationNotification] failed:", e);
   }
 }
 

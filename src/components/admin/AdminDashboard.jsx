@@ -33,7 +33,7 @@ import { generateRecurringBookings, extendRecurringBookings, spawnNextRecurringO
 import { GLOBAL_STYLES } from "../../styles.js";
 import { WALKER_CREDENTIALS, getAllWalkers, injectCustomWalkers } from "../auth/WalkerAuthScreen.jsx";
 import Header from "../shared/Header.jsx";
-import { SUPABASE_ANON_KEY, SUPABASE_URL, loadClients, loadTrades, loadWalkerProfiles } from "../../supabase.js";
+import { SUPABASE_ANON_KEY, SUPABASE_URL, loadClients, loadTrades, loadWalkerProfiles, sendWalkerCancellationNotification } from "../../supabase.js";
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, setWalkerProfiles, trades, setTrades, adminList, setAdminList, onLogout }) {
@@ -3178,6 +3178,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                     </div>
                     <div style={{ display: "flex", gap: "8px" }}>
                       <button onClick={() => {
+                        const bookingsToCancel = (c.bookings || []).filter(b => !b.adminCompleted && !b.cancelled);
                         const updatedClients = {
                           ...clients,
                           [c.id]: {
@@ -3194,6 +3195,24 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                         };
                         setClients(updatedClients);
                         saveClients(updatedClients);
+                        // Notify each assigned walker of their cancelled bookings
+                        bookingsToCancel.forEach(b => {
+                          const walkerName = b.form?.walker || "";
+                          const walkerObj = getAllWalkers(walkerProfiles).find(w => w.name === walkerName);
+                          if (walkerObj?.email) {
+                            sendWalkerCancellationNotification({
+                              walkerName: walkerObj.name,
+                              walkerEmail: walkerObj.email,
+                              clientName: c.name,
+                              pet: b.form?.pet || "",
+                              service: b.form?.service || "",
+                              date: b.date || "",
+                              day: b.day || "",
+                              time: b.slot?.time || "—",
+                              duration: b.slot?.duration || "—",
+                            });
+                          }
+                        });
                         setConfirmDeleteClientId(null);
                         setSelectedClientId(null);
                       }} style={{ flex: 1, padding: "11px", borderRadius: "9px", border: "none",

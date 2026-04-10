@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { ADD_ONS, ALL_HANDOFF_SLOTS, DAYS, FULL_DAYS, PRICING_TIERS, SERVICES, SERVICE_SLOTS, WALKER_SERVICES } from "../../constants.js";
 import {
-  saveClients, notifyAdmin, sendBookingConfirmation, sendWalkerBookingNotification,
+  saveClients, notifyAdmin, sendBookingConfirmation, sendWalkerBookingNotification, sendWalkerCancellationNotification,
   loadChatMessages, saveChatMessage, formatChatTime,
   loadClientMessages, saveClientMessage,
   loadAllWalkersAvailability,
@@ -464,6 +464,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   };
 
   const handleCancel = (bookingKey) => {
+    const booking = (client.bookings || []).find(b => b.key === bookingKey);
     const updated = {
       ...client,
       bookings: applySameDayDiscount(repriceWeekBookings(
@@ -473,6 +474,24 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     const updatedClients = { ...clients, [client.id]: updated };
     setClients(updatedClients);
     saveClients(updatedClients);
+    // Notify assigned walker
+    if (booking) {
+      const walkerName = booking.form?.walker || "";
+      const walkerObj = getAllWalkers(walkerProfiles).find(w => w.name === walkerName);
+      if (walkerObj?.email) {
+        sendWalkerCancellationNotification({
+          walkerName: walkerObj.name,
+          walkerEmail: walkerObj.email,
+          clientName: client.name,
+          pet: booking.form?.pet || "",
+          service: booking.form?.service || "",
+          date: booking.date || "",
+          day: booking.day || "",
+          time: booking.slot?.time || "—",
+          duration: booking.slot?.duration || "—",
+        });
+      }
+    }
   };
 
   const geocodeAddress = async (address) => {
