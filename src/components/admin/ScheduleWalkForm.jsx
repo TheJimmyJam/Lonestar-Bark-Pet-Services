@@ -3,7 +3,7 @@ import { DAYS, FULL_DAYS, SERVICES, SERVICE_SLOTS } from "../../constants.js";
 import { getAllWalkers } from "../auth/WalkerAuthScreen.jsx";
 import { repriceWeekBookings } from "../../helpers.js";
 import {
-  saveClients, notifyAdmin, sendBookingConfirmation,
+  saveClients, notifyAdmin, sendBookingConfirmation, sendWalkerBookingNotification,
   loadAllWalkersAvailability,
 } from "../../supabase.js";
 import {
@@ -186,6 +186,21 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
         price: finalPrice,
         pet: primaryPet,
       });
+      const assignedWalker = getAllWalkers(walkerProfiles).find(w => w.name === form.walker);
+      if (assignedWalker?.email) {
+        sendWalkerBookingNotification({
+          walkerName: assignedWalker.name,
+          walkerEmail: assignedWalker.email,
+          clientName: client.name,
+          pet: primaryPet,
+          service: form.service,
+          date: dateLabel,
+          day: dayName,
+          time: form.timeSlot?.label || "—",
+          duration,
+          price: finalPrice,
+        });
+      }
       notifyAdmin("new_booking", {
         clientName: client.name,
         pet: primaryPet,
