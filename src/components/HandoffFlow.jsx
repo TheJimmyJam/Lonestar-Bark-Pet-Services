@@ -294,10 +294,12 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
                 {/* Mon–Fri only: indices 0–4 */}
                 {[0,1,2,3,4].map(i => {
                   const date = weekDates[i];
-                  const now = new Date();
-                  const isPast = date < new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                  const cutoff = new Date(Date.now() + 24 * 60 * 60 * 1000);
+                  // Disable day if even the last slot (7 PM) falls within the 24-hour gate
+                  const lastSlotOfDay = new Date(date);
+                  lastSlotOfDay.setHours(19, 0, 0, 0);
                   const active = selDay === i;
-                  const disabled = isPast;
+                  const disabled = lastSlotOfDay <= cutoff;
                   return (
                     <button key={i} onClick={() => { if (!disabled) { setSelDay(i); setSelSlot(null); } }}
                       disabled={disabled}
@@ -330,7 +332,11 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
                   Your personal walker will reach out to confirm their arrival time.
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                  {ALL_HANDOFF_SLOTS.map(slot => {
+                  {ALL_HANDOFF_SLOTS.filter(slot => {
+                    const slotTime = new Date(weekDates[selDay]);
+                    slotTime.setHours(slot.hour, slot.minute, 0, 0);
+                    return slotTime > new Date(Date.now() + 24 * 60 * 60 * 1000);
+                  }).map(slot => {
                     const active = selSlot?.id === slot.id;
                     return (
                       <button key={slot.id} onClick={() => setSelSlot(slot)}

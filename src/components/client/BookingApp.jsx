@@ -802,8 +802,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               <div style={{ display: "flex", gap: "6px", marginBottom: "16px" }}>
                 {[0,1,2,3,4].map(i => {
                   const date = wDates[i];
-                  const today = new Date(); today.setHours(0,0,0,0);
-                  const disabled = date < today;
+                  const cutoff = new Date(Date.now() + 24 * 60 * 60 * 1000);
+                  // Disable day if even the last slot (7 PM) falls within the 24-hour gate
+                  const lastSlotOfDay = new Date(date);
+                  lastSlotOfDay.setHours(19, 0, 0, 0);
+                  const disabled = lastSlotOfDay <= cutoff;
                   const active = handoffReschedDay === i;
                   return (
                     <button key={i} onClick={() => { if (!disabled) { setHandoffReschedDay(i); setHandoffReschedWindow(null); } }}
@@ -825,7 +828,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               {/* Time window */}
               {handoffReschedDay !== null && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
-                  {ALL_HANDOFF_SLOTS.map(slot => {
+                  {ALL_HANDOFF_SLOTS.filter(slot => {
+                    const slotTime = new Date(wDates[handoffReschedDay]);
+                    slotTime.setHours(slot.hour, slot.minute, 0, 0);
+                    return slotTime > new Date(Date.now() + 24 * 60 * 60 * 1000);
+                  }).map(slot => {
                     const active = handoffReschedWindow?.id === slot.id;
                     return (
                       <button key={slot.id} onClick={() => setHandoffReschedWindow(slot)}
