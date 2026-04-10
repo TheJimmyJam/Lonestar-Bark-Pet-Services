@@ -309,7 +309,7 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
             fontWeight: 600, color: "#111827", marginBottom: "4px" }}>Invoices</div>
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280" }}>
-            Create and send invoices to clients. Payments via Stripe — coming soon.
+            Create and send invoices to clients. Clients pay securely via Stripe.
           </p>
         </div>
         {view === "list" && (
