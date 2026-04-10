@@ -240,9 +240,10 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     });
   }, [tab]);
 
-  // Flatten all bookings — split into active and admin-completed
+  // Flatten all bookings — split into active, admin-completed, and stripe-paid
   const allBookings = [];
-  const completedBookings = [];
+  const completedBookings = []; // admin-marked complete (old invoice flow)
+  const stripePaidBookings = []; // paid upfront via Stripe (new flow)
   Object.values(clients).forEach(c => {
     (c.bookings || []).forEach(b => {
       if (b.cancelled) return;
@@ -253,6 +254,10 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
         // Exclude upcoming walks for deleted clients
         if (c.deleted) return;
         allBookings.push({ ...b, clientId: c.id, clientName: c.name, clientEmail: c.email, clientKeyholder: c.keyholder || "" });
+        // Track Stripe-paid confirmed bookings separately for revenue
+        if (b.status === "confirmed" && b.stripeSessionId && b.paidAt) {
+          stripePaidBookings.push({ ...b, clientId: c.id, clientName: c.name, clientEmail: c.email });
+        }
       }
     });
   });
@@ -361,11 +366,15 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
   ];
   const unassigned = upcoming.filter(b => !b.form?.walker || b.form.walker === "");
 
-  // Revenue: only from admin-completed walks
+  // Revenue: admin-completed walks + Stripe-paid confirmed bookings
   const { monday: wMon } = getCurrentWeekRange();
-  const totalRevenue = completedBookings.reduce((s, b) => s + effectivePrice(b), 0);
+  const totalRevenue = completedBookings.reduce((s, b) => s + effectivePrice(b), 0)
+    + stripePaidBookings.reduce((s, b) => s + effectivePrice(b), 0);
   const weekRevenue = completedBookings
     .filter(b => new Date(b.completedAt || b.scheduledDateTime || b.bookedAt) >= wMon)
+    .reduce((s, b) => s + effectivePrice(b), 0)
+    + stripePaidBookings
+    .filter(b => new Date(b.paidAt) >= wMon)
     .reduce((s, b) => s + effectivePrice(b), 0);
 
   // Profit: revenue minus walker payout (flat rates per duration/tier)

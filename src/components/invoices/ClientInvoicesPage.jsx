@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { saveClients, updateInvoiceInDB } from "../../supabase.js";
+import { saveClients, updateInvoiceInDB, loadInvoicesFromDB, mergeInvoicesIntoClients } from "../../supabase.js";
 import { fmt, firstName } from "../../helpers.js";
 import { invoiceStatusMeta, getInvoiceDueDate } from "./invoiceHelpers.js";
 import StripePaymentModal from "./StripePaymentModal.jsx";
@@ -12,6 +12,13 @@ function ClientInvoicesPage({ client, clients, setClients }) {
   const [paidConfirm, setPaidConfirm] = useState(null);
   const [invSearch, setInvSearch] = useState("");
   const [activeTab, setActiveTab] = useState("outstanding");
+
+  // Always reload invoices fresh from DB on mount so Stripe-paid receipts are visible immediately
+  useEffect(() => {
+    loadInvoicesFromDB().then(invRows => {
+      setClients(prev => mergeInvoicesIntoClients(prev, invRows));
+    }).catch(e => console.error("ClientInvoicesPage: failed to reload invoices", e));
+  }, []);
 
   const green = "#C4541A";
   const allInvoices = [...(client.invoices || [])].sort((a, b) =>

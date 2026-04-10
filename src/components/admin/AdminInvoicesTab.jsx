@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
-  saveClients, saveInvoiceToDB, updateInvoiceInDB, deleteInvoiceFromDB, notifyAdmin, sendInvoiceEmail, sendInvoicePaidEmail,
+  saveClients, saveInvoiceToDB, updateInvoiceInDB, deleteInvoiceFromDB, notifyAdmin, sendInvoiceEmail, sendInvoicePaidEmail, loadInvoicesFromDB, mergeInvoicesIntoClients,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout, fmt, firstName,
@@ -14,6 +14,13 @@ import Header from "../shared/Header.jsx";
 function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
   const [view, setView] = useState("list"); // "list" | "create"
   const [filterStatus, setFilterStatus] = useState("all");
+
+  // Reload fresh invoices from DB on mount so Stripe-paid invoices are always visible
+  useEffect(() => {
+    loadInvoicesFromDB().then(invRows => {
+      setClients(prev => mergeInvoicesIntoClients(prev, invRows));
+    }).catch(e => console.error("AdminInvoicesTab: failed to reload invoices", e));
+  }, []);
   const [expandedInv, setExpandedInv] = useState(null);
 
   // Create invoice state
