@@ -2308,12 +2308,20 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       {/* ── BOOK PAGE ── */}
       {page === "book" && (
         <>
+          <style>{`
+            .svc-tab { display: flex; align-items: center; justify-content: center; gap: 8px; }
+            .svc-tab .svc-icon { font-size: 18px; }
+            @media (max-width: 480px) {
+              .svc-tab .svc-icon { display: none; }
+              .svc-tab { font-size: 14px !important; padding: 12px 4px !important; }
+            }
+          `}</style>
           <div style={{ background: "#fff", borderBottom: "1px solid #e4e7ec",
-            display: "flex", justifyContent: "center" }}>
+            display: "grid", gridTemplateColumns: "1fr 1fr 1fr", width: "100%" }}>
             {Object.values(SERVICES).map(s => {
               const active = service === s.id;
               return (
-                <button key={s.id} className="slot-btn"
+                <button key={s.id} className="slot-btn svc-tab"
                   onClick={() => {
                     const pets = s.id === "dog" ? savedDogs : savedCats;
                     setService(s.id);
@@ -2322,26 +2330,27 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     setForm(f => ({ ...f, pet: pets.slice(-1)[0] || "" }));
                     if (step === "form") setStep("pick");
                   }}
-                  style={{ padding: "14px 28px", border: "none",
+                  style={{ padding: "14px 8px", border: "none",
                     borderBottom: active ? `3px solid ${s.color}` : "3px solid transparent",
-                    background: "transparent", color: active ? s.color : "#6b7280",
-                    fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                    fontWeight: active ? 500 : 400, cursor: "pointer",
-                    display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{ fontSize: "18px" }}>{s.icon}</span>{s.label}
+                    borderRight: "1px solid #f0f0f0",
+                    background: active ? `${s.color}08` : "transparent",
+                    color: active ? s.color : "#6b7280",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                    fontWeight: active ? 600 : 400, cursor: "pointer" }}>
+                  <span className="svc-icon">{s.icon}</span>{s.label}
                 </button>
               );
             })}
             {/* Overnight tab */}
-            <button className="slot-btn"
+            <button className="slot-btn svc-tab"
               onClick={() => { setService("overnight"); if (step === "form") setStep("pick"); }}
-              style={{ padding: "14px 28px", border: "none",
+              style={{ padding: "14px 8px", border: "none",
                 borderBottom: service === "overnight" ? "3px solid #7A4D6E" : "3px solid transparent",
-                background: "transparent", color: service === "overnight" ? "#7A4D6E" : "#6b7280",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                fontWeight: service === "overnight" ? 500 : 400, cursor: "pointer",
-                display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "18px" }}>🌙</span>Overnight
+                background: service === "overnight" ? "#7A4D6E08" : "transparent",
+                color: service === "overnight" ? "#7A4D6E" : "#6b7280",
+                fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                fontWeight: service === "overnight" ? 600 : 400, cursor: "pointer" }}>
+              <span className="svc-icon">🌙</span>Overnight
             </button>
           </div>
 
