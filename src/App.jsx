@@ -206,6 +206,7 @@ export default function LonestarBark() {
     }
 
     Promise.all([loadClients(), loadWalkerProfiles(), loadTrades(), loadInvoicesFromDB(), loadAdminList()]).then(([c, wp, tr, invRows, admins]) => {
+      console.log("[LB] Data loaded — clients:", Object.keys(c).length, "walkers:", Object.keys(wp).length, "admins:", admins.length, "invoices:", invRows.length);
       // Inject any admin-created walkers into runtime registries
       injectCustomWalkers(wp);
       // Extend recurring booking instances forward as weeks roll by
@@ -218,8 +219,9 @@ export default function LonestarBark() {
       setTrades(tr);
       setAdminList(admins);
       setLoading(false);
+      console.log("[LB] State set — ready.");
     }).catch(e => {
-      console.error("Initial data load failed:", e);
+      console.error("[LB] Initial data load FAILED:", e);
       setLoading(false);
     });
   }, []);
