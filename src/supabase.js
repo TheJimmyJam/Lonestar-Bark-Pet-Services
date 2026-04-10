@@ -64,7 +64,7 @@ async function loadClients() {
       try {
         const parsed = JSON.parse(row.data);
         // Always inject the PIN so client.pin is reliably available everywhere
-        result[row.pin] = { ...parsed, pin: String(row.pin) };
+        result[row.pin] = parsed;
       } catch {}
     });
     return result;
