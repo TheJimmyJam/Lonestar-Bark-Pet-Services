@@ -66,7 +66,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
   const FAQ_ITEMS = [
     {
       q: "How do I pay?",
-      a: "We accept payments via Stripe or cash. We will send you an invoice after each walk is completed.",
+      a: "We accept payment via Stripe at the time of booking — just book online and pay securely through our checkout. Your spot is confirmed once payment is complete. We also accept cash for recurring clients on a case-by-case basis.",
     },
     {
       q: "How much notice is needed for cancellation?",

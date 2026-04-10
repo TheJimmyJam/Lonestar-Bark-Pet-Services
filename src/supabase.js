@@ -477,7 +477,8 @@ export {
   loadWalkerAvailability, saveWalkerAvailabilityDay, loadAllWalkersAvailability,
   DEFAULT_ADMIN, loadAdminList, saveAdminList, removeAdminFromDB,
   loadContactSubmissions, saveContactSubmission, updateContactSubmission, deleteContactSubmission,
-  sendInvoiceEmail, sendWelcomeEmail, sendBookingConfirmation, sendInvoicePaidEmail, sendWalkerBookingNotification, sendPinResetCode, sendWalkerCancellationNotification,
+  sendInvoiceEmail, sendWelcomeEmail, sendBookingConfirmation, sendInvoicePaidEmail, sendWalkerBookingNotification, sendPinResetCode,
+  createBookingCheckout, createRefund, sendWalkerCancellationNotification,
 };
 
 // ─── Admin List DB Functions ──────────────────────────────────────────────────
@@ -684,6 +685,28 @@ async function sendWalkerCancellationNotification({ walkerName, walkerEmail, cli
   } catch (e) {
     console.error("[sendWalkerCancellationNotification] failed:", e);
   }
+}
+
+async function createBookingCheckout({ clientId, clientName, clientEmail, bookingKey, service, date, day, time, duration, walker, pet, amount }) {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/create-booking-checkout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ clientId, clientName, clientEmail, bookingKey, service, date, day, time, duration, walker, pet, amount }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.url) throw new Error(data.error || "Could not create checkout session");
+  return data; // { url, sessionId }
+}
+
+async function createRefund({ stripeSessionId, reason = "requested_by_customer" }) {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/create-refund`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ stripeSessionId, reason }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Refund failed");
+  return data; // { refundId, status }
 }
 
 async function sendPinResetCode({ name, email, code }) {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { ADD_ONS, ALL_HANDOFF_SLOTS, DAYS, FULL_DAYS, PRICING_TIERS, SERVICES, SERVICE_SLOTS, WALKER_SERVICES } from "../../constants.js";
 import {
-  saveClients, notifyAdmin, sendBookingConfirmation, sendWalkerBookingNotification, sendWalkerCancellationNotification,
+  saveClients, notifyAdmin, sendBookingConfirmation, sendWalkerBookingNotification, sendWalkerCancellationNotification, createBookingCheckout, createRefund,
   loadChatMessages, saveChatMessage, formatChatTime,
   loadClientMessages, saveClientMessage,
   loadAllWalkersAvailability,
@@ -38,13 +38,16 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     try {
       const success = localStorage.getItem("dwi_payment_success");
       const cancelled = localStorage.getItem("dwi_payment_cancelled");
+      const bookingConfirmed = localStorage.getItem("dwi_booking_confirmed");
+      const bookingCancelled = localStorage.getItem("dwi_booking_cancelled");
+      if (bookingConfirmed) { localStorage.removeItem("dwi_booking_confirmed"); return { type: "booking_confirmed" }; }
+      if (bookingCancelled) { localStorage.removeItem("dwi_booking_cancelled"); return { type: "booking_cancelled" }; }
       if (success) {
         localStorage.removeItem("dwi_payment_success");
         try {
           const parsed = JSON.parse(success);
           if (parsed?.invoiceId) return { type: "success", ...parsed };
         } catch {}
-        // legacy: plain invoiceId string
         return { type: "success", invoiceId: success };
       }
       if (cancelled) { localStorage.removeItem("dwi_payment_cancelled"); return { type: "cancelled" }; }
@@ -343,6 +346,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     return e;
   };
 
+  // Whether this service requires upfront payment (meet & greet is free)
+  const requiresPayment = service !== "meet-greet";
+
   const handleSubmit = async () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
@@ -411,44 +417,68 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         notes: form.notes || client.notes || "",
         recurringSchedules: updatedRecurring, [petKey]: mergedPets,
       };
-      const updatedClients = { ...clients, [client.id]: updated };
+      // For paid services: mark pending_payment and redirect to Stripe
+      // For meet & greet (free): mark confirmed and go straight to confirm screen
+      const bookingStatus = requiresPayment ? "pending_payment" : "confirmed";
+      const bookingsWithStatus = allBookings.map(b =>
+        newBookings.some(nb => nb.key === b.key)
+          ? { ...b, status: bookingStatus }
+          : b
+      );
+      const updatedWithStatus = { ...updated, bookings: bookingsWithStatus };
+      const updatedClients = { ...clients, [client.id]: updatedWithStatus };
       setClients(updatedClients);
       await saveClients(updatedClients);
 
-      // Send booking confirmation email + notify admins
+      if (requiresPayment && newBookings.length > 0) {
+        // Redirect to Stripe — emails fire after successful payment return
+        const firstBooking = newBookings[0];
+        const pricedBooking = bookingsWithStatus.find(b => b.key === firstBooking.key);
+        const amount = pricedBooking?.price || 0;
+        try {
+          localStorage.setItem("dwi_stripe_return_clientId", String(client.id));
+          localStorage.setItem("dwi_pending_booking_keys", JSON.stringify(newBookings.map(b => b.key)));
+        } catch {}
+        const { url } = await createBookingCheckout({
+          clientId: client.id,
+          clientName: client.name,
+          clientEmail: client.email,
+          bookingKey: firstBooking.key,
+          service,
+          date: firstBooking.date,
+          day: firstBooking.day,
+          time: firstBooking.slot?.time || "—",
+          duration: firstBooking.slot?.duration || "—",
+          walker: form.walker || "",
+          pet: form.pet,
+          amount,
+        });
+        window.location.href = url;
+        return;
+      }
+
+      // Free service (meet & greet) — send emails and show confirm screen
       const assignedWalkerObj = getAllWalkers(walkerProfiles).find(w => w.name === form.walker);
       newBookings.forEach(b => {
         sendBookingConfirmation({
-          clientName: client.name,
-          clientEmail: client.email,
-          service,
-          date: b.date,
-          day: b.day,
-          time: b.slot?.time || "—",
-          duration: b.slot?.duration || "—",
-          walker: form.walker || "",
-          price: b.price || 0,
-          pet: form.pet,
+          clientName: client.name, clientEmail: client.email,
+          service, date: b.date, day: b.day,
+          time: b.slot?.time || "—", duration: b.slot?.duration || "—",
+          walker: form.walker || "", price: 0, pet: form.pet,
         });
         if (assignedWalkerObj?.email) {
           sendWalkerBookingNotification({
-            walkerName: assignedWalkerObj.name,
-            walkerEmail: assignedWalkerObj.email,
-            clientName: client.name,
-            pet: form.pet,
-            service,
-            date: b.date,
-            day: b.day,
-            time: b.slot?.time || "—",
-            duration: b.slot?.duration || "—",
-            price: b.price || 0,
+            walkerName: assignedWalkerObj.name, walkerEmail: assignedWalkerObj.email,
+            clientName: client.name, pet: form.pet, service,
+            date: b.date, day: b.day, time: b.slot?.time || "—",
+            duration: b.slot?.duration || "—", price: 0,
           });
         }
         notifyAdmin("new_booking", {
           clientName: client.name, pet: form.pet,
           date: b.date, time: b.slot?.time || "—",
           duration: b.slot?.duration || "—",
-          walker: form.walker || "Unassigned", price: b.price || 0,
+          walker: form.walker || "Unassigned", price: 0,
         });
       });
       setSubmitting(false);
@@ -469,19 +499,38 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     setErrors({}); setMapCoords(null); setMapError(null);
   };
 
-  const handleCancel = (bookingKey) => {
+  const handleCancel = async (bookingKey) => {
     const booking = (client.bookings || []).find(b => b.key === bookingKey);
+    const cancelledAt = new Date().toISOString();
     const updated = {
       ...client,
       bookings: applySameDayDiscount(repriceWeekBookings(
-        client.bookings.map(b => b.key === bookingKey ? { ...b, cancelled: true, cancelledAt: new Date().toISOString() } : b)
+        client.bookings.map(b => b.key === bookingKey ? { ...b, cancelled: true, cancelledAt } : b)
       )),
     };
     const updatedClients = { ...clients, [client.id]: updated };
     setClients(updatedClients);
     saveClients(updatedClients);
-    // Notify assigned walker
+
     if (booking) {
+      // Issue Stripe refund if booking was paid and within 24-hour window
+      if (booking.stripeSessionId && booking.paidAt) {
+        const hoursSincePaid = (Date.now() - new Date(booking.paidAt).getTime()) / (1000 * 60 * 60);
+        const scheduledMs = booking.scheduledDateTime ? new Date(booking.scheduledDateTime).getTime() - Date.now() : Infinity;
+        const hoursUntilWalk = scheduledMs / (1000 * 60 * 60);
+        if (hoursUntilWalk >= 24) {
+          // Within free cancellation window — full refund
+          try {
+            await createRefund({ stripeSessionId: booking.stripeSessionId });
+          } catch (e) {
+            console.error("Refund failed:", e);
+            // Don't block the cancellation UI if refund fails — admin can handle manually
+          }
+        }
+        // < 24 hours until walk — no automatic refund per policy
+      }
+
+      // Notify assigned walker
       const walkerName = booking.form?.walker || "";
       const walkerObj = getAllWalkers(walkerProfiles).find(w => w.name === walkerName);
       if (walkerObj?.email) {
@@ -723,6 +772,41 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           ? `${brandLabel} ending in ${paymentBanner.last4}`
           : "Stripe";
 
+        if (paymentBanner.type === "booking_confirmed") return (
+          <div style={{ background: "#f0fdf4", border: "1.5px solid #86efac", borderRadius: "12px",
+            margin: "16px 16px 0", padding: "14px 18px", display: "flex",
+            alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+              <span style={{ fontSize: "20px", marginTop: "1px" }}>🐾</span>
+              <div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                  color: "#15803d", fontWeight: 600, marginBottom: "4px" }}>
+                  Booking confirmed & payment received!
+                </div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#6b7280" }}>
+                  You'll receive a confirmation email shortly. See you soon! 🐶
+                </div>
+              </div>
+            </div>
+            <button onClick={() => setPaymentBanner(null)} style={{ background: "none", border: "none",
+              cursor: "pointer", color: "#9ca3af", fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>✕</button>
+          </div>
+        );
+        if (paymentBanner.type === "booking_cancelled") return (
+          <div style={{ background: "#fef2f2", border: "1.5px solid #fecaca", borderRadius: "12px",
+            margin: "16px 16px 0", padding: "14px 18px", display: "flex",
+            alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "20px" }}>❌</span>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                color: "#dc2626", fontWeight: 600 }}>
+                Booking cancelled — your card was not charged. Try again when you're ready.
+              </div>
+            </div>
+            <button onClick={() => setPaymentBanner(null)} style={{ background: "none", border: "none",
+              cursor: "pointer", color: "#9ca3af", fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>✕</button>
+          </div>
+        );
         return paymentBanner.type === "success" ? (
           <div style={{
             background: "#FDF5EC", border: "1.5px solid #D4A87A",
@@ -3326,9 +3410,13 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   padding: "16px", borderRadius: "12px", border: "none", background: svc.color,
                   color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                   fontWeight: 500, cursor: submitting ? "wait" : "pointer" }}>
-                  {submitting ? "Confirming…" : isRecurring
-                    ? `Confirm Weekly ${svc.label}${form.walker ? ` with ${firstName(form.walker)}` : ""}`
-                    : `Confirm ${svc.label} Appointment${form.walker ? ` with ${firstName(form.walker)}` : ""}`}
+                  {submitting
+                    ? (requiresPayment ? "Redirecting to Payment…" : "Confirming…")
+                    : requiresPayment
+                      ? `🔒 Proceed to Payment`
+                      : isRecurring
+                        ? `Confirm Weekly ${svc.label}${form.walker ? ` with ${firstName(form.walker)}` : ""}`
+                        : `Confirm ${svc.label} Appointment${form.walker ? ` with ${firstName(form.walker)}` : ""}`}
                 </button>
               </div>
             )}

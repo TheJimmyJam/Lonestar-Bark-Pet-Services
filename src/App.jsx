@@ -22,7 +22,7 @@ import CustomerErrorBoundary from "./components/ErrorBoundary.jsx";
 import { generateRecurringBookings, extendRecurringBookings } from "./components/recurring.js";
 import HandoffFlow from "./components/HandoffFlow.jsx";
 import { addrFromString, applySameDayDiscount, dateStrFromDate, getSessionPrice, repriceWeekBookings } from "./helpers.js";
-import { SUPABASE_URL, notifyAdmin, updateInvoiceInDB, sendWelcomeEmail, sendInvoicePaidEmail, sendPinResetCode } from "./supabase.js";
+import { SUPABASE_URL, notifyAdmin, updateInvoiceInDB, sendWelcomeEmail, sendInvoicePaidEmail, sendPinResetCode, createRefund } from "./supabase.js";
 import OfflineBanner from "./components/shared/OfflineBanner.jsx";
 
 export default function LonestarBark() {
@@ -69,9 +69,117 @@ export default function LonestarBark() {
     const token = params.get("verify");
     const payment = params.get("payment");
     const invoiceId = params.get("invoice");
-    const sessionId = params.get("session_id"); // populated once edge fn adds {CHECKOUT_SESSION_ID} to success_url
+    const sessionId = params.get("session_id");
+    const bookingClientId = params.get("clientId");
+    const bookingKey = params.get("bookingKey");
 
-    // Handle Stripe payment return
+    // ── Handle booking payment return ────────────────────────────────────────
+    if (payment === "booking_success" && bookingClientId && bookingKey) {
+      window.history.replaceState({}, "", window.location.pathname);
+      const now = new Date().toISOString();
+      let pendingKeys = [];
+      try { pendingKeys = JSON.parse(localStorage.getItem("dwi_pending_booking_keys") || "[]"); localStorage.removeItem("dwi_pending_booking_keys"); } catch {}
+      let returnClientId = "";
+      try { returnClientId = localStorage.getItem("dwi_stripe_return_clientId") || ""; localStorage.removeItem("dwi_stripe_return_clientId"); } catch {}
+
+      Promise.all([loadClients(), loadWalkerProfiles(), loadTrades(), loadInvoicesFromDB(), loadAdminList()]).then(async ([c, wp, tr, invRows, admins]) => {
+        injectCustomWalkers(wp);
+        const extended = extendRecurringBookings(c);
+        if (extended !== c) saveClients(extended);
+        const withInvoices = mergeInvoicesIntoClients(extended, invRows);
+        setClients(withInvoices);
+        setWalkerProfiles(wp);
+        setTrades(tr);
+        setAdminList(admins);
+
+        const returningClient = withInvoices[bookingClientId] || withInvoices[returnClientId];
+        if (returningClient) {
+          // Mark matching bookings as confirmed and store stripeSessionId
+          const keysToConfirm = pendingKeys.length > 0 ? pendingKeys : [bookingKey];
+          const confirmedBookings = (returningClient.bookings || []).map(b =>
+            keysToConfirm.includes(b.key)
+              ? { ...b, status: "confirmed", paidAt: now, stripeSessionId: sessionId || null }
+              : b
+          );
+          const confirmedClient = { ...returningClient, bookings: confirmedBookings };
+          const updatedClients = { ...withInvoices, [confirmedClient.id]: confirmedClient };
+          setClients(updatedClients);
+          try { await saveClients(updatedClients); } catch (e) { console.error("Failed to confirm booking:", e); }
+
+          setSelectedRole("customer");
+          setShowApp(true);
+          setActiveUser(confirmedClient);
+
+          // Send confirmation emails for all newly confirmed bookings
+          const confirmedNew = confirmedBookings.filter(b => keysToConfirm.includes(b.key));
+          const assignedWalkerObj = Object.values(wp).find(w => w.name === confirmedNew[0]?.form?.walker);
+          confirmedNew.forEach(b => {
+            sendBookingConfirmation({
+              clientName: returningClient.name, clientEmail: returningClient.email,
+              service: b.service, date: b.date, day: b.day,
+              time: b.slot?.time || b.form?.timeSlot?.label || "—",
+              duration: b.slot?.duration || "—",
+              walker: b.form?.walker || "", price: b.price || 0, pet: b.form?.pet || "",
+            });
+            if (assignedWalkerObj?.email) {
+              sendWalkerBookingNotification({
+                walkerName: assignedWalkerObj.name, walkerEmail: assignedWalkerObj.email,
+                clientName: returningClient.name, pet: b.form?.pet || "",
+                service: b.service, date: b.date, day: b.day,
+                time: b.slot?.time || "—", duration: b.slot?.duration || "—", price: b.price || 0,
+              });
+            }
+            notifyAdmin("new_booking", {
+              clientName: returningClient.name, pet: b.form?.pet || "",
+              date: b.date, time: b.slot?.time || "—", duration: b.slot?.duration || "—",
+              walker: b.form?.walker || "Unassigned", price: b.price || 0,
+            });
+          });
+
+          // Show booking confirmed banner
+          try { localStorage.setItem("dwi_booking_confirmed", "1"); } catch {}
+        }
+        setLoading(false);
+      }).catch(e => { console.error("Booking return load failed:", e); setLoading(false); });
+      return;
+    }
+
+    // ── Handle booking payment cancelled ─────────────────────────────────────
+    if (payment === "booking_cancelled" && bookingClientId) {
+      window.history.replaceState({}, "", window.location.pathname);
+      let pendingKeys = [];
+      try { pendingKeys = JSON.parse(localStorage.getItem("dwi_pending_booking_keys") || "[]"); localStorage.removeItem("dwi_pending_booking_keys"); } catch {}
+      let returnClientId = "";
+      try { returnClientId = localStorage.getItem("dwi_stripe_return_clientId") || ""; localStorage.removeItem("dwi_stripe_return_clientId"); } catch {}
+
+      Promise.all([loadClients(), loadWalkerProfiles(), loadTrades(), loadInvoicesFromDB(), loadAdminList()]).then(async ([c, wp, tr, invRows, admins]) => {
+        injectCustomWalkers(wp);
+        const extended = extendRecurringBookings(c);
+        const withInvoices = mergeInvoicesIntoClients(extended, invRows);
+        setClients(withInvoices);
+        setWalkerProfiles(wp);
+        setTrades(tr);
+        setAdminList(admins);
+
+        const returningClient = withInvoices[bookingClientId] || withInvoices[returnClientId];
+        if (returningClient) {
+          const keysToRemove = pendingKeys.length > 0 ? pendingKeys : [bookingKey];
+          const cleanedBookings = (returningClient.bookings || []).filter(b => !keysToRemove.includes(b.key));
+          const cleanedClient = { ...returningClient, bookings: cleanedBookings };
+          const updatedClients = { ...withInvoices, [cleanedClient.id]: cleanedClient };
+          setClients(updatedClients);
+          try { await saveClients(updatedClients); } catch {}
+          setSelectedRole("customer");
+          setShowApp(true);
+          setActiveUser(cleanedClient);
+          try { localStorage.setItem("dwi_booking_cancelled", "1"); } catch {}
+        }
+        setLoading(false);
+      }).catch(e => { console.error("Booking cancel return failed:", e); setLoading(false); });
+      return;
+    }
+
+    // ── Handle invoice payment return ────────────────────────────────────────
     if (payment === "success" && invoiceId) {
       window.history.replaceState({}, "", window.location.pathname);
       const now = new Date().toISOString();
