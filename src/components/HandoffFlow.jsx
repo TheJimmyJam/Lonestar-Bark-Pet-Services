@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { ALL_HANDOFF_SLOTS } from "../constants.js";
+import { ALL_HANDOFF_SLOTS, DAYS, FULL_DAYS, WALKER_SERVICES } from "../constants.js";
 import { saveClients, notifyAdmin } from "../supabase.js";
-import { firstName, addrToString, handoffDayHasValidSlot, handoffSlotIsValid } from "../helpers.js";
+import {
+  firstName, addrToString, addrFromString, generateCode,
+  getWeekDates, dateStrFromDate, formatPhone,
+  handoffDayHasValidSlot, handoffSlotIsValid,
+} from "../helpers.js";
+import AddressFields from "./shared/AddressFields.jsx";
 
 // ─── Meet & Greet Flow ─────────────────────────────────────────────────────────────
 // Find the first available Mon–Fri day that has at least one slot ≥24h out
