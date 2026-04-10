@@ -691,7 +691,7 @@ async function sendWalkerCancellationNotification({ walkerName, walkerEmail, cli
 }
 
 async function createBookingCheckout({ clientId, clientName, clientEmail, bookingKey, service, date, day, time, duration, walker, pet, amount }) {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/super-function`, {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/create-booking-checkout`, {
     method: "POST",
     headers: edgeHeaders,
     body: JSON.stringify({ clientId, clientName, clientEmail, bookingKey, service, date, day, time, duration, walker, pet, amount }),
