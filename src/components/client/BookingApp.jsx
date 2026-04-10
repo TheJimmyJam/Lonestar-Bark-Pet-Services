@@ -185,6 +185,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       const timer = setTimeout(() => setPaymentBanner(null), 20000);
       return () => clearTimeout(timer);
     }
+    // Auto-dismiss booking confirmed banner after 10 seconds
+    if (paymentBanner?.type === "booking_confirmed") {
+      const timer = setTimeout(() => setPaymentBanner(null), 10000);
+      return () => clearTimeout(timer);
+    }
   }, [paymentBanner]);
 
   // ── Contact Us form state ──
