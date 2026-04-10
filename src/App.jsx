@@ -414,8 +414,11 @@ export default function LonestarBark() {
 
   const handleSetClients = (updated) => {
     setClients(updated);
-    if (activeUser && activeUser.role !== "walker" && activeUser.role !== "admin" && updated[activeUser.id]) {
-      setActiveUser(updated[activeUser.id]);
+    if (activeUser && activeUser.role !== "walker" && activeUser.role !== "admin") {
+      // Clients are keyed by PIN — resolve the correct key
+      const pin = activeUser.pin
+        || Object.keys(updated).find(k => updated[k]?.id === activeUser.id);
+      if (pin && updated[pin]) setActiveUser(updated[pin]);
     }
   };
 
@@ -620,7 +623,10 @@ export default function LonestarBark() {
   return (
     <CustomerErrorBoundary>
       <BookingApp
-        client={clients[activeUser.id] || activeUser}
+        client={(() => {
+          const pin = activeUser.pin || Object.keys(clients).find(k => clients[k]?.id === activeUser.id);
+          return (pin && clients[pin]) || activeUser;
+        })()}
         onLogout={handleLogout}
         clients={clients}
         setClients={handleSetClients}

@@ -13,27 +13,31 @@ function ClientInvoicesPage({ client, clients, setClients }) {
   const [selectedInv, setSelectedInv] = useState(null);
   const [payingInv, setPayingInv] = useState(null);
   const [paidConfirm, setPaidConfirm] = useState(null);
-  const [activeTab, setActiveTab] = useState("receipts");
+  const [activeTab, setActiveTab] = useState("paid");
 
   const orange = "#C4541A";
 
   // ── Stripe receipts: confirmed bookings paid at booking time ─────────────
   const stripeReceipts = (client.bookings || [])
     .filter(b => b.stripeSessionId && b.paidAt)
-    .sort((a, b) => new Date(b.paidAt) - new Date(a.paidAt));
+    .map(b => ({ ...b, _type: "stripe" }));
 
-  // ── Admin invoices: sent / paid post-walk invoices ────────────────────────
-  const adminInvoices = [...(client.invoices || [])].sort(
-    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-  );
+  // ── Admin invoices ────────────────────────────────────────────────────────
+  const adminInvoices = [...(client.invoices || [])];
   const outstandingInvoices = adminInvoices.filter(inv => {
     const { effectiveStatus } = invoiceStatusMeta(inv.status, inv.dueDate);
     return effectiveStatus === "sent" || effectiveStatus === "overdue";
   });
-  const paidAdminInvoices = adminInvoices.filter(inv => {
-    const { effectiveStatus } = invoiceStatusMeta(inv.status, inv.dueDate);
-    return effectiveStatus === "paid";
-  });
+  const paidAdminInvoices = adminInvoices
+    .filter(inv => {
+      const { effectiveStatus } = invoiceStatusMeta(inv.status, inv.dueDate);
+      return effectiveStatus === "paid";
+    })
+    .map(inv => ({ ...inv, _type: "admin" }));
+
+  // ── Combined "Paid" list: Stripe bookings + paid admin invoices ───────────
+  const allPaid = [...stripeReceipts, ...paidAdminInvoices]
+    .sort((a, b) => new Date(b.paidAt) - new Date(a.paidAt));
 
   const outstandingTotal = outstandingInvoices.reduce((s, inv) => s + (inv.total || 0), 0);
 
@@ -45,7 +49,10 @@ function ClientInvoicesPage({ client, clients, setClients }) {
         i.id === inv.id ? { ...i, status: "paid", paidAt: now } : i
       ),
     };
-    const updatedClients = { ...clients, [client.id]: updatedClient };
+    const clientPinKey = client.pin
+      || Object.keys(clients).find(k => clients[k]?.id === client.id)
+      || String(client.id);
+    const updatedClients = { ...clients, [clientPinKey]: updatedClient };
     setClients(updatedClients);
     saveClients(updatedClients);
     updateInvoiceInDB(inv.id, { status: "paid", paidAt: now });
@@ -62,9 +69,8 @@ function ClientInvoicesPage({ client, clients, setClients }) {
   };
 
   const tabs = [
-    { key: "receipts", label: "Paid Receipts", count: stripeReceipts.length },
+    { key: "paid", label: "Paid", count: allPaid.length },
     { key: "outstanding", label: "Outstanding", count: outstandingInvoices.length },
-    { key: "history", label: "Invoice History", count: paidAdminInvoices.length },
   ];
 
   return (
@@ -128,10 +134,10 @@ function ClientInvoicesPage({ client, clients, setClients }) {
         </div>
       )}
 
-      {/* ── PAID RECEIPTS (Stripe) ─────────────────────────────────────── */}
-      {activeTab === "receipts" && (
+      {/* ── PAID (Stripe bookings + paid admin invoices) ──────────────── */}
+      {activeTab === "paid" && (
         <>
-          {stripeReceipts.length === 0 ? (
+          {allPaid.length === 0 ? (
             <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "16px",
               padding: "48px 24px", textAlign: "center" }}>
               <div style={{ fontSize: "40px", marginBottom: "14px" }}>🧾</div>
@@ -139,89 +145,96 @@ function ClientInvoicesPage({ client, clients, setClients }) {
                 textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600,
                 color: "#111827", marginBottom: "8px" }}>No paid receipts yet</div>
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
-                Receipts appear here after you book and pay via Stripe.
+                Paid bookings and invoices will show here.
               </div>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {stripeReceipts.map(b => {
-                const isExpanded = selectedInv === b.key;
-                return (
-                  <div key={b.key} style={{
-                    background: "#fff",
-                    border: isExpanded ? `2px solid ${orange}` : "1.5px solid #d1fae5",
-                    borderRadius: "16px", overflow: "hidden", transition: "all 0.15s",
-                    boxShadow: isExpanded ? `0 4px 16px ${orange}12` : "none",
-                  }}>
-                    <button onClick={() => setSelectedInv(isExpanded ? null : b.key)}
-                      style={{ width: "100%", background: "none", border: "none",
-                        cursor: "pointer", padding: "16px 18px", textAlign: "left" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px",
-                            flexWrap: "wrap", marginBottom: "4px" }}>
-                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                              fontWeight: 600, color: "#111827" }}>
-                              {svcLabel(b)} — {b.day}, {b.date}
-                            </span>
-                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-                              fontWeight: 700, color: "#059669", background: "#d1fae5",
-                              border: "1px solid #a7f3d0", borderRadius: "5px", padding: "1px 7px" }}>
-                              PAID
-                            </span>
+              {allPaid.map(item => {
+                if (item._type === "stripe") {
+                  const b = item;
+                  const isExpanded = selectedInv === b.key;
+                  return (
+                    <div key={b.key} style={{
+                      background: "#fff",
+                      border: isExpanded ? `2px solid ${orange}` : "1.5px solid #d1fae5",
+                      borderRadius: "16px", overflow: "hidden", transition: "all 0.15s",
+                      boxShadow: isExpanded ? `0 4px 16px ${orange}12` : "none",
+                    }}>
+                      <button onClick={() => setSelectedInv(isExpanded ? null : b.key)}
+                        style={{ width: "100%", background: "none", border: "none",
+                          cursor: "pointer", padding: "16px 18px", textAlign: "left" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px",
+                              flexWrap: "wrap", marginBottom: "4px" }}>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                                fontWeight: 600, color: "#111827" }}>
+                                {svcLabel(b)} — {b.day}, {b.date}
+                              </span>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                                fontWeight: 700, color: "#059669", background: "#d1fae5",
+                                border: "1px solid #a7f3d0", borderRadius: "5px", padding: "1px 7px" }}>
+                                PAID
+                              </span>
+                            </div>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>
+                              {b.slot?.time || "—"} · {b.slot?.duration || "—"}
+                              {b.form?.walker ? ` · ${b.form.walker}` : ""}
+                              {b.paidAt ? ` · Paid ${new Date(b.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}
+                            </div>
                           </div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>
-                            {b.slot?.time || "—"} · {b.slot?.duration || "—"}
-                            {b.form?.walker ? ` · ${b.form.walker}` : ""}
-                            {b.paidAt ? ` · Paid ${new Date(b.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}
-                          </div>
-                        </div>
-                        <div style={{ flexShrink: 0, textAlign: "right" }}>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                            fontWeight: 700, color: "#059669" }}>
-                            ${(b.price || 0).toFixed(2)}
-                          </div>
-                          <div style={{ fontSize: "16px", color: isExpanded ? orange : "#d1d5db",
-                            transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>⌄</div>
-                        </div>
-                      </div>
-                    </button>
-
-                    {isExpanded && (
-                      <div style={{ borderTop: "1px solid #f3f4f6", padding: "16px 18px" }}>
-                        <div style={{ background: "#f9fafb", borderRadius: "10px", padding: "12px 14px", marginBottom: "12px" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between",
-                            padding: "6px 0", borderBottom: "1px solid #e4e7ec" }}>
-                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#374151" }}>
-                              {svcLabel(b)} — {b.day}, {b.date} at {b.slot?.time || "—"} ({b.slot?.duration || "—"})
-                              {b.form?.pet ? ` — ${b.form.pet}` : ""}
-                            </span>
-                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-                              fontWeight: 600, color: "#111827", flexShrink: 0, marginLeft: "12px" }}>
+                          <div style={{ flexShrink: 0, textAlign: "right" }}>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                              fontWeight: 700, color: "#059669" }}>
                               ${(b.price || 0).toFixed(2)}
-                            </span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between",
-                            alignItems: "center", paddingTop: "10px" }}>
-                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                              fontWeight: 700, color: "#111827" }}>Total Paid</span>
-                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                              fontWeight: 700, color: "#059669" }}>${(b.price || 0).toFixed(2)}</span>
+                            </div>
+                            <div style={{ fontSize: "16px", color: isExpanded ? orange : "#d1d5db",
+                              transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>⌄</div>
                           </div>
                         </div>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-                          color: "#9ca3af", textAlign: "center" }}>
-                          💳 Paid via Stripe · Session {b.stripeSessionId?.slice(0, 18)}…
+                      </button>
+                      {isExpanded && (
+                        <div style={{ borderTop: "1px solid #f3f4f6", padding: "16px 18px" }}>
+                          <div style={{ background: "#f9fafb", borderRadius: "10px", padding: "12px 14px", marginBottom: "12px" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between",
+                              padding: "6px 0", borderBottom: "1px solid #e4e7ec" }}>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#374151" }}>
+                                {svcLabel(b)} — {b.day}, {b.date} at {b.slot?.time || "—"} ({b.slot?.duration || "—"})
+                                {b.form?.pet ? ` — ${b.form.pet}` : ""}
+                              </span>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                                fontWeight: 600, color: "#111827", flexShrink: 0, marginLeft: "12px" }}>
+                                ${(b.price || 0).toFixed(2)}
+                              </span>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between",
+                              alignItems: "center", paddingTop: "10px" }}>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                                fontWeight: 700, color: "#111827" }}>Total Paid</span>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                                fontWeight: 700, color: "#059669" }}>${(b.price || 0).toFixed(2)}</span>
+                            </div>
+                          </div>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                            color: "#9ca3af", textAlign: "center" }}>
+                            💳 Paid via Stripe · Session {b.stripeSessionId?.slice(0, 18)}…
+                          </div>
+                          <div style={{ textAlign: "center", padding: "12px",
+                            fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                            color: "#059669", fontWeight: 600, marginTop: "4px" }}>
+                            ✅ Thank you — you're all set!
+                          </div>
                         </div>
-                        <div style={{ textAlign: "center", padding: "12px",
-                          fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-                          color: "#059669", fontWeight: 600, marginTop: "4px" }}>
-                          ✅ Thank you — you're all set!
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
+                      )}
+                    </div>
+                  );
+                } else {
+                  // Admin invoice (paid)
+                  const inv = item;
+                  return <InvoiceCard key={inv.id} inv={inv} selectedInv={selectedInv}
+                    setSelectedInv={setSelectedInv} setPayingInv={setPayingInv} orange={orange} />;
+                }
               })}
             </div>
           )}
@@ -266,28 +279,6 @@ function ClientInvoicesPage({ client, clients, setClients }) {
         </>
       )}
 
-      {/* ── PAID ADMIN INVOICE HISTORY ─────────────────────────────────── */}
-      {activeTab === "history" && (
-        <>
-          {paidAdminInvoices.length === 0 ? (
-            <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "16px",
-              padding: "48px 24px", textAlign: "center" }}>
-              <div style={{ fontSize: "40px", marginBottom: "14px" }}>🗂️</div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600,
-                color: "#111827", marginBottom: "8px" }}>No invoice history yet</div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
-                Past paid invoices will appear here.
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {paidAdminInvoices.map(inv => <InvoiceCard key={inv.id} inv={inv} selectedInv={selectedInv}
-                setSelectedInv={setSelectedInv} setPayingInv={setPayingInv} orange={orange} />)}
-            </div>
-          )}
-        </>
-      )}
     </div>
   );
 }
