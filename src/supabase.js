@@ -633,7 +633,7 @@ async function sendInvoiceEmail(invoice, clientName, clientEmail) {
     return;
   }
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/clever-action`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-invoice-email`, {
       method: "POST",
       headers: edgeHeaders,
       body: JSON.stringify({ clientName, clientEmail, invoice }),
@@ -663,7 +663,7 @@ async function sendWelcomeEmail(clientName, clientEmail) {
 async function sendBookingConfirmation({ clientName, clientEmail, service, date, day, time, duration, walker, price, pet }) {
   if (!clientEmail) return;
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/swift-task`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-booking-confirmation`, {
       method: "POST",
       headers: edgeHeaders,
       body: JSON.stringify({ clientName, clientEmail, service, date, day, time, duration, walker, price, pet }),
@@ -678,7 +678,7 @@ async function sendBookingConfirmation({ clientName, clientEmail, service, date,
 async function sendWalkerCancellationNotification({ walkerName, walkerEmail, clientName, pet, service, date, day, time, duration }) {
   if (!walkerEmail) return;
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/dynamic-handler`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-walker-cancellation-notification`, {
       method: "POST",
       headers: edgeHeaders,
       body: JSON.stringify({ walkerName, walkerEmail, clientName, pet, service, date, day, time, duration }),
@@ -717,7 +717,7 @@ async function createRefund({ stripeSessionId, reason = "requested_by_customer",
 async function sendPinResetCode({ name, email, code }) {
   if (!email) return;
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/clever-service`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-pin-reset-code`, {
       method: "POST",
       headers: edgeHeaders,
       body: JSON.stringify({ name, email, code }),
@@ -732,7 +732,7 @@ async function sendPinResetCode({ name, email, code }) {
 async function sendWalkerBookingNotification({ walkerName, walkerEmail, clientName, pet, service, date, day, time, duration, price }) {
   if (!walkerEmail) return;
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/swift-service`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-walker-booking-notification`, {
       method: "POST",
       headers: edgeHeaders,
       body: JSON.stringify({ walkerName, walkerEmail, clientName, pet, service, date, day, time, duration, price }),
@@ -747,7 +747,7 @@ async function sendWalkerBookingNotification({ walkerName, walkerEmail, clientNa
 async function sendInvoicePaidEmail({ clientName, clientEmail, amount, invoiceId, paidAt }) {
   if (!clientEmail) return;
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/smooth-api`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-invoice-paid`, {
       method: "POST",
       headers: edgeHeaders,
       body: JSON.stringify({ clientName, clientEmail, amount, invoiceId, paidAt }),
