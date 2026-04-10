@@ -132,7 +132,9 @@ export default function LonestarBark() {
             bookings: confirmedBookings,
             invoices: [...(returningClient.invoices || []), ...newInvoices],
           };
-          const updatedClients = { ...withInvoices, [confirmedClient.id]: confirmedClient };
+          // Use PIN (bookingClientId) as the map key — clients map is always keyed by PIN
+          const pinKey = bookingClientId || returnClientId;
+          const updatedClients = { ...withInvoices, [pinKey]: confirmedClient };
           setClients(updatedClients);
           try { await saveClients(updatedClients); } catch (e) { console.error("Failed to confirm booking:", e); }
 
