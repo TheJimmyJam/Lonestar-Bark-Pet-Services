@@ -32,6 +32,11 @@ import { loadInvoicesFromDB } from "../../supabase.js";
 
 // ─── Main Booking App ─────────────────────────────────────────────────────────
 function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {} }) {
+  // clients map is keyed by PIN — always use this key when writing back to the map
+  const clientPinKey = client.pin
+    || Object.keys(clients).find(k => clients[k]?.id === client.id)
+    || String(client.id);
+
   const [page, setPage] = useState("overview");
   const [service, setService] = useState("dog");
   const [paymentBanner, setPaymentBanner] = useState(() => {
@@ -426,7 +431,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           : b
       );
       const updatedWithStatus = { ...updated, bookings: bookingsWithStatus };
-      const updatedClients = { ...clients, [client.id]: updatedWithStatus };
+      const updatedClients = { ...clients, [clientPinKey]: updatedWithStatus };
       setClients(updatedClients);
       await saveClients(updatedClients);
 
@@ -435,10 +440,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         const firstBooking = newBookings[0];
         const pricedBooking = bookingsWithStatus.find(b => b.key === firstBooking.key);
         const amount = pricedBooking?.price || 0;
-        // Resolve the PIN key — clients map is keyed by PIN, not client.id
-        const clientPin = client.pin
-          || Object.keys(clients).find(k => clients[k]?.id === client.id)
-          || String(client.id);
         try {
           localStorage.setItem("dwi_stripe_return_clientId", clientPin);
           localStorage.setItem("dwi_pending_booking_keys", JSON.stringify(newBookings.map(b => b.key)));
@@ -512,7 +513,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         client.bookings.map(b => b.key === bookingKey ? { ...b, cancelled: true, cancelledAt } : b)
       )),
     };
-    const updatedClients = { ...clients, [client.id]: updated };
+    const updatedClients = { ...clients, [clientPinKey]: updated };
     setClients(updatedClients);
     saveClients(updatedClients);
 
@@ -588,7 +589,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <button onClick={() => {
                 const updated = { ...client, handoffDone: false, handoffInfo: null };
-                const updatedClients = { ...clients, [client.id]: updated };
+                const updatedClients = { ...clients, [clientPinKey]: updated };
                 setClients(updatedClients);
                 saveClients(updatedClients);
                 setHandoffCancelConfirm(false);
@@ -740,7 +741,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     ...(updatedFollowOn !== undefined ? { followOnWalk: updatedFollowOn } : {}),
                   },
                 };
-                const updatedClients = { ...clients, [client.id]: updated };
+                const updatedClients = { ...clients, [clientPinKey]: updated };
                 setClients(updatedClients);
                 saveClients(updatedClients);
                 setHandoffEditOpen(false);
@@ -1401,7 +1402,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
             ...client,
             recurringSchedules: (client.recurringSchedules || []).filter(r => r.id !== recurringId),
           };
-          const updatedClients = { ...clients, [client.id]: updated };
+          const updatedClients = { ...clients, [clientPinKey]: updated };
           setClients(updatedClients);
           saveClients(updatedClients);
         };
@@ -1415,7 +1416,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 : r
             ),
           };
-          const updatedClients = { ...clients, [client.id]: updated };
+          const updatedClients = { ...clients, [clientPinKey]: updated };
           setClients(updatedClients);
           saveClients(updatedClients);
         };
@@ -2291,8 +2292,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     address: form.address || client.address || "",
                     phone: form.phone || client.phone || "",
                   };
-                  setClients({ ...clients, [client.id]: updated });
-                  saveClients({ ...clients, [client.id]: updated });
+                  setClients({ ...clients, [clientPinKey]: updated });
+                  saveClients({ ...clients, [clientPinKey]: updated });
                   setOvernightSubmitting(false);
                   setOvernightStep("confirm");
                 }, 800);

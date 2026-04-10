@@ -10,6 +10,10 @@ import {
 
 // ─── Quick Rebook Banner ──────────────────────────────────────────────────────
 function QuickRebookBanner({ client, service, myBookings, clients, setClients, onBooked }) {
+  // clients map is keyed by PIN — always use this key when writing back
+  const clientPinKey = client.pin
+    || Object.keys(clients).find(k => clients[k]?.id === client.id)
+    || String(client.id);
   const SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
   // ── Derive usual pattern for this service ──────────────────────────────────
@@ -129,7 +133,7 @@ function QuickRebookBanner({ client, service, myBookings, clients, setClients, o
       });
       const allBookings = applySameDayDiscount(repriceWeekBookings([...myBookings, ...newBookings]));
       const updated = { ...client, bookings: allBookings };
-      const updatedClients = { ...clients, [client.id]: updated };
+      const updatedClients = { ...clients, [clientPinKey]: updated };
       setClients(updatedClients);
       saveClients(updatedClients);
       setSubmitting(false);

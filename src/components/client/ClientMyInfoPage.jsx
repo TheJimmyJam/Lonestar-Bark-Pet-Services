@@ -20,6 +20,10 @@ function MyInfoSection({ title, children }) {
 
 function ClientMyInfoPage({ client, clients, setClients }) {
   const green = "#C4541A";
+  // clients map is keyed by PIN — always use this key when writing back
+  const clientPinKey = client.pin
+    || Object.keys(clients).find(k => clients[k]?.id === client.id)
+    || String(client.id);
   const [infoSaved, setInfoSaved] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
 
@@ -104,8 +108,8 @@ function ClientMyInfoPage({ client, clients, setClients }) {
       vetAddress: draft.vetAddress.trim(),
       vetPhone: draft.vetPhone.trim(),
     };
-    setClients({ ...clients, [client.id]: updated });
-    saveClients({ ...clients, [client.id]: updated });
+    setClients({ ...clients, [clientPinKey]: updated });
+    saveClients({ ...clients, [clientPinKey]: updated });
     setInfoSaved(true);
     setTimeout(() => setInfoSaved(false), 3000);
   };
@@ -123,8 +127,8 @@ function ClientMyInfoPage({ client, clients, setClients }) {
   const handlePinConfirm = (pin) => {
     if (pin === newPinTemp) {
       const updated = { ...client, pin };
-      setClients({ ...clients, [client.id]: updated });
-      saveClients({ ...clients, [client.id]: updated });
+      setClients({ ...clients, [clientPinKey]: updated });
+      saveClients({ ...clients, [clientPinKey]: updated });
       setPinSection("done"); setPinError("");
     } else {
       setPinError("PINs don't match. Start over.");
