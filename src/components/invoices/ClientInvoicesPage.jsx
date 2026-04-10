@@ -11,25 +11,34 @@ function ClientInvoicesPage({ client, clients, setClients }) {
   const [payingInv, setPayingInv] = useState(null);
   const [paidConfirm, setPaidConfirm] = useState(null);
   const [invSearch, setInvSearch] = useState("");
+  const [activeTab, setActiveTab] = useState("outstanding");
 
   const green = "#C4541A";
   const allInvoices = [...(client.invoices || [])].sort((a, b) =>
     new Date(b.createdAt) - new Date(a.createdAt)
   );
+
+  const outstandingInvoices = allInvoices.filter(inv => {
+    const { effectiveStatus } = invoiceStatusMeta(inv.status, inv.dueDate);
+    return effectiveStatus === "sent" || effectiveStatus === "overdue";
+  });
+  const paidInvoices = allInvoices.filter(inv => {
+    const { effectiveStatus } = invoiceStatusMeta(inv.status, inv.dueDate);
+    return effectiveStatus === "paid";
+  });
+
+  const tabInvoices = activeTab === "outstanding" ? outstandingInvoices : paidInvoices;
   const invQ = invSearch.toLowerCase();
   const myInvoices = invQ
-    ? allInvoices.filter(inv =>
+    ? tabInvoices.filter(inv =>
         (inv.id || "").toLowerCase().includes(invQ) ||
-        (inv.status || "").toLowerCase().includes(invQ) ||
         String(inv.total || "").includes(invQ) ||
         (inv.weekLabel || "").toLowerCase().includes(invQ) ||
         (inv.items || []).some(it => (it.description || "").toLowerCase().includes(invQ))
       )
-    : allInvoices;
+    : tabInvoices;
 
-  const outstandingTotal = myInvoices
-    .filter(inv => inv.status === "sent")
-    .reduce((s, inv) => s + (inv.total || 0), 0);
+  const outstandingTotal = outstandingInvoices.reduce((s, inv) => s + (inv.total || 0), 0);
 
   const handlePaymentSuccess = (inv) => {
     const now = new Date().toISOString();
@@ -71,6 +80,34 @@ function ClientInvoicesPage({ client, clients, setClients }) {
         </p>
       </div>
 
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: "8px", marginBottom: "18px" }}>
+        {[
+          { key: "outstanding", label: "Outstanding", count: outstandingInvoices.length },
+          { key: "paid", label: "Paid", count: paidInvoices.length },
+        ].map(tab => (
+          <button key={tab.key} onClick={() => { setActiveTab(tab.key); setSelectedInv(null); setInvSearch(""); }}
+            style={{
+              padding: "8px 18px", borderRadius: "20px", border: "1.5px solid",
+              borderColor: activeTab === tab.key ? green : "#e4e7ec",
+              background: activeTab === tab.key ? green : "#fff",
+              color: activeTab === tab.key ? "#fff" : "#6b7280",
+              fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600,
+              cursor: "pointer", display: "flex", alignItems: "center", gap: "6px",
+              transition: "all 0.15s",
+            }}>
+            {tab.label}
+            {tab.count > 0 && (
+              <span style={{
+                background: activeTab === tab.key ? "rgba(255,255,255,0.25)" : "#f3f4f6",
+                color: activeTab === tab.key ? "#fff" : "#374151",
+                borderRadius: "10px", padding: "1px 7px", fontSize: "12px", fontWeight: 700,
+              }}>{tab.count}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
       {/* Search bar */}
       <div style={{ position: "relative", marginBottom: "20px" }}>
         <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)",
@@ -78,7 +115,7 @@ function ClientInvoicesPage({ client, clients, setClients }) {
         <input
           value={invSearch}
           onChange={e => setInvSearch(e.target.value)}
-          placeholder="Search by invoice ID, status, amount…"
+          placeholder={activeTab === "paid" ? "Search receipts…" : "Search invoices…"}
           style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px 10px 36px",
             borderRadius: "10px", border: "1.5px solid #e4e7ec", fontFamily: "'DM Sans', sans-serif",
             fontSize: "15px", color: "#111827", background: "#fff", outline: "none" }}
@@ -103,8 +140,8 @@ function ClientInvoicesPage({ client, clients, setClients }) {
         </div>
       )}
 
-      {/* Outstanding balance */}
-      {outstandingTotal > 0 && (
+      {/* Outstanding balance banner — only on outstanding tab */}
+      {activeTab === "outstanding" && outstandingTotal > 0 && (
         <div style={{ background: "#fffbeb", border: "1.5px solid #fde68a",
           borderRadius: "14px", padding: "18px 20px", marginBottom: "20px",
           display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -113,7 +150,7 @@ function ClientInvoicesPage({ client, clients, setClients }) {
               fontWeight: 700, color: "#b45309", textTransform: "uppercase",
               letterSpacing: "1px", marginBottom: "4px" }}>Outstanding Balance</div>
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-              fontWeight: 600, color: "#111827" }}>${outstandingTotal}</div>
+              fontWeight: 600, color: "#111827" }}>${outstandingTotal.toFixed(2)}</div>
           </div>
           <div style={{ fontSize: "28px" }}>🧾</div>
         </div>
@@ -123,11 +160,15 @@ function ClientInvoicesPage({ client, clients, setClients }) {
       {myInvoices.length === 0 && (
         <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
           borderRadius: "16px", padding: "48px 24px", textAlign: "center" }}>
-          <div style={{ fontSize: "40px", marginBottom: "14px" }}>🧾</div>
+          <div style={{ fontSize: "40px", marginBottom: "14px" }}>{activeTab === "paid" ? "✅" : "🧾"}</div>
           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-            fontWeight: 600, color: "#111827", marginBottom: "8px" }}>No invoices yet</div>
+            fontWeight: 600, color: "#111827", marginBottom: "8px" }}>
+            {activeTab === "paid" ? "No receipts yet" : "No outstanding invoices"}
+          </div>
           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
-            Your paid receipts and invoices will show up here.
+            {activeTab === "paid"
+              ? "Your paid receipts will appear here after each completed booking."
+              : "You're all caught up — no payments due."}
           </div>
         </div>
       )}
