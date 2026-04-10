@@ -17,7 +17,7 @@ import { GLOBAL_STYLES } from "./styles.js";
 import LandingPage from "./components/LandingPage.jsx";
 import RoleSelectScreen from "./components/auth/RoleSelectScreen.jsx";
 import AuthScreen from "./components/auth/AuthScreen.jsx";
-import WalkerAuthScreen, { getAllWalkers, injectCustomWalkers, loadAdminList } from "./components/auth/WalkerAuthScreen.jsx";
+import WalkerAuthScreen, { getAllWalkers, injectCustomWalkers, loadAdminList, saveAdminList } from "./components/auth/WalkerAuthScreen.jsx";
 import AdminAuthScreen from "./components/auth/AdminAuthScreen.jsx";
 import BookingApp from "./components/client/BookingApp.jsx";
 import WalkerDashboard from "./components/walker/WalkerDashboard.jsx";

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { WALKER_SERVICES } from "../../constants.js";
-import { notifyAdmin, loadWalkerProfiles } from "../../supabase.js";
+import { notifyAdmin, loadWalkerProfiles, sbFetch } from "../../supabase.js";
 import { generateCode, formatPhone, emptyAddr, addrToString } from "../../helpers.js";
 import { GLOBAL_STYLES } from "../../styles.js";
 import PinPad from "../shared/PinPad.jsx";
@@ -310,5 +310,5 @@ async function removeAdminFromDB(id) {
 }
 
 
-export { getAllWalkers, injectCustomWalkers, loadAdminList };
+export { getAllWalkers, injectCustomWalkers, loadAdminList, saveAdminList };
 export default WalkerAuthScreen;
