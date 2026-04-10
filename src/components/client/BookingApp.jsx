@@ -3355,7 +3355,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   <div className="pop" style={{ fontSize: "56px", marginBottom: "12px" }}>✓</div>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                     fontWeight: 600, color: "#111827", marginBottom: "6px" }}>
-                    {Array.from(selectedDays).reduce((total, d) => total + (walksByDay[d] || []).filter(w => w.slotId && w.duration).length, 0) > 1
+                    {(walksByDay[activeDay] || []).filter(w => w.slotId && w.duration).length > 1
                       ? "Appointments Confirmed" : "Appointment Confirmed"}
                   </div>
                   <p style={{ fontFamily: "'DM Sans', sans-serif", color: "#6b7280",

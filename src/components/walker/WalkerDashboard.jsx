@@ -92,6 +92,8 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
   // My Info tab state
   const myProfile = (walkerProfiles && walkerProfiles[walker.id]) || {};
   const [infoForm, setInfoForm] = useState({
+    firstName: myProfile.firstName || (walker.name ? walker.name.split(" ")[0] : "") || "",
+    lastName: myProfile.lastName || (walker.name ? walker.name.split(" ").slice(1).join(" ") : "") || "",
     preferredName: myProfile.preferredName || walker.name || "",
     email: myProfile.email || walker.email || "",
     phone: myProfile.phone || "",
@@ -3939,6 +3941,8 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                       fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600,
                     }}>✓ Save</button>
                     <button onClick={() => { setInfoEditing(false); setInfoForm({
+                      firstName: myProfile.firstName || (walker.name ? walker.name.split(" ")[0] : "") || "",
+                      lastName: myProfile.lastName || (walker.name ? walker.name.split(" ").slice(1).join(" ") : "") || "",
                       preferredName: myProfile.preferredName || walker.name || "",
                       email: myProfile.email || walker.email || "",
                       phone: myProfile.phone || "",
@@ -3976,6 +3980,26 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                   fontSize: "15px", letterSpacing: "1.5px", textTransform: "uppercase",
                   color: "#9ca3af", marginBottom: "16px" }}>Identity</div>
 
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
+                  <div>
+                    <label style={labelStyle}>First Name</label>
+                    <input
+                      value={infoForm.firstName}
+                      onChange={e => setInfoForm(f => ({ ...f, firstName: e.target.value }))}
+                      placeholder="First"
+                      style={fieldStyle}
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Last Name</label>
+                    <input
+                      value={infoForm.lastName}
+                      onChange={e => setInfoForm(f => ({ ...f, lastName: e.target.value }))}
+                      placeholder="Last"
+                      style={fieldStyle}
+                    />
+                  </div>
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
                   <div>
                     <label style={labelStyle}>Preferred Name</label>

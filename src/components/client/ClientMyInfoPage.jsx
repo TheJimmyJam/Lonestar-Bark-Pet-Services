@@ -24,7 +24,8 @@ function ClientMyInfoPage({ client, clients, setClients }) {
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
 
   const defaultDraft = () => ({
-    name: client.name || "",
+    firstName: client.firstName || (client.name ? client.name.split(" ")[0] : "") || "",
+    lastName: client.lastName || (client.name ? client.name.split(" ").slice(1).join(" ") : "") || "",
     email: client.email || "",
     phone: client.phone || "",
     addrObj: addrFromString(client.addrObj || client.address || ""),
@@ -43,7 +44,10 @@ function ClientMyInfoPage({ client, clients, setClients }) {
 
   // Dirty check — compare draft to live client
   const isDirty = useMemo(() => {
-    if (draft.name !== (client.name || "")) return true;
+    const clientFirst = client.firstName || (client.name ? client.name.split(" ")[0] : "") || "";
+    const clientLast = client.lastName || (client.name ? client.name.split(" ").slice(1).join(" ") : "") || "";
+    if (draft.firstName !== clientFirst) return true;
+    if (draft.lastName !== clientLast) return true;
     if (draft.email !== (client.email || "")) return true;
     if (draft.phone !== (client.phone || "")) return true;
     const clientAddr = typeof client.address === "string" ? client.address : addrToString(client.addrObj || client.address || "");
@@ -86,7 +90,9 @@ function ClientMyInfoPage({ client, clients, setClients }) {
     const validCats = draft.cats.map(c => c.trim()).filter(Boolean);
     const updated = {
       ...client,
-      name: draft.name.trim() || client.name,
+      firstName: draft.firstName.trim(),
+      lastName: draft.lastName.trim(),
+      name: [draft.firstName.trim(), draft.lastName.trim()].filter(Boolean).join(" ") || client.name,
       email: draft.email.trim().toLowerCase() || client.email,
       phone: draft.phone.trim(),
       address: addrToString(draft.addrObj),
@@ -199,12 +205,21 @@ function ClientMyInfoPage({ client, clients, setClients }) {
       )}
 
       <MyInfoSection title="Personal Info">
-        <div style={{ marginBottom: "12px" }}>
-          <label style={labelStyle}>Full Name</label>
-          <input value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
-            style={fieldStyle}
-            onFocus={e => e.target.style.borderColor = green}
-            onBlur={e => e.target.style.borderColor = "#d1d5db"} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+          <div>
+            <label style={labelStyle}>First Name</label>
+            <input value={draft.firstName} onChange={e => setDraft(d => ({ ...d, firstName: e.target.value }))}
+              style={fieldStyle}
+              onFocus={e => e.target.style.borderColor = green}
+              onBlur={e => e.target.style.borderColor = "#d1d5db"} />
+          </div>
+          <div>
+            <label style={labelStyle}>Last Name</label>
+            <input value={draft.lastName} onChange={e => setDraft(d => ({ ...d, lastName: e.target.value }))}
+              style={fieldStyle}
+              onFocus={e => e.target.style.borderColor = green}
+              onBlur={e => e.target.style.borderColor = "#d1d5db"} />
+          </div>
         </div>
         <div style={{ marginBottom: "12px" }}>
           <label style={labelStyle}>Email Address</label>

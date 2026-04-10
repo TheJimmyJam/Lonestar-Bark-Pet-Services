@@ -170,7 +170,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
               padding: lpMobile ? "7px 14px" : "9px 22px", borderRadius: "8px", border: "none",
               background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
               fontSize: lpMobile ? "13px" : "15px", fontWeight: 500, cursor: "pointer", letterSpacing: "0.3px",
-              whiteSpace: "nowrap",
+              whiteSpace: "nowrap", marginRight: lpMobile ? "4px" : "0",
             }}>Sign Up</button>
           </div>
         </div>

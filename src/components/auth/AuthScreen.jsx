@@ -116,6 +116,8 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
       id: `c_${Date.now()}`,
       email: email.trim().toLowerCase(),
       pin: pendingPin,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
       name: `${firstName.trim()} ${lastName.trim()}`,
       dogs: validDogs,
       cats: validCats,

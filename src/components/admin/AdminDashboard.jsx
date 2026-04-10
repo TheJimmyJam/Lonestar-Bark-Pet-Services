@@ -5657,14 +5657,22 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                           const updatedClients = { ...clients };
                           const c = updatedClients[b.clientId];
                           if (c) {
-                            updatedClients[b.clientId] = {
-                              ...c,
-                              bookings: c.bookings.map(bk =>
-                                bk.key === b.key
-                                  ? { ...bk, form: { ...bk.form, walker: newWalker } }
-                                  : bk
-                              ),
-                            };
+                            if (b.isHandoff) {
+                              // Meet & greet lives in handoffInfo, not bookings
+                              updatedClients[b.clientId] = {
+                                ...c,
+                                handoffInfo: { ...(c.handoffInfo || {}), handoffWalker: newWalker },
+                              };
+                            } else {
+                              updatedClients[b.clientId] = {
+                                ...c,
+                                bookings: (c.bookings || []).map(bk =>
+                                  bk.key === b.key
+                                    ? { ...bk, form: { ...bk.form, walker: newWalker } }
+                                    : bk
+                                ),
+                              };
+                            }
                             setClients(updatedClients);
                             saveClients(updatedClients);
                           }
