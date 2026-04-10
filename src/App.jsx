@@ -138,7 +138,7 @@ export default function LonestarBark() {
             setShowApp(true);
             setActiveUser(returningClient);
           }
-        });
+        }).catch(e => { console.error("Stripe return data load failed:", e); setLoading(false); });
         return; // Skip the second Promise.all below
       }
     } else if (payment === "cancelled") {
@@ -164,7 +164,7 @@ export default function LonestarBark() {
             setShowApp(true);
             setActiveUser(returningClient);
           }
-        });
+        }).catch(e => { console.error("Stripe cancel data load failed:", e); setLoading(false); });
         return;
       }
     }
@@ -217,6 +217,9 @@ export default function LonestarBark() {
       setWalkerProfiles(wp);
       setTrades(tr);
       setAdminList(admins);
+      setLoading(false);
+    }).catch(e => {
+      console.error("Initial data load failed:", e);
       setLoading(false);
     });
   }, []);
