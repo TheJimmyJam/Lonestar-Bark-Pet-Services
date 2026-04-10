@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
-  saveClients, saveInvoiceToDB, updateInvoiceInDB, deleteInvoiceFromDB, notifyAdmin, sendInvoiceEmail,
+  saveClients, saveInvoiceToDB, updateInvoiceInDB, deleteInvoiceFromDB, notifyAdmin, sendInvoiceEmail, sendInvoicePaidEmail,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout, fmt, firstName,
@@ -211,6 +211,17 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
     saveClients(updatedClients);
     // Update in dedicated invoices table
     updateInvoiceInDB(invoiceId, { status: "paid", paidAt });
+    // Send invoice paid email
+    const paid = (c.invoices || []).find(inv => inv.id === invoiceId);
+    if (paid && c.email) {
+      sendInvoicePaidEmail({
+        clientName: c.name || [c.firstName, c.lastName].filter(Boolean).join(" ") || "there",
+        clientEmail: c.email,
+        amount: paid.total ?? paid.amount ?? 0,
+        invoiceId,
+        paidAt,
+      });
+    }
   };
 
   const handleVoidInvoice = (clientId, invoiceId) => {

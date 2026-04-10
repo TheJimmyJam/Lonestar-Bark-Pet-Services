@@ -459,7 +459,7 @@ export {
   loadWalkerAvailability, saveWalkerAvailabilityDay, loadAllWalkersAvailability,
   DEFAULT_ADMIN, loadAdminList, saveAdminList, removeAdminFromDB,
   loadContactSubmissions, saveContactSubmission, updateContactSubmission, deleteContactSubmission,
-  sendInvoiceEmail,
+  sendInvoiceEmail, sendWelcomeEmail, sendBookingConfirmation, sendInvoicePaidEmail,
 };
 
 // ─── Admin List DB Functions ──────────────────────────────────────────────────
@@ -603,7 +603,8 @@ async function deleteContactSubmission(id) {
   }
 }
 
-// ─── Invoice Email ───────────────────────────────────────────────────────────
+// ─── Email Notifications (via Resend) ────────────────────────────────────────
+
 async function sendInvoiceEmail(invoice, clientName, clientEmail) {
   if (!clientEmail) {
     console.warn("[sendInvoiceEmail] No email for client, skipping.");
@@ -619,5 +620,50 @@ async function sendInvoiceEmail(invoice, clientName, clientEmail) {
     console.log(`[sendInvoiceEmail] ${clientEmail} → ${res.status}`, body);
   } catch (e) {
     console.error("[sendInvoiceEmail] failed:", e);
+  }
+}
+
+async function sendWelcomeEmail(clientName, clientEmail) {
+  if (!clientEmail) return;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-welcome-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientName, clientEmail }),
+    });
+    const body = await res.json();
+    console.log(`[sendWelcomeEmail] ${clientEmail} → ${res.status}`, body);
+  } catch (e) {
+    console.error("[sendWelcomeEmail] failed:", e);
+  }
+}
+
+async function sendBookingConfirmation({ clientName, clientEmail, service, date, day, time, duration, walker, price, pet }) {
+  if (!clientEmail) return;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-booking-confirmation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientName, clientEmail, service, date, day, time, duration, walker, price, pet }),
+    });
+    const body = await res.json();
+    console.log(`[sendBookingConfirmation] ${clientEmail} → ${res.status}`, body);
+  } catch (e) {
+    console.error("[sendBookingConfirmation] failed:", e);
+  }
+}
+
+async function sendInvoicePaidEmail({ clientName, clientEmail, amount, invoiceId, paidAt }) {
+  if (!clientEmail) return;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-invoice-paid`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientName, clientEmail, amount, invoiceId, paidAt }),
+    });
+    const body = await res.json();
+    console.log(`[sendInvoicePaidEmail] ${clientEmail} → ${res.status}`, body);
+  } catch (e) {
+    console.error("[sendInvoicePaidEmail] failed:", e);
   }
 }

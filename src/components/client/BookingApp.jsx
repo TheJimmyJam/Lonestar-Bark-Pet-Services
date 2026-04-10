@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { ADD_ONS, ALL_HANDOFF_SLOTS, DAYS, FULL_DAYS, PRICING_TIERS, SERVICES, SERVICE_SLOTS, WALKER_SERVICES } from "../../constants.js";
 import {
-  saveClients, notifyAdmin,
+  saveClients, notifyAdmin, sendBookingConfirmation,
   loadChatMessages, saveChatMessage, formatChatTime,
   loadClientMessages, saveClientMessage,
   loadAllWalkersAvailability,
@@ -412,8 +412,20 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       setClients(updatedClients);
       saveClients(updatedClients);
 
-      // Notify admins
+      // Send booking confirmation email + notify admins
       newBookings.forEach(b => {
+        sendBookingConfirmation({
+          clientName: client.name,
+          clientEmail: client.email,
+          service,
+          date: b.date,
+          day: b.day,
+          time: b.slot?.time || "—",
+          duration: b.slot?.duration || "—",
+          walker: form.walker || "",
+          price: b.price || 0,
+          pet: form.pet,
+        });
         notifyAdmin("new_booking", {
           clientName: client.name, pet: form.pet,
           date: b.date, time: b.slot?.time || "—",

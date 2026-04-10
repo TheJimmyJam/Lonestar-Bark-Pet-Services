@@ -22,7 +22,7 @@ import CustomerErrorBoundary from "./components/ErrorBoundary.jsx";
 import { generateRecurringBookings, extendRecurringBookings } from "./components/recurring.js";
 import HandoffFlow from "./components/HandoffFlow.jsx";
 import { addrFromString, applySameDayDiscount, dateStrFromDate, getSessionPrice, repriceWeekBookings } from "./helpers.js";
-import { SUPABASE_URL, notifyAdmin, updateInvoiceInDB } from "./supabase.js";
+import { SUPABASE_URL, notifyAdmin, updateInvoiceInDB, sendWelcomeEmail, sendInvoicePaidEmail } from "./supabase.js";
 
 export default function LonestarBark() {
   // Ensure proper mobile viewport
@@ -135,6 +135,17 @@ export default function LonestarBark() {
             setSelectedRole("customer");
             setShowApp(true);
             setActiveUser(returningClient);
+            // Send invoice paid confirmation email
+            const paidInvoice = (returningClient.invoices || []).find(inv => inv.id === invoiceId);
+            if (paidInvoice) {
+              sendInvoicePaidEmail({
+                clientName: returningClient.name,
+                clientEmail: returningClient.email,
+                amount: paidInvoice.total,
+                invoiceId,
+                paidAt: now,
+              });
+            }
           }
         }).catch(e => { console.error("Stripe return load failed:", e); setLoading(false); });
         return; // Skip the second Promise.all below
@@ -230,12 +241,13 @@ export default function LonestarBark() {
     saveClients(updated);
     // Show "check your email" screen immediately — don't wait for the email to send
     setPendingVerification({ name: newClient.name, email: newClient.email });
-    // Fire verification email in background
+    // Fire verification + welcome emails in background
     fetch(`${SUPABASE_URL}/functions/v1/send-verification`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: newClient.email, clientName: newClient.name }),
     }).catch(e => console.error("Failed to send verification email:", e));
+    sendWelcomeEmail(newClient.name, newClient.email);
     // Notify admins
     const pets = [...(newClient.dogs || []), ...(newClient.cats || [])].join(", ");
     notifyAdmin("new_client", { name: newClient.name, email: newClient.email, pets });
