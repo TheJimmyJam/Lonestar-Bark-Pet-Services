@@ -2944,6 +2944,23 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
 
                           return (
                             <div key={idx}>
+                              {/* Banner above scroll picker */}
+                              <div style={{
+                                background: "#f0f4ff",
+                                border: "1.5px solid #d0d9f5",
+                                borderRadius: "10px",
+                                padding: "10px 14px",
+                                marginBottom: "10px",
+                                textAlign: "center",
+                                fontFamily: "'DM Sans', sans-serif",
+                                fontSize: "13px",
+                                fontWeight: 600,
+                                color: "#3b4db8",
+                                letterSpacing: "0.01em",
+                              }}>
+                                Select your Date, Time, and length of walk below.
+                              </div>
+
                               {/* Three-column scroll picker: Date | Time | Duration */}
                               <div style={{ display: "flex", border: "1.5px solid #e4e7ec",
                                 borderRadius: "12px", overflow: "hidden", background: "#fff",
