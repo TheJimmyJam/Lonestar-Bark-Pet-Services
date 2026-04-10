@@ -9,8 +9,8 @@ import { GLOBAL_STYLES } from "../../styles.js";
 import useRateLimiter from "../../hooks/useRateLimiter.js";
 
 // ─── Auth Screen ──────────────────────────────────────────────────────────────
-function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onSetPin }) {
-  // stage: "entry" | "login-pin" | "register-pin" | "register-name" | "setpin" | "confirmpin"
+function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onSetPin, onRequestPinReset, onVerifyPinReset }) {
+  // stage: "entry" | "login-pin" | "register-pin" | "register-name" | "setpin" | "confirmpin" | "forgot-email" | "forgot-code"
   const savedEmail = (() => { try { return localStorage.getItem("dwi_saved_email") || ""; } catch { return ""; } })();
   const [stage, setStage] = useState(() => {
     if (savedEmail) {
@@ -30,6 +30,11 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
   const [pendingPin, setPendingPin] = useState("");
   const [newClientPin, setNewClientPin] = useState(null);
   const [isNew, setIsNew] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetEmailError, setResetEmailError] = useState("");
+  const [resetCode, setResetCode] = useState("");
+  const [resetCodeError, setResetCodeError] = useState("");
+  const [resetSending, setResetSending] = useState(false);
   const rateLimiter = useRateLimiter(email);
 
   const pinSectionRef  = useRef(null);
@@ -236,6 +241,103 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
                 fontFamily: "'DM Sans', sans-serif", fontSize: "16px", cursor: "pointer",
                 width: "100%", textAlign: "center" }}>
               Not you? Use a different account
+            </button>
+            <button onClick={() => { setResetEmail(email); setResetEmailError(""); setStage("forgot-email"); }}
+              style={{ marginTop: "10px", background: "none", border: "none", color: "#C4541A",
+                fontFamily: "'DM Sans', sans-serif", fontSize: "14px", cursor: "pointer",
+                width: "100%", textAlign: "center", textDecoration: "underline" }}>
+              Forgot PIN?
+            </button>
+          </div>
+        )}
+
+        {/* Forgot PIN — enter email */}
+        {stage === "forgot-email" && (
+          <div className="fade-up" style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔑</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff", fontSize: "20px",
+              fontWeight: 700, marginBottom: "8px" }}>Reset Your PIN</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa", fontSize: "14px",
+              lineHeight: "1.6", marginBottom: "24px" }}>
+              Enter your email and we'll send you a 6-digit reset code.
+            </div>
+            <input
+              type="email"
+              value={resetEmail}
+              onChange={e => { setResetEmail(e.target.value); setResetEmailError(""); }}
+              placeholder="your@email.com"
+              style={{ width: "100%", padding: "12px 16px", borderRadius: "10px", border: resetEmailError ? "1.5px solid #ef4444" : "1.5px solid #444",
+                background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'DM Sans', sans-serif",
+                fontSize: "15px", boxSizing: "border-box", marginBottom: "8px", outline: "none" }}
+            />
+            {resetEmailError && <div style={{ color: "#ef4444", fontSize: "13px", marginBottom: "8px" }}>{resetEmailError}</div>}
+            <button
+              disabled={resetSending}
+              onClick={async () => {
+                if (!resetEmail.trim()) { setResetEmailError("Enter your email."); return; }
+                setResetSending(true);
+                const ok = await onRequestPinReset(resetEmail.trim().toLowerCase());
+                setResetSending(false);
+                if (!ok) { setResetEmailError("No account found with that email."); return; }
+                setResetCodeError(""); setResetCode(""); setStage("forgot-code");
+              }}
+              style={{ width: "100%", padding: "13px", background: "#C4541A", color: "#fff",
+                border: "none", borderRadius: "10px", fontFamily: "'DM Sans', sans-serif",
+                fontSize: "15px", fontWeight: 700, cursor: resetSending ? "not-allowed" : "pointer",
+                opacity: resetSending ? 0.7 : 1, marginBottom: "12px" }}>
+              {resetSending ? "Sending…" : "Send Reset Code"}
+            </button>
+            <button onClick={() => setStage("login-pin")}
+              style={{ background: "none", border: "none", color: "#ffffffaa", fontFamily: "'DM Sans', sans-serif",
+                fontSize: "14px", cursor: "pointer", textDecoration: "underline" }}>
+              Back to login
+            </button>
+          </div>
+        )}
+
+        {/* Forgot PIN — enter code */}
+        {stage === "forgot-code" && (
+          <div className="fade-up" style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "32px", marginBottom: "12px" }}>📬</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff", fontSize: "20px",
+              fontWeight: 700, marginBottom: "8px" }}>Check Your Email</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa", fontSize: "14px",
+              lineHeight: "1.6", marginBottom: "24px" }}>
+              We sent a 6-digit code to <strong style={{ color: "#fff" }}>{resetEmail}</strong>.<br/>
+              Enter it below. It expires in 15 minutes.
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={resetCode}
+              onChange={e => { setResetCode(e.target.value.replace(/\D/g, "")); setResetCodeError(""); }}
+              placeholder="000000"
+              style={{ width: "100%", padding: "14px 16px", borderRadius: "10px",
+                border: resetCodeError ? "1.5px solid #ef4444" : "1.5px solid #444",
+                background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'DM Sans', sans-serif",
+                fontSize: "28px", fontWeight: 700, letterSpacing: "8px", textAlign: "center",
+                boxSizing: "border-box", marginBottom: "8px", outline: "none" }}
+            />
+            {resetCodeError && <div style={{ color: "#ef4444", fontSize: "13px", marginBottom: "8px" }}>{resetCodeError}</div>}
+            <button
+              onClick={() => {
+                if (resetCode.length !== 6) { setResetCodeError("Enter the 6-digit code from your email."); return; }
+                const valid = onVerifyPinReset(resetEmail, resetCode);
+                if (!valid) { setResetCodeError("Invalid or expired code. Try again."); return; }
+                const client = Object.values(clients).find(c => c.email?.toLowerCase() === resetEmail.toLowerCase());
+                if (client) { setEmail(client.email); }
+                setNewClientPin(null); setStage("setpin");
+              }}
+              style={{ width: "100%", padding: "13px", background: "#C4541A", color: "#fff",
+                border: "none", borderRadius: "10px", fontFamily: "'DM Sans', sans-serif",
+                fontSize: "15px", fontWeight: 700, cursor: "pointer", marginBottom: "12px" }}>
+              Verify Code
+            </button>
+            <button onClick={() => setStage("forgot-email")}
+              style={{ background: "none", border: "none", color: "#ffffffaa", fontFamily: "'DM Sans', sans-serif",
+                fontSize: "14px", cursor: "pointer", textDecoration: "underline" }}>
+              Resend code
             </button>
           </div>
         )}

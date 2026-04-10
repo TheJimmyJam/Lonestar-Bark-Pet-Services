@@ -459,7 +459,7 @@ export {
   loadWalkerAvailability, saveWalkerAvailabilityDay, loadAllWalkersAvailability,
   DEFAULT_ADMIN, loadAdminList, saveAdminList, removeAdminFromDB,
   loadContactSubmissions, saveContactSubmission, updateContactSubmission, deleteContactSubmission,
-  sendInvoiceEmail, sendWelcomeEmail, sendBookingConfirmation, sendInvoicePaidEmail, sendWalkerBookingNotification,
+  sendInvoiceEmail, sendWelcomeEmail, sendBookingConfirmation, sendInvoicePaidEmail, sendWalkerBookingNotification, sendPinResetCode,
 };
 
 // ─── Admin List DB Functions ──────────────────────────────────────────────────
@@ -650,6 +650,21 @@ async function sendBookingConfirmation({ clientName, clientEmail, service, date,
     console.log(`[sendBookingConfirmation] ${clientEmail} → ${res.status}`, body);
   } catch (e) {
     console.error("[sendBookingConfirmation] failed:", e);
+  }
+}
+
+async function sendPinResetCode({ name, email, code }) {
+  if (!email) return;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-pin-reset-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, code }),
+    });
+    const body = await res.json();
+    console.log(`[sendPinResetCode] ${email} → ${res.status}`, body);
+  } catch (e) {
+    console.error("[sendPinResetCode] failed:", e);
   }
 }
 

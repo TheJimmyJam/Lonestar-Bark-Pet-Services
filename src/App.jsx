@@ -22,7 +22,7 @@ import CustomerErrorBoundary from "./components/ErrorBoundary.jsx";
 import { generateRecurringBookings, extendRecurringBookings } from "./components/recurring.js";
 import HandoffFlow from "./components/HandoffFlow.jsx";
 import { addrFromString, applySameDayDiscount, dateStrFromDate, getSessionPrice, repriceWeekBookings } from "./helpers.js";
-import { SUPABASE_URL, notifyAdmin, updateInvoiceInDB, sendWelcomeEmail, sendInvoicePaidEmail } from "./supabase.js";
+import { SUPABASE_URL, notifyAdmin, updateInvoiceInDB, sendWelcomeEmail, sendInvoicePaidEmail, sendPinResetCode } from "./supabase.js";
 
 export default function LonestarBark() {
   // Ensure proper mobile viewport
@@ -367,6 +367,24 @@ export default function LonestarBark() {
         onBackToLanding={() => { setSelectedRole(null); setShowApp(false); setShowLogin(false); }}
         adminList={adminList}
         setAdminList={(updated) => { setAdminList(updated); saveAdminList(updated); }}
+        onRequestPinReset={async (email) => {
+          const admin = adminList.find(a => a.email?.toLowerCase() === email.toLowerCase() && a.status === "active");
+          if (!admin) return false;
+          const code = String(Math.floor(100000 + Math.random() * 900000));
+          const expiry = Date.now() + 15 * 60 * 1000;
+          const updated = adminList.map(a => a.id === admin.id ? { ...a, resetCode: code, resetCodeExpiry: expiry } : a);
+          setAdminList(updated);
+          saveAdminList(updated);
+          await sendPinResetCode({ name: admin.name, email: admin.email, code });
+          return true;
+        }}
+        onVerifyPinReset={(email, code) => {
+          const admin = adminList.find(a => a.email?.toLowerCase() === email.toLowerCase() && a.status === "active");
+          if (!admin || !admin.resetCode) return false;
+          if (admin.resetCode !== code) return false;
+          if (Date.now() > admin.resetCodeExpiry) return false;
+          return true;
+        }}
       />
     );
     return (
@@ -397,10 +415,28 @@ export default function LonestarBark() {
           const updated = { ...walkerProfiles };
           const entry = Object.values(updated).find(p => p.email?.toLowerCase() === email);
           if (entry) {
-            updated[entry.id] = { ...entry, pin, mustSetPin: false };
+            updated[entry.id] = { ...entry, pin, mustSetPin: false, resetCode: null, resetCodeExpiry: null };
             setWalkerProfiles(updated);
             saveWalkerProfiles(updated);
           }
+        }}
+        onRequestPinReset={async (email) => {
+          const entry = Object.values(walkerProfiles).find(p => p.email?.toLowerCase() === email.toLowerCase());
+          if (!entry) return false;
+          const code = String(Math.floor(100000 + Math.random() * 900000));
+          const expiry = Date.now() + 15 * 60 * 1000;
+          const updated = { ...walkerProfiles, [entry.id]: { ...entry, resetCode: code, resetCodeExpiry: expiry } };
+          setWalkerProfiles(updated);
+          saveWalkerProfiles(updated);
+          await sendPinResetCode({ name: entry.name, email: entry.email, code });
+          return true;
+        }}
+        onVerifyPinReset={(email, code) => {
+          const entry = Object.values(walkerProfiles).find(p => p.email?.toLowerCase() === email.toLowerCase());
+          if (!entry || !entry.resetCode) return false;
+          if (entry.resetCode !== code) return false;
+          if (Date.now() > entry.resetCodeExpiry) return false;
+          return true;
         }}
       />
     );
@@ -430,10 +466,28 @@ export default function LonestarBark() {
         onSetPin={(clientId, pin) => {
           const updated = { ...clients };
           if (updated[clientId]) {
-            updated[clientId] = { ...updated[clientId], pin, mustSetPin: false };
+            updated[clientId] = { ...updated[clientId], pin, mustSetPin: false, resetCode: null, resetCodeExpiry: null };
             setClients(updated);
             saveClients(updated);
           }
+        }}
+        onRequestPinReset={async (email) => {
+          const client = Object.values(clients).find(c => c.email?.toLowerCase() === email.toLowerCase());
+          if (!client) return false;
+          const code = String(Math.floor(100000 + Math.random() * 900000));
+          const expiry = Date.now() + 15 * 60 * 1000;
+          const updated = { ...clients, [client.id]: { ...client, resetCode: code, resetCodeExpiry: expiry } };
+          setClients(updated);
+          saveClients(updated);
+          await sendPinResetCode({ name: client.name, email: client.email, code });
+          return true;
+        }}
+        onVerifyPinReset={(email, code) => {
+          const client = Object.values(clients).find(c => c.email?.toLowerCase() === email.toLowerCase());
+          if (!client || !client.resetCode) return false;
+          if (client.resetCode !== code) return false;
+          if (Date.now() > client.resetCodeExpiry) return false;
+          return true;
         }}
       />
     </CustomerErrorBoundary>
