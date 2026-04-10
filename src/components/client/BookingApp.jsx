@@ -77,13 +77,13 @@ function ScrollPicker({ items, value, onChange, itemHeight = 44, visibleCount = 
       <div style={{
         position: "absolute", top: 0, left: 0, right: 0, height: padding * 0.75,
         background: "linear-gradient(to bottom, rgba(255,255,255,0.97), rgba(255,255,255,0))",
-        pointerEvents: "none", zIndex: 2,
+        pointerEvents: "none", zIndex: 3,
       }} />
       {/* Bottom fade */}
       <div style={{
         position: "absolute", bottom: 0, left: 0, right: 0, height: padding * 0.75,
         background: "linear-gradient(to top, rgba(255,255,255,0.97), rgba(255,255,255,0))",
-        pointerEvents: "none", zIndex: 2,
+        pointerEvents: "none", zIndex: 3,
       }} />
       {/* Scrollable list */}
       <div
@@ -91,6 +91,7 @@ function ScrollPicker({ items, value, onChange, itemHeight = 44, visibleCount = 
         onScroll={handleScroll}
         className="sp-scroll"
         style={{
+          position: "relative", zIndex: 2,
           height: "100%", overflowY: "scroll",
           scrollSnapType: "y mandatory",
           paddingTop: `${padding}px`,
@@ -2686,82 +2687,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   <span>We require <strong style={{ color: "#6b7280" }}>24 hours notice</strong> — only dates more than 24 hours from now are available.</span>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
-                    marginBottom: "10px" }}>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
-                      letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af" }}>
-                      Select Date
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <button onClick={() => { if (weekOffset > minWeekOffset) { setWeekOffset(w => w - 1); setActiveDay(0); setSelectedWalk({ slotId: "", duration: null }); } }}
-                        disabled={weekOffset === minWeekOffset}
-                        style={{ width: "30px", height: "30px", borderRadius: "8px",
-                          border: "1.5px solid #e4e7ec", background: weekOffset === minWeekOffset ? "#f9fafb" : "#fff",
-                          color: weekOffset === minWeekOffset ? "#d1d5db" : "#374151",
-                          cursor: weekOffset === minWeekOffset ? "default" : "pointer",
-                          display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}>‹</button>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                        color: "#6b7280", minWidth: "80px", textAlign: "center" }}>
-                        {weekOffset === 0 ? "This week" : weekOffset === 1 ? "Next week" : `+${weekOffset} weeks`}
-                      </div>
-                      <button onClick={() => { setWeekOffset(w => w + 1); setActiveDay(0); setSelectedWalk({ slotId: "", duration: null }); }}
-                        disabled={weekOffset >= 8}
-                        style={{ width: "30px", height: "30px", borderRadius: "8px",
-                          border: "1.5px solid #e4e7ec", background: weekOffset >= 8 ? "#f9fafb" : "#fff",
-                          color: weekOffset >= 8 ? "#d1d5db" : "#374151",
-                          cursor: weekOffset >= 8 ? "default" : "pointer",
-                          display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}>›</button>
-                    </div>
-                  </div>
-                <div className="day-selector">
-                    {DAYS.map((d, i) => {
-                      const isSelected = activeDay === i;
-                      const isActive = activeDay === i;
-                      const cutoff24h = new Date(Date.now() + 24 * 60 * 60 * 1000);
-                      const lastSlotOfDay = new Date(weekDates[i]);
-                      lastSlotOfDay.setHours(19, 0, 0, 0);
-                      const isPast = lastSlotOfDay <= cutoff24h;
-                      const handoffCutoff = client.handoffInfo?.handoffDate
-                        ? new Date(client.handoffInfo.handoffDate)
-                        : null;
-                      const dayDate = new Date(weekDates[i]);
-                      const isBeforeHandoff = handoffCutoff
-                        ? dayDate < new Date(handoffCutoff.getFullYear(), handoffCutoff.getMonth(), handoffCutoff.getDate())
-                        : false;
-                      const disabled = isPast || isBeforeHandoff;
-                      const hasWalks = (walksByDay[i] || []).some(w => w.slotId && w.duration);
-                      return (
-                        <button key={d} onClick={() => {
-                          if (disabled) return;
-                          setActiveDay(i);
-                          setSelectedWalk({ slotId: "", duration: null });
-                        }}
-                          disabled={disabled}
-                          style={{
-                            minWidth: "52px", padding: "10px 6px", borderRadius: "10px",
-                            border: isActive ? `2px solid ${svc.color}` : isSelected ? `2px solid ${svc.color}88` : "2px solid #e4e7ec",
-                            background: isActive ? svc.color : isSelected ? `${svc.color}18` : disabled ? "#f9fafb" : "#fff",
-                            color: isActive ? "#fff" : isSelected ? svc.color : disabled ? "#d1d5db" : "#374151",
-                            cursor: disabled ? "default" : "pointer",
-                            display: "flex", flexDirection: "column", alignItems: "center", gap: "3px",
-                            fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s", position: "relative" }}>
-                          <span style={{ fontSize: "16px", fontWeight: 600, textTransform: "uppercase" }}>{d}</span>
-                          <span style={{ fontSize: "17px", fontWeight: 700 }}>{weekDates[i].getDate()}</span>
-                          {hasWalks && !isActive && (
-                            <span style={{ width: "6px", height: "6px", borderRadius: "50%",
-                              background: svc.color, position: "absolute", bottom: "4px" }} />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
-                    letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px",
-                    display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span>{FULL_DAYS[activeDay]} · {dateStr(activeDay)}</span>
-
-                  </div>
 
                   {/* Walk selector rows */}
                   {(() => {
@@ -2833,6 +2758,39 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     const totalWalksToday = existingTodayCount + selectedWalks.filter(w => w.slotId && w.duration).length;
                     const sameDayDiscountActive = totalWalksToday >= 2;
 
+                    // Build date scroll items (all valid dates, 8 weeks out)
+                    const _today = new Date(); _today.setHours(0,0,0,0);
+                    const _tomorrow = new Date(_today); _tomorrow.setDate(_today.getDate() + 1);
+                    const _cutoff = new Date(Date.now() + 24 * 60 * 60 * 1000);
+                    const _handoffMid = client.handoffInfo?.handoffDate
+                      ? (() => { const h = new Date(client.handoffInfo.handoffDate); return new Date(h.getFullYear(), h.getMonth(), h.getDate()); })()
+                      : null;
+                    const _DN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+                    const _MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    const dateItems = [];
+                    for (let wo = minWeekOffset; wo <= 8; wo++) {
+                      const wDts = getWeekDates(wo);
+                      for (let di = 0; di < 7; di++) {
+                        const d = new Date(wDts[di]);
+                        const lastSlot = new Date(d); lastSlot.setHours(19, 0, 0, 0);
+                        if (lastSlot <= _cutoff) continue;
+                        const dMid = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+                        if (_handoffMid && dMid < _handoffMid) continue;
+                        const label = dMid.getTime() === _today.getTime() ? "Today"
+                          : dMid.getTime() === _tomorrow.getTime() ? "Tomorrow"
+                          : `${_DN[d.getDay()]} ${_MN[d.getMonth()]} ${d.getDate()}`;
+                        dateItems.push({ id: `${wo}-${di}`, label, weekOffset: wo, dayIndex: di });
+                      }
+                    }
+                    const selectedDateId = `${weekOffset}-${activeDay}`;
+                    const colHdr = {
+                      textAlign: "center", padding: "6px 0",
+                      fontFamily: "'DM Sans', sans-serif", fontSize: "10px",
+                      color: "#9ca3af", letterSpacing: "1.5px",
+                      textTransform: "uppercase", fontWeight: 600,
+                      borderBottom: "1px solid #f0f0f0",
+                    };
+
                     return (
                       <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "12px" }}>
                         {selectedWalks.map((walk, idx) => {
@@ -2857,96 +2815,93 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                             : basePrice;
 
                           return (
-                            <div key={idx} style={{ background: "#fff", border: `1.5px solid ${walk.slotId && walk.duration ? svc.color : svc.border}`,
-                              borderRadius: "14px", padding: "14px 16px",
-                              boxShadow: "0 2px 6px rgba(0,0,0,0.04)" }}>
-                              {/* Header */}
-                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                                fontWeight: 600, color: "#374151", marginBottom: "10px" }}>
-                                {service === "cat" ? "Sitting time" : "Walk time"}
-                              </div>
-
-                              {availableSlots.length === 0 ? (
-                                <div style={{ padding: "20px", textAlign: "center",
-                                  fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-                                  color: "#9ca3af", background: "#f9fafb", borderRadius: "10px" }}>
-                                  No times available — try another day.
+                            <div key={idx}>
+                              {/* Three-column scroll picker: Date | Time | Duration */}
+                              <div style={{ display: "flex", border: "1.5px solid #e4e7ec",
+                                borderRadius: "12px", overflow: "hidden", background: "#fff",
+                                marginBottom: walk.slotId && walk.duration && price !== null ? "10px" : "0" }}>
+                                {/* Date column */}
+                                <div style={{ flex: 3, borderRight: "1px solid #e4e7ec" }}>
+                                  <div style={colHdr}>Date</div>
+                                  <ScrollPicker
+                                    key="date-col"
+                                    items={dateItems}
+                                    value={selectedDateId}
+                                    onChange={(val) => {
+                                      const found = dateItems.find(it => it.id === val);
+                                      if (!found) return;
+                                      setWeekOffset(found.weekOffset);
+                                      setActiveDay(found.dayIndex);
+                                      setSelectedWalk({ slotId: "", duration: null });
+                                    }}
+                                    itemHeight={44}
+                                    visibleCount={5}
+                                    renderItem={(item) => item.label}
+                                  />
                                 </div>
-                              ) : (
-                                <>
-                                  {/* Two-column scroll picker */}
-                                  <div style={{ display: "flex", border: "1.5px solid #e4e7ec",
-                                    borderRadius: "12px", overflow: "hidden", background: "#fff",
-                                    marginBottom: "10px" }}>
-                                    {/* Time column */}
-                                    <div style={{ flex: 1, borderRight: "1px solid #e4e7ec" }}>
-                                      <div style={{ textAlign: "center", padding: "6px 0",
-                                        fontFamily: "'DM Sans', sans-serif", fontSize: "10px",
-                                        color: "#9ca3af", letterSpacing: "1.5px",
-                                        textTransform: "uppercase", fontWeight: 600,
-                                        borderBottom: "1px solid #f0f0f0" }}>
-                                        Start Time
-                                      </div>
-                                      <ScrollPicker
-                                        key={`time-${activeDay}-${idx}`}
-                                        items={availableSlots}
-                                        value={walk.slotId}
-                                        onChange={(val) => setSelectedWalks(w => w.map((ww, i) =>
-                                          i === idx ? { ...ww, slotId: val } : ww
-                                        ))}
-                                        itemHeight={44}
-                                        visibleCount={5}
-                                        renderItem={(item) => item.time}
-                                      />
+                                {/* Time column */}
+                                <div style={{ flex: 2, borderRight: "1px solid #e4e7ec" }}>
+                                  <div style={colHdr}>Time</div>
+                                  {availableSlots.length === 0 ? (
+                                    <div style={{ height: `${5 * 44}px`, display: "flex",
+                                      alignItems: "center", justifyContent: "center",
+                                      fontFamily: "'DM Sans', sans-serif",
+                                      fontSize: "11px", color: "#d1d5db",
+                                      textAlign: "center", padding: "0 6px", lineHeight: 1.4 }}>
+                                      None available
                                     </div>
-                                    {/* Duration column */}
-                                    <div style={{ width: "88px" }}>
-                                      <div style={{ textAlign: "center", padding: "6px 0",
-                                        fontFamily: "'DM Sans', sans-serif", fontSize: "10px",
-                                        color: "#9ca3af", letterSpacing: "1.5px",
-                                        textTransform: "uppercase", fontWeight: 600,
-                                        borderBottom: "1px solid #f0f0f0" }}>
-                                        Duration
-                                      </div>
-                                      <ScrollPicker
-                                        key={`dur-${activeDay}-${idx}`}
-                                        items={["30 min", "60 min"]}
-                                        value={walk.duration}
-                                        onChange={(val) => setSelectedWalks(w => w.map((ww, i) =>
-                                          i === idx ? { ...ww, duration: val } : ww
-                                        ))}
-                                        itemHeight={44}
-                                        visibleCount={5}
-                                      />
-                                    </div>
-                                  </div>
-
-                                  {/* Price row */}
-                                  {walk.slotId && walk.duration && price !== null && (
-                                    <div className="fade-up" style={{ display: "flex",
-                                      alignItems: "center", justifyContent: "center", gap: "8px" }}>
-                                      {sameDayDiscountActive && basePrice !== null && (
-                                        <span style={{ fontFamily: "'DM Sans', sans-serif",
-                                          fontSize: "13px", color: "#9ca3af",
-                                          textDecoration: "line-through" }}>
-                                          ${basePrice.toFixed(2)}
-                                        </span>
-                                      )}
-                                      <span style={{ fontFamily: "'DM Sans', sans-serif",
-                                        fontSize: "17px", fontWeight: 700, color: svc.color }}>
-                                        ${price.toFixed(2)}
-                                      </span>
-                                      {sameDayDiscountActive && (
-                                        <span style={{ fontFamily: "'DM Sans', sans-serif",
-                                          fontSize: "11px", fontWeight: 600, color: "#b45309",
-                                          background: "#fffbeb", border: "1px solid #fcd34d",
-                                          borderRadius: "4px", padding: "2px 6px" }}>
-                                          20% off
-                                        </span>
-                                      )}
-                                    </div>
+                                  ) : (
+                                    <ScrollPicker
+                                      key={`time-${activeDay}-${idx}`}
+                                      items={availableSlots}
+                                      value={walk.slotId}
+                                      onChange={(val) => setSelectedWalks(w => w.map((ww, i) =>
+                                        i === idx ? { ...ww, slotId: val } : ww
+                                      ))}
+                                      itemHeight={44}
+                                      visibleCount={5}
+                                      renderItem={(item) => item.time}
+                                    />
                                   )}
-                                </>
+                                </div>
+                                {/* Duration column */}
+                                <div style={{ flex: 1.5 }}>
+                                  <div style={colHdr}>Duration</div>
+                                  <ScrollPicker
+                                    key={`dur-${activeDay}-${idx}`}
+                                    items={["30 min", "60 min"]}
+                                    value={walk.duration}
+                                    onChange={(val) => setSelectedWalks(w => w.map((ww, i) =>
+                                      i === idx ? { ...ww, duration: val } : ww
+                                    ))}
+                                    itemHeight={44}
+                                    visibleCount={5}
+                                  />
+                                </div>
+                              </div>
+                              {/* Price row */}
+                              {walk.slotId && walk.duration && price !== null && (
+                                <div className="fade-up" style={{ display: "flex",
+                                  alignItems: "center", justifyContent: "center", gap: "8px", marginBottom: "4px" }}>
+                                  {sameDayDiscountActive && basePrice !== null && (
+                                    <span style={{ fontFamily: "'DM Sans', sans-serif",
+                                      fontSize: "13px", color: "#9ca3af", textDecoration: "line-through" }}>
+                                      ${basePrice.toFixed(2)}
+                                    </span>
+                                  )}
+                                  <span style={{ fontFamily: "'DM Sans', sans-serif",
+                                    fontSize: "17px", fontWeight: 700, color: svc.color }}>
+                                    ${price.toFixed(2)}
+                                  </span>
+                                  {sameDayDiscountActive && (
+                                    <span style={{ fontFamily: "'DM Sans', sans-serif",
+                                      fontSize: "11px", fontWeight: 600, color: "#b45309",
+                                      background: "#fffbeb", border: "1px solid #fcd34d",
+                                      borderRadius: "4px", padding: "2px 6px" }}>
+                                      20% off
+                                    </span>
+                                  )}
+                                </div>
                               )}
                             </div>
                           );
