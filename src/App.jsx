@@ -119,30 +119,19 @@ export default function LonestarBark() {
           setShowApp(true);
           setActiveUser(confirmedClient);
 
-          // Send confirmation emails for all newly confirmed bookings
+          // Client confirmation + admin notification are sent server-side by the stripe-webhook.
+          // Only fire the walker notification here (requires walkerProfiles lookup).
           const assignedWalkerObj = Object.values(wp).find(w => w.name === confirmedNew[0]?.form?.walker);
-          confirmedNew.forEach(b => {
-            sendBookingConfirmation({
-              clientName: returningClient.name, clientEmail: returningClient.email,
-              service: b.service, date: b.date, day: b.day,
-              time: b.slot?.time || b.form?.timeSlot?.label || "—",
-              duration: b.slot?.duration || "—",
-              walker: b.form?.walker || "", price: b.price || 0, pet: b.form?.pet || "",
-            });
-            if (assignedWalkerObj?.email) {
+          if (assignedWalkerObj?.email) {
+            confirmedNew.forEach(b => {
               sendWalkerBookingNotification({
                 walkerName: assignedWalkerObj.name, walkerEmail: assignedWalkerObj.email,
                 clientName: returningClient.name, pet: b.form?.pet || "",
                 service: b.service, date: b.date, day: b.day,
                 time: b.slot?.time || "—", duration: b.slot?.duration || "—", price: b.price || 0,
               });
-            }
-            notifyAdmin("new_booking", {
-              clientName: returningClient.name, pet: b.form?.pet || "",
-              date: b.date, time: b.slot?.time || "—", duration: b.slot?.duration || "—",
-              walker: b.form?.walker || "Unassigned", price: b.price || 0,
             });
-          });
+          }
 
           // Show booking confirmed banner
           try { localStorage.setItem("dwi_booking_confirmed", "1"); } catch {}

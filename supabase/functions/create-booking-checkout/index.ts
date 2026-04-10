@@ -53,6 +53,15 @@ serve(async (req) => {
     params.append("metadata[clientId]", String(clientId));
     params.append("metadata[bookingKey]", bookingKey);
     params.append("metadata[clientName]", clientName || "");
+    params.append("metadata[clientEmail]", clientEmail || "");
+    params.append("metadata[service]", service || "");
+    params.append("metadata[date]", date || "");
+    params.append("metadata[day]", day || "");
+    params.append("metadata[time]", time || "");
+    params.append("metadata[duration]", duration || "");
+    params.append("metadata[walker]", walker || "");
+    params.append("metadata[pet]", pet || "");
+    params.append("metadata[amount]", String(amount || 0));
     params.append("success_url", successUrl);
     params.append("cancel_url", cancelUrl);
 
