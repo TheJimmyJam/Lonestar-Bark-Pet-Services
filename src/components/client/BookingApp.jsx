@@ -2688,6 +2688,73 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 </div>
 
 
+                {/* Walker selector */}
+                <div style={{ marginBottom: "16px" }}>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
+                    letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px" }}>
+                    Your Walker
+                  </div>
+                  <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "4px" }}>
+                    {(() => {
+                      const all = getAllWalkers(walkerProfiles);
+                      const preferred = client.preferredWalker;
+                      return [
+                        ...all.filter(w => w.name === preferred),
+                        ...all.filter(w => w.name !== preferred),
+                      ];
+                    })().map(w => {
+                      const isPreferred = w.name === (client.preferredWalker || getAllWalkers(walkerProfiles)[0]?.name);
+                      const isSelected = form.walker === w.name;
+                      const walkerDateSlots = walkerAvailability[w.id]?.[selectedDateKey] || [];
+                      const hasAvail = walkerDateSlots.length > 0;
+                      const hasAnyAvail = Object.values(walkerAvailability[w.id] || {}).some(slots => slots.length > 0);
+                      const dotColor = hasAvail ? "#22c55e" : hasAnyAvail ? "#f59e0b" : "#ef4444";
+                      const dotTitle = hasAvail ? "Available this day" : hasAnyAvail ? "Available other days" : "No availability set";
+                      return (
+                        <button key={w.id} onClick={() => setForm(f => ({ ...f, walker: w.name }))}
+                          ref={isPreferred ? preferredWalkerRef : null}
+                          style={{
+                            position: "relative",
+                            flexShrink: 0, padding: "12px 16px", borderRadius: "14px",
+                            border: isSelected ? `2px solid ${w.color}` : "1.5px solid #e4e7ec",
+                            background: isSelected ? `${w.color}10` : "#fff",
+                            cursor: "pointer", textAlign: "left", minWidth: "130px",
+                            boxShadow: isSelected ? `0 2px 12px ${w.color}22` : "none",
+                            transition: "all 0.15s",
+                          }}>
+                          <div title={dotTitle} style={{
+                            position: "absolute", top: "9px", right: "9px",
+                            width: "9px", height: "9px", borderRadius: "50%",
+                            background: dotColor,
+                            boxShadow: `0 0 0 2px #fff, 0 0 0 3px ${dotColor}55`,
+                          }} />
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                            <span style={{ fontSize: "20px" }}>{w.avatar}</span>
+                            {isPreferred && (
+                              <span style={{ fontSize: "16px", background: w.color, color: "#fff",
+                                borderRadius: "4px", padding: "1px 5px", fontFamily: "'DM Sans', sans-serif",
+                                fontWeight: 700, letterSpacing: "0.5px" }}>YOUR WALKER</span>
+                            )}
+                          </div>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                            fontSize: "15px", color: "#111827", marginBottom: "2px" }}>{firstName(w.name)}</div>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                            color: hasAvail ? "#059669" : "#9ca3af" }}>
+                            {hasAvail ? `${walkerDateSlots.length} slots open` : "No availability set"}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {form.walker && walkerSlotsForDay !== null && walkerSlotsForDay.length === 0 && (
+                    <div style={{ marginTop: "10px", padding: "10px 14px", background: "#fff7ed",
+                      border: "1.5px solid #fed7aa", borderRadius: "10px",
+                      fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#b45309" }}>
+                      ⚠️ {form.walker} {walkerHasAnyAvailability ? "hasn't set availability for this day" : "hasn't set any availability yet"}. Try a different date or walker.
+                    </div>
+                  )}
+                </div>
+
                   {/* Walk selector rows */}
                   {(() => {
                     const handoffInfo = client.handoffInfo;
@@ -2928,74 +2995,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     );
                   })()}
 
-                {/* Walker selector */}
-                <div style={{ marginBottom: "24px" }}>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
-                    letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px" }}>
-                    Your Walker
-                  </div>
-                  <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "4px" }}>
-                    {(() => {
-                      const all = getAllWalkers(walkerProfiles);
-                      const preferred = client.preferredWalker;
-                      return [
-                        ...all.filter(w => w.name === preferred),
-                        ...all.filter(w => w.name !== preferred),
-                      ];
-                    })().map(w => {
-                      const isPreferred = w.name === (client.preferredWalker || getAllWalkers(walkerProfiles)[0]?.name);
-                      const isSelected = form.walker === w.name;
-                      const walkerDateSlots = walkerAvailability[w.id]?.[selectedDateKey] || [];
-                      const hasAvail = walkerDateSlots.length > 0;
-                      const hasAnyAvail = Object.values(walkerAvailability[w.id] || {}).some(slots => slots.length > 0);
-                      // Dot: green = slots on selected day, yellow = has avail but not this day, red = none set
-                      const dotColor = hasAvail ? "#22c55e" : hasAnyAvail ? "#f59e0b" : "#ef4444";
-                      const dotTitle = hasAvail ? "Available this day" : hasAnyAvail ? "Available other days" : "No availability set";
-                      return (
-                        <button key={w.id} onClick={() => setForm(f => ({ ...f, walker: w.name }))}
-                          ref={isPreferred ? preferredWalkerRef : null}
-                          style={{
-                            position: "relative",
-                            flexShrink: 0, padding: "12px 16px", borderRadius: "14px",
-                            border: isSelected ? `2px solid ${w.color}` : "1.5px solid #e4e7ec",
-                            background: isSelected ? `${w.color}10` : "#fff",
-                            cursor: "pointer", textAlign: "left", minWidth: "130px",
-                            boxShadow: isSelected ? `0 2px 12px ${w.color}22` : "none",
-                            transition: "all 0.15s",
-                          }}>
-                          {/* Availability dot */}
-                          <div title={dotTitle} style={{
-                            position: "absolute", top: "9px", right: "9px",
-                            width: "9px", height: "9px", borderRadius: "50%",
-                            background: dotColor,
-                            boxShadow: `0 0 0 2px #fff, 0 0 0 3px ${dotColor}55`,
-                          }} />
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                            <span style={{ fontSize: "20px" }}>{w.avatar}</span>
-                            {isPreferred && (
-                              <span style={{ fontSize: "16px", background: w.color, color: "#fff",
-                                borderRadius: "4px", padding: "1px 5px", fontFamily: "'DM Sans', sans-serif",
-                                fontWeight: 700, letterSpacing: "0.5px" }}>YOUR WALKER</span>
-                            )}
-                          </div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                            fontSize: "15px", color: "#111827", marginBottom: "2px" }}>{firstName(w.name)}</div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                            color: hasAvail ? "#059669" : "#9ca3af" }}>
-                            {hasAvail ? `${walkerDateSlots.length} slots open` : "No availability set"}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {form.walker && walkerSlotsForDay !== null && walkerSlotsForDay.length === 0 && (
-                    <div style={{ marginTop: "10px", padding: "10px 14px", background: "#fff7ed",
-                      border: "1.5px solid #fed7aa", borderRadius: "10px",
-                      fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#b45309" }}>
-                      ⚠️ {form.walker} {walkerHasAnyAvailability ? "hasn't set availability for this day" : "hasn't set any availability yet"}. Try a different date or walker.
-                    </div>
-                  )}
-                </div>
 
                 {(() => {
                   const now = new Date();
