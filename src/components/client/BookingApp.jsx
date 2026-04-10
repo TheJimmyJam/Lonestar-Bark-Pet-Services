@@ -436,11 +436,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         const pricedBooking = bookingsWithStatus.find(b => b.key === firstBooking.key);
         const amount = pricedBooking?.price || 0;
         try {
-          localStorage.setItem("dwi_stripe_return_clientId", String(client.id));
+          localStorage.setItem("dwi_stripe_return_clientId", client.pin || String(client.id));
           localStorage.setItem("dwi_pending_booking_keys", JSON.stringify(newBookings.map(b => b.key)));
         } catch {}
         const { url } = await createBookingCheckout({
-          clientId: client.id,
+          clientId: client.pin || String(client.id),
           clientName: client.name,
           clientEmail: client.email,
           bookingKey: firstBooking.key,

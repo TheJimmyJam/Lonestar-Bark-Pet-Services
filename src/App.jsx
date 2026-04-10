@@ -136,8 +136,8 @@ export default function LonestarBark() {
           setClients(updatedClients);
           try { await saveClients(updatedClients); } catch (e) { console.error("Failed to confirm booking:", e); }
 
-          // Persist invoices to DB (fire and forget — state already updated above)
-          newInvoices.forEach(inv => saveInvoiceToDB(inv, confirmedClient.id, returningClient.name, returningClient.email));
+          // Persist invoices to DB — use bookingClientId (PIN) so mergeInvoicesIntoClients can find them
+          newInvoices.forEach(inv => saveInvoiceToDB(inv, bookingClientId, returningClient.name, returningClient.email));
 
           setSelectedRole("customer");
           setShowApp(true);
