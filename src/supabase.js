@@ -2,14 +2,16 @@
 // !! PASTE YOUR VALUES BELOW — replace the placeholder strings !!
 const SUPABASE_URL = "https://mvkmxmhsudqwxrsiifms.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12a214bWhzdWRxd3hyc2lpZm1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTEyMDIsImV4cCI6MjA5MTAyNzIwMn0.dP6PunUbTuuNs3K4CFBVmP8hmV29MBFActwemoDysxk";
+const edgeHeaders = {
+  "Content-Type": "application/json",
+  "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+};
 
 async function notifyAdmin(type, data) {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/notify-admin`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: edgeHeaders,
       body: JSON.stringify({ type, data }),
     });
     const body = await res.json();
@@ -632,7 +634,7 @@ async function sendInvoiceEmail(invoice, clientName, clientEmail) {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/clever-action`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: edgeHeaders,
       body: JSON.stringify({ clientName, clientEmail, invoice }),
     });
     const body = await res.json();
@@ -647,7 +649,7 @@ async function sendWelcomeEmail(clientName, clientEmail) {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/send-welcome-email`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: edgeHeaders,
       body: JSON.stringify({ clientName, clientEmail }),
     });
     const body = await res.json();
@@ -662,7 +664,7 @@ async function sendBookingConfirmation({ clientName, clientEmail, service, date,
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/swift-task`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: edgeHeaders,
       body: JSON.stringify({ clientName, clientEmail, service, date, day, time, duration, walker, price, pet }),
     });
     const body = await res.json();
@@ -677,7 +679,7 @@ async function sendWalkerCancellationNotification({ walkerName, walkerEmail, cli
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/dynamic-handler`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: edgeHeaders,
       body: JSON.stringify({ walkerName, walkerEmail, clientName, pet, service, date, day, time, duration }),
     });
     const body = await res.json();
@@ -690,7 +692,7 @@ async function sendWalkerCancellationNotification({ walkerName, walkerEmail, cli
 async function createBookingCheckout({ clientId, clientName, clientEmail, bookingKey, service, date, day, time, duration, walker, pet, amount }) {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/super-function`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: edgeHeaders,
     body: JSON.stringify({ clientId, clientName, clientEmail, bookingKey, service, date, day, time, duration, walker, pet, amount }),
   });
   const data = await res.json();
@@ -701,7 +703,7 @@ async function createBookingCheckout({ clientId, clientName, clientEmail, bookin
 async function createRefund({ stripeSessionId, reason = "requested_by_customer" }) {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/dynamic-api`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: edgeHeaders,
     body: JSON.stringify({ stripeSessionId, reason }),
   });
   const data = await res.json();
@@ -714,7 +716,7 @@ async function sendPinResetCode({ name, email, code }) {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/clever-service`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: edgeHeaders,
       body: JSON.stringify({ name, email, code }),
     });
     const body = await res.json();
@@ -729,7 +731,7 @@ async function sendWalkerBookingNotification({ walkerName, walkerEmail, clientNa
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/swift-service`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: edgeHeaders,
       body: JSON.stringify({ walkerName, walkerEmail, clientName, pet, service, date, day, time, duration, price }),
     });
     const body = await res.json();
@@ -744,7 +746,7 @@ async function sendInvoicePaidEmail({ clientName, clientEmail, amount, invoiceId
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/smooth-api`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: edgeHeaders,
       body: JSON.stringify({ clientName, clientEmail, amount, invoiceId, paidAt }),
     });
     const body = await res.json();
