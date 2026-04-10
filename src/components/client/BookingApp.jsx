@@ -626,35 +626,67 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const handleCancel = async (bookingKey) => {
     const booking = (client.bookings || []).find(b => b.key === bookingKey);
     const cancelledAt = new Date().toISOString();
-    const updated = {
-      ...client,
-      bookings: applySameDayDiscount(repriceWeekBookings(
-        client.bookings.map(b => b.key === bookingKey ? { ...b, cancelled: true, cancelledAt } : b)
-      )),
+
+    // ── Refund policy ────────────────────────────────────────────────────────
+    // 24h+ before walk → 100% refund
+    // 12–24h before walk → 50% refund
+    // < 12h before walk → no refund
+    let refundPercent = 0;
+    let refundAmount = 0;
+    if (booking?.stripeSessionId && booking?.paidAt && booking?.scheduledDateTime) {
+      const hoursUntilWalk = (new Date(booking.scheduledDateTime).getTime() - Date.now()) / 3600000;
+      if (hoursUntilWalk >= 24) refundPercent = 1.0;
+      else if (hoursUntilWalk >= 12) refundPercent = 0.5;
+      refundAmount = refundPercent > 0
+        ? Math.round((booking.price || 0) * refundPercent * 100) / 100
+        : 0;
+    }
+
+    // Mark booking cancelled immediately (optimistic update)
+    const cancelledBooking = {
+      ...booking,
+      cancelled: true,
+      cancelledAt,
+      ...(refundAmount > 0 ? { refundAmount, refundPercent } : {}),
     };
+    const updatedBookings = applySameDayDiscount(repriceWeekBookings(
+      client.bookings.map(b => b.key === bookingKey ? cancelledBooking : b)
+    ));
+    const updated = { ...client, bookings: updatedBookings };
     const updatedClients = { ...clients, [clientPinKey]: updated };
     setClients(updatedClients);
     saveClients(updatedClients);
 
-    if (booking) {
-      // Issue Stripe refund if booking was paid and within 24-hour window
-      if (booking.stripeSessionId && booking.paidAt) {
-        const hoursSincePaid = (Date.now() - new Date(booking.paidAt).getTime()) / (1000 * 60 * 60);
-        const scheduledMs = booking.scheduledDateTime ? new Date(booking.scheduledDateTime).getTime() - Date.now() : Infinity;
-        const hoursUntilWalk = scheduledMs / (1000 * 60 * 60);
-        if (hoursUntilWalk >= 24) {
-          // Within free cancellation window — full refund
-          try {
-            await createRefund({ stripeSessionId: booking.stripeSessionId });
-          } catch (e) {
-            console.error("Refund failed:", e);
-            // Don't block the cancellation UI if refund fails — admin can handle manually
-          }
+    // Issue Stripe refund if owed
+    if (refundAmount > 0) {
+      try {
+        const result = await createRefund({
+          stripeSessionId: booking.stripeSessionId,
+          amount: refundPercent < 1 ? refundAmount : undefined, // omit for full refund
+          reason: "requested_by_customer",
+        });
+        // Persist refund ID + timestamp on booking
+        if (result?.refundId) {
+          const withRefundId = {
+            ...updated,
+            bookings: updated.bookings.map(b =>
+              b.key === bookingKey
+                ? { ...b, refundId: result.refundId, refundedAt: new Date().toISOString() }
+                : b
+            ),
+          };
+          const clientsWithRefund = { ...updatedClients, [clientPinKey]: withRefundId };
+          setClients(clientsWithRefund);
+          saveClients(clientsWithRefund);
         }
-        // < 24 hours until walk — no automatic refund per policy
+      } catch (e) {
+        console.error("Refund failed:", e);
+        // Cancellation already saved — admin can issue refund manually
       }
+    }
 
-      // Notify assigned walker
+    // Notify assigned walker
+    if (booking) {
       const walkerName = booking.form?.walker || "";
       const walkerObj = getAllWalkers(walkerProfiles).find(w => w.name === walkerName);
       if (walkerObj?.email) {

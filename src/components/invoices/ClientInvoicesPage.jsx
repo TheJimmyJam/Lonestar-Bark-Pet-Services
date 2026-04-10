@@ -39,6 +39,11 @@ function ClientInvoicesPage({ client, clients, setClients }) {
   const allPaid = [...stripeReceipts, ...paidAdminInvoices]
     .sort((a, b) => new Date(b.paidAt) - new Date(a.paidAt));
 
+  // ── Refunds: cancelled paid bookings ─────────────────────────────────────
+  const cancelledPaidBookings = (client.bookings || [])
+    .filter(b => b.cancelled && b.stripeSessionId && b.paidAt)
+    .sort((a, b) => new Date(b.cancelledAt || 0) - new Date(a.cancelledAt || 0));
+
   const outstandingTotal = outstandingInvoices.reduce((s, inv) => s + (inv.total || 0), 0);
 
   const handlePaymentSuccess = (inv) => {
@@ -71,6 +76,7 @@ function ClientInvoicesPage({ client, clients, setClients }) {
   const tabs = [
     { key: "paid", label: "Paid", count: allPaid.length },
     { key: "outstanding", label: "Outstanding", count: outstandingInvoices.length },
+    { key: "refunds", label: "Refunds", count: cancelledPaidBookings.length },
   ];
 
   return (
@@ -235,6 +241,146 @@ function ClientInvoicesPage({ client, clients, setClients }) {
                   return <InvoiceCard key={inv.id} inv={inv} selectedInv={selectedInv}
                     setSelectedInv={setSelectedInv} setPayingInv={setPayingInv} orange={orange} />;
                 }
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── REFUNDS ───────────────────────────────────────────────────── */}
+      {activeTab === "refunds" && (
+        <>
+          {cancelledPaidBookings.length === 0 ? (
+            <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "16px",
+              padding: "48px 24px", textAlign: "center" }}>
+              <div style={{ fontSize: "40px", marginBottom: "14px" }}>💸</div>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600,
+                color: "#111827", marginBottom: "8px" }}>No cancellations</div>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
+                Cancelled bookings and any refunds will appear here.
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {/* Refund policy reminder */}
+              <div style={{ background: "#f9fafb", border: "1.5px solid #e4e7ec", borderRadius: "12px",
+                padding: "12px 16px", fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#6b7280" }}>
+                📋 <strong style={{ color: "#374151" }}>Refund policy:</strong> 24h+ → full refund · 12–24h → 50% refund · under 12h → no refund
+              </div>
+
+              {cancelledPaidBookings.map(b => {
+                const hasRefund = b.refundAmount > 0;
+                const noRefund = !hasRefund;
+                const isPartial = hasRefund && b.refundPercent < 1;
+                const isExpanded = selectedInv === b.key + "_refund";
+
+                const statusLabel = hasRefund
+                  ? (isPartial ? "50% REFUND" : "REFUNDED")
+                  : "NO REFUND";
+                const statusColor = hasRefund ? "#2563eb" : "#9ca3af";
+                const statusBg   = hasRefund ? "#eff6ff" : "#f9fafb";
+                const statusBorder = hasRefund ? "#bfdbfe" : "#e4e7ec";
+
+                const cancelDate = b.cancelledAt
+                  ? new Date(b.cancelledAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                  : "—";
+
+                return (
+                  <div key={b.key} style={{
+                    background: "#fff",
+                    border: isExpanded ? `2px solid ${orange}` : `1.5px solid ${hasRefund ? "#bfdbfe" : "#e4e7ec"}`,
+                    borderRadius: "16px", overflow: "hidden", transition: "all 0.15s",
+                    boxShadow: isExpanded ? `0 4px 16px ${orange}12` : "none",
+                  }}>
+                    <button onClick={() => setSelectedInv(isExpanded ? null : b.key + "_refund")}
+                      style={{ width: "100%", background: "none", border: "none",
+                        cursor: "pointer", padding: "16px 18px", textAlign: "left" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
+                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                              fontWeight: 600, color: "#111827" }}>
+                              {svcLabel(b)} — {b.day}, {b.date}
+                            </span>
+                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                              fontWeight: 700, color: statusColor, background: statusBg,
+                              border: `1px solid ${statusBorder}`, borderRadius: "5px", padding: "1px 7px" }}>
+                              {statusLabel}
+                            </span>
+                          </div>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>
+                            {b.slot?.time || "—"} · {b.slot?.duration || "—"}
+                            {b.form?.walker ? ` · ${b.form.walker}` : ""}
+                            {` · Cancelled ${cancelDate}`}
+                          </div>
+                        </div>
+                        <div style={{ flexShrink: 0, textAlign: "right" }}>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                            fontWeight: 700, color: hasRefund ? "#2563eb" : "#9ca3af" }}>
+                            {hasRefund ? `−$${b.refundAmount.toFixed(2)}` : "$0.00"}
+                          </div>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                            color: "#9ca3af", textDecoration: "line-through" }}>
+                            ${(b.price || 0).toFixed(2)}
+                          </div>
+                          <div style={{ fontSize: "16px", color: isExpanded ? orange : "#d1d5db",
+                            transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>⌄</div>
+                        </div>
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div style={{ borderTop: "1px solid #f3f4f6", padding: "16px 18px" }}>
+                        <div style={{ background: "#f9fafb", borderRadius: "10px", padding: "12px 14px", marginBottom: "12px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between",
+                            padding: "6px 0", borderBottom: "1px solid #e4e7ec" }}>
+                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#374151" }}>
+                              {svcLabel(b)} — {b.day}, {b.date} at {b.slot?.time || "—"}
+                            </span>
+                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                              fontWeight: 600, color: "#6b7280", flexShrink: 0, marginLeft: "12px",
+                              textDecoration: "line-through" }}>
+                              ${(b.price || 0).toFixed(2)}
+                            </span>
+                          </div>
+                          {hasRefund ? (
+                            <div style={{ display: "flex", justifyContent: "space-between",
+                              alignItems: "center", paddingTop: "10px" }}>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                                fontWeight: 700, color: "#111827" }}>
+                                Refund {isPartial ? "(50%)" : "(100%)"}
+                              </span>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                                fontWeight: 700, color: "#2563eb" }}>
+                                ${b.refundAmount.toFixed(2)}
+                              </span>
+                            </div>
+                          ) : (
+                            <div style={{ paddingTop: "10px", fontFamily: "'DM Sans', sans-serif",
+                              fontSize: "14px", color: "#9ca3af" }}>
+                              Cancelled within 12 hours — no refund per policy.
+                            </div>
+                          )}
+                        </div>
+                        {b.refundedAt && (
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                            color: "#9ca3af", textAlign: "center" }}>
+                            💳 Refund issued {new Date(b.refundedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                            {b.refundId ? ` · ${b.refundId.slice(0, 14)}…` : ""}
+                          </div>
+                        )}
+                        {!hasRefund && (
+                          <div style={{ textAlign: "center", fontFamily: "'DM Sans', sans-serif",
+                            fontSize: "14px", color: "#9ca3af", paddingTop: "8px" }}>
+                            Questions? Email <a href="mailto:hello@lonestarbarkco.com"
+                              style={{ color: orange, textDecoration: "none" }}>hello@lonestarbarkco.com</a>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
               })}
             </div>
           )}

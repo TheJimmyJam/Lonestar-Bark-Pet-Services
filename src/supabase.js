@@ -702,15 +702,16 @@ async function createBookingCheckout({ clientId, clientName, clientEmail, bookin
   return data; // { url, sessionId }
 }
 
-async function createRefund({ stripeSessionId, reason = "requested_by_customer" }) {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/dynamic-api`, {
+async function createRefund({ stripeSessionId, reason = "requested_by_customer", amount }) {
+  // amount: optional dollar value for partial refund (e.g. 12.50); omit for full refund
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/create-refund`, {
     method: "POST",
     headers: edgeHeaders,
-    body: JSON.stringify({ stripeSessionId, reason }),
+    body: JSON.stringify({ stripeSessionId, reason, ...(amount !== undefined ? { amount } : {}) }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Refund failed");
-  return data; // { refundId, status }
+  return data; // { refundId, status, amount }
 }
 
 async function sendPinResetCode({ name, email, code }) {

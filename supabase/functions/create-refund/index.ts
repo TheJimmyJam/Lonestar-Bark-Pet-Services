@@ -13,7 +13,9 @@ serve(async (req) => {
   }
 
   try {
-    const { stripeSessionId, reason } = await req.json();
+    const { stripeSessionId, reason, amount } = await req.json();
+    // amount: optional dollar amount for partial refund (e.g. 12.50)
+    // omit for full refund
 
     if (!stripeSessionId) {
       return new Response(JSON.stringify({ error: "stripeSessionId required" }), {
@@ -33,10 +35,14 @@ serve(async (req) => {
       });
     }
 
-    // Issue the refund
+    // Build refund params
     const refundParams = new URLSearchParams();
     refundParams.append("payment_intent", session.payment_intent);
-    if (reason) refundParams.append("reason", reason); // "duplicate" | "fraudulent" | "requested_by_customer"
+    if (reason) refundParams.append("reason", reason);
+    // Partial refund: convert dollars → cents
+    if (amount !== undefined && amount !== null) {
+      refundParams.append("amount", String(Math.round(amount * 100)));
+    }
 
     const refundRes = await fetch("https://api.stripe.com/v1/refunds", {
       method: "POST",
@@ -56,7 +62,7 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ refundId: refund.id, status: refund.status }), {
+    return new Response(JSON.stringify({ refundId: refund.id, status: refund.status, amount: refund.amount / 100 }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
