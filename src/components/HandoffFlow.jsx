@@ -489,6 +489,18 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
                           🐕 Walk: {followOn.time} ({followOnDuration})
                         </span>
                       </div>
+                      <div style={{
+                        marginTop: "12px", padding: "10px 14px", borderRadius: "8px",
+                        background: "#fff", border: "1px solid #D4A87A",
+                        display: "flex", alignItems: "center", gap: "8px",
+                      }}>
+                        <span style={{ fontSize: "16px", flexShrink: 0 }}>💳</span>
+                        <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                          color: "#6b7280", lineHeight: "1.5" }}>
+                          After confirming your meet & greet, you'll be taken to Stripe to pay for the walk.
+                          Your meet & greet is always free.
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -589,7 +601,7 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
               background: "#0B1423", color: "#fff", fontFamily: "'DM Sans', sans-serif",
               fontSize: "15px", fontWeight: 500, cursor: "pointer",
             }}>
-              Start Booking Services →
+              {addFollowOnWalk && getFollowOnTime() ? "Confirm & Pay for Walk →" : "Start Booking Services →"}
             </button>
           </div>
         )}
