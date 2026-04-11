@@ -1720,7 +1720,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
 
         // Merge real future bookings + recurring instances, dedupe by scheduledDateTime
         const allFuture = [...futureWalks, ...recurringInstances, ...(handoffAppt ? [handoffAppt] : [])]
-          .sort((a, b) => new Date(a.scheduledDateTime) - new Date(b.scheduledDateTime));
+          .sort((a, b) => {
+            if (a.isHandoff) return -1;
+            if (b.isHandoff) return 1;
+            return new Date(a.scheduledDateTime) - new Date(b.scheduledDateTime);
+          });
 
         // Group all future by week
         const weekGroups = {};
@@ -1989,7 +1993,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                           </div>
                         </div>
                         <div style={{ padding: "10px 18px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                          {group.bookings.sort((a,b) => new Date(a.scheduledDateTime) - new Date(b.scheduledDateTime)).map((b, i) => {
+                          {group.bookings.sort((a, b) => {
+                            if (a.isHandoff) return -1;
+                            if (b.isHandoff) return 1;
+                            return new Date(a.scheduledDateTime) - new Date(b.scheduledDateTime);
+                          }).map((b, i) => {
                             if (b.isHandoff) return (
                               <div key={i} style={{ background: "#F5EFF3", borderRadius: "10px", padding: "10px 12px",
                                 border: "1.5px solid #C4A0B8" }}>
