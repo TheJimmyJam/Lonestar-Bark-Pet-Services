@@ -15,7 +15,7 @@ serve(async (req) => {
   }
 
   try {
-    const { clientName, clientEmail, invoice } = await req.json();
+    const { clientName, clientEmail, invoice, walkPhotos = [] } = await req.json();
     const firstName = (clientName || "").split(" ")[0] || "there";
 
     const total = Number(invoice?.total ?? 0);
@@ -139,6 +139,24 @@ serve(async (req) => {
             </table>
           </td>
         </tr>
+
+        <!-- ── Walk Photos ───────────────────────────────────── -->
+        ${(walkPhotos as string[]).length > 0 ? `
+        <tr>
+          <td style="padding:0 40px 28px;">
+            <div style="color:#C4541A;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;">Photos from today's walk 📸</div>
+            <table cellpadding="0" cellspacing="0" width="100%">
+              <tr>
+                ${(walkPhotos as string[]).slice(0, 4).map((url: string, i: number) => `
+                  <td style="width:${Math.floor(100 / Math.min((walkPhotos as string[]).length, 4))}%;padding:0 4px ${i === 0 ? 'padding-left:0' : ''};">
+                    <img src="${url}" alt="Walk photo ${i + 1}"
+                      style="width:100%;height:120px;object-fit:cover;border-radius:10px;display:block;border:1.5px solid #f3f4f6;" />
+                  </td>`).join("")}
+              </tr>
+            </table>
+            ${(walkPhotos as string[]).length > 4 ? `<p style="margin:8px 0 0;color:#9ca3af;font-size:12px;text-align:center;">+ ${(walkPhotos as string[]).length - 4} more photo${(walkPhotos as string[]).length - 4 !== 1 ? "s" : ""}</p>` : ""}
+          </td>
+        </tr>` : ""}
 
         <!-- ── CTA ────────────────────────────────────────────── -->
         <tr>

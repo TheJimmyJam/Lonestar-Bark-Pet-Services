@@ -486,6 +486,7 @@ async function loadAllWalkersAvailability(startDate, endDate) {
 export {
   SUPABASE_URL, SUPABASE_ANON_KEY,
   notifyAdmin, sbFetch,
+  uploadWalkPhoto,
   logAuditEvent, loadAuditLog,
   loadClients, saveClients,
   loadWalkerProfiles, saveWalkerProfiles,
@@ -694,9 +695,30 @@ async function deleteContactSubmission(id) {
   }
 }
 
+// ─── Walk Photo Upload (Supabase Storage) ────────────────────────────────────
+
+async function uploadWalkPhoto(bookingKey, file) {
+  // Sanitise the booking key so it's safe as a storage path segment
+  const safeKey = bookingKey.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const ext  = file.name.split(".").pop() || "jpg";
+  const path = `${safeKey}/${Date.now()}.${ext}`;
+
+  const { data, error } = await supabase.storage
+    .from("walk-photos")
+    .upload(path, file, { cacheControl: "3600", upsert: false });
+
+  if (error) throw error;
+
+  const { data: urlData } = supabase.storage
+    .from("walk-photos")
+    .getPublicUrl(data.path);
+
+  return urlData.publicUrl;
+}
+
 // ─── Email Notifications (via Resend) ────────────────────────────────────────
 
-async function sendInvoiceEmail(invoice, clientName, clientEmail) {
+async function sendInvoiceEmail(invoice, clientName, clientEmail, walkPhotos = []) {
   if (!clientEmail) {
     console.warn("[sendInvoiceEmail] No email for client, skipping.");
     return;
@@ -705,7 +727,7 @@ async function sendInvoiceEmail(invoice, clientName, clientEmail) {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/send-invoice-email`, {
       method: "POST",
       headers: edgeHeaders,
-      body: JSON.stringify({ clientName, clientEmail, invoice }),
+      body: JSON.stringify({ clientName, clientEmail, invoice, walkPhotos }),
     });
     const body = await res.json();
     console.log(`[sendInvoiceEmail] ${clientEmail} → ${res.status}`, body);

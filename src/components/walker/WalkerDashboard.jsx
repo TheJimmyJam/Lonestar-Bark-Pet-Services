@@ -7,6 +7,7 @@ import {
   loadWalkerAvailability, saveWalkerAvailabilityDay,
   loadCompletedPayrolls, saveCompletedPayrolls,
   loadClientMessages, saveClientMessage, saveInvoiceToDB,
+  uploadWalkPhoto, sendInvoiceEmail,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout,
@@ -85,6 +86,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
   const [completingWalkKey, setCompletingWalkKey] = useState(null);
   const [undoingWalkKey, setUndoingWalkKey] = useState(null);
   const [earlyAckKey, setEarlyAckKey] = useState(null);
+  const [photoUploading, setPhotoUploading] = useState({}); // { [bookingKey]: bool }
   const [confirmMarkAll, setConfirmMarkAll] = useState(false);
   const [claimingKey, setClaimingKey] = useState(null);
   const [showAddClient, setShowAddClient] = useState(false); // key of walk pending claim confirmation
@@ -333,10 +335,13 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
       completedBooking
     );
 
-    // Persist new invoice to the dedicated DB table
+    // Persist new invoice to the dedicated DB table + send email with any walk photos
     const existingIds = new Set((clientRecord.invoices || []).map(i => i.id));
     const newInv = (updatedClientRecord.invoices || []).find(i => !existingIds.has(i.id));
-    if (newInv) saveInvoiceToDB(newInv, clientId, clientRecord.name || "", clientRecord.email || "");
+    if (newInv) {
+      saveInvoiceToDB(newInv, clientId, clientRecord.name || "", clientRecord.email || "");
+      sendInvoiceEmail(newInv, clientRecord.name || "", clientRecord.email || "", targetBooking.walkPhotos || []);
+    }
 
     const updated = { ...clients, [clientId]: updatedClientRecord };
     setClients(updated);
@@ -2006,6 +2011,109 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                         </div>
                       )}
                     </div>
+
+                    {/* ── Walk Photos ─────────────────────────────────── */}
+                    {!b.walkerMarkedComplete && (() => {
+                      const photos = b.walkPhotos || [];
+                      const isUploading = photoUploading[b.key] || false;
+
+                      const handlePhotoSelect = async (e) => {
+                        const files = Array.from(e.target.files || []);
+                        if (!files.length) return;
+                        setPhotoUploading(prev => ({ ...prev, [b.key]: true }));
+                        try {
+                          const urls = await Promise.all(files.map(f => uploadWalkPhoto(b.key, f)));
+                          const newPhotos = [...photos, ...urls];
+                          // Save URLs directly onto the booking so they persist
+                          const cid = b.clientId || Object.keys(clients).find(cid2 =>
+                            (clients[cid2].bookings || []).some(bk => bk.key === b.key)
+                          );
+                          if (cid && clients[cid]) {
+                            const updatedClient = {
+                              ...clients[cid],
+                              bookings: (clients[cid].bookings || []).map(bk =>
+                                bk.key === b.key ? { ...bk, walkPhotos: newPhotos } : bk
+                              ),
+                            };
+                            const updatedClients = { ...clients, [cid]: updatedClient };
+                            setClients(updatedClients);
+                            saveClients(updatedClients);
+                          }
+                        } catch (err) {
+                          alert("Photo upload failed. Please try again.");
+                          console.error("[uploadWalkPhoto]", err);
+                        } finally {
+                          setPhotoUploading(prev => ({ ...prev, [b.key]: false }));
+                          e.target.value = "";
+                        }
+                      };
+
+                      const removePhoto = (url) => {
+                        const newPhotos = photos.filter(p => p !== url);
+                        const cid = b.clientId || Object.keys(clients).find(cid2 =>
+                          (clients[cid2].bookings || []).some(bk => bk.key === b.key)
+                        );
+                        if (cid && clients[cid]) {
+                          const updatedClient = {
+                            ...clients[cid],
+                            bookings: (clients[cid].bookings || []).map(bk =>
+                              bk.key === b.key ? { ...bk, walkPhotos: newPhotos } : bk
+                            ),
+                          };
+                          const updatedClients = { ...clients, [cid]: updatedClient };
+                          setClients(updatedClients);
+                          saveClients(updatedClients);
+                        }
+                      };
+
+                      return (
+                        <div style={{ marginBottom: "14px" }}>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
+                            fontSize: "16px", letterSpacing: "1.5px", textTransform: "uppercase",
+                            color: "#9ca3af", marginBottom: "10px" }}>📸 Walk Photos</div>
+
+                          {/* Thumbnail grid */}
+                          {photos.length > 0 && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "10px" }}>
+                              {photos.map((url, i) => (
+                                <div key={i} style={{ position: "relative", width: "80px", height: "80px" }}>
+                                  <img src={url} alt={`Walk photo ${i + 1}`}
+                                    style={{ width: "80px", height: "80px", objectFit: "cover",
+                                      borderRadius: "10px", border: "1.5px solid #e4e7ec" }} />
+                                  <button onClick={() => removePhoto(url)}
+                                    style={{ position: "absolute", top: "-6px", right: "-6px",
+                                      width: "22px", height: "22px", borderRadius: "50%",
+                                      background: "#dc2626", color: "#fff", border: "none",
+                                      fontSize: "13px", fontWeight: 700, cursor: "pointer",
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                      lineHeight: 1, padding: 0 }}>×</button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Upload button */}
+                          <label style={{ display: "inline-flex", alignItems: "center", gap: "8px",
+                            padding: "9px 16px", borderRadius: "9px",
+                            border: "1.5px dashed #8ECAD4", background: "#EBF4F6",
+                            color: "#3D6B7A", fontFamily: "'DM Sans', sans-serif",
+                            fontSize: "15px", fontWeight: 600, cursor: isUploading ? "not-allowed" : "pointer",
+                            opacity: isUploading ? 0.6 : 1 }}>
+                            {isUploading ? "⏳ Uploading…" : "📷 Add photos"}
+                            <input type="file" accept="image/*" multiple
+                              disabled={isUploading}
+                              onChange={handlePhotoSelect}
+                              style={{ display: "none" }} />
+                          </label>
+                          {photos.length > 0 && (
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                              color: "#9ca3af", marginTop: "6px" }}>
+                              {photos.length} photo{photos.length !== 1 ? "s" : ""} will be included in the client email.
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Action row — Confirm Walk only (Mark as Completed moved to top) */}
                     {showConfirmBtn && (

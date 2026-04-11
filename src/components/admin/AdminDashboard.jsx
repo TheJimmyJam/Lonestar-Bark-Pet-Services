@@ -298,7 +298,10 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     const newInv = (updatedClientRecord.invoices || []).find(i => !existingIds.has(i.id));
     if (newInv) {
       saveInvoiceToDB(newInv, booking.clientId, booking.clientName || "", booking.clientEmail || "");
-      sendInvoiceEmail(newInv, booking.clientName || c.name, booking.clientEmail || c.email);
+      // Pull walkPhotos from the live booking record (walker may have uploaded photos)
+      const liveBooking = (c.bookings || []).find(bk => bk.key === booking.key);
+      const walkPhotos = liveBooking?.walkPhotos || booking.walkPhotos || [];
+      sendInvoiceEmail(newInv, booking.clientName || c.name, booking.clientEmail || c.email, walkPhotos);
     }
 
     const updatedClients = { ...clients, [clientId]: updatedClientRecord };
