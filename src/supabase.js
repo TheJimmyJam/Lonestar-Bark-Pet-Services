@@ -1,11 +1,25 @@
 // ─── Supabase Configuration & Storage Functions ──────────────────────────────
 // !! PASTE YOUR VALUES BELOW — replace the placeholder strings !!
+import { createClient } from "@supabase/supabase-js";
+
 const SUPABASE_URL = "https://mvkmxmhsudqwxrsiifms.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12a214bWhzdWRxd3hyc2lpZm1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTEyMDIsImV4cCI6MjA5MTAyNzIwMn0.dP6PunUbTuuNs3K4CFBVmP8hmV29MBFActwemoDysxk";
 const edgeHeaders = {
   "Content-Type": "application/json",
   "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
 };
+
+// Supabase JS client — used only for client-facing Auth (email/password,
+// Google OAuth, password reset). All other data access in this file still
+// uses the raw REST helper `sbFetch` so existing flows are untouched.
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: "lsbc-auth-session",
+  },
+});
 
 async function notifyAdmin(type, data) {
   try {
@@ -483,6 +497,12 @@ export {
   loadContactSubmissions, saveContactSubmission, updateContactSubmission, deleteContactSubmission,
   sendInvoiceEmail, sendWelcomeEmail, sendBookingConfirmation, sendInvoicePaidEmail, sendWalkerBookingNotification, sendPinResetCode,
   createBookingCheckout, createRefund, sendWalkerCancellationNotification, sendClientCancellationNotification,
+  // Supabase Auth (clients only)
+  supabase,
+  authSignUpWithEmail, authSignInWithEmail, authSignInWithGoogle,
+  authSendPasswordReset, authUpdatePassword, authSignOut,
+  authGetSession, authOnChange,
+  loadClientByUserId, synthPinFromUserId,
 };
 
 // ─── Audit Log ───────────────────────────────────────────────────────────────
@@ -817,4 +837,95 @@ async function sendInvoicePaidEmail({ clientName, clientEmail, amount, invoiceId
   } catch (e) {
     console.error("[sendInvoicePaidEmail] failed:", e);
   }
+}
+
+// ─── Supabase Auth (clients only) ────────────────────────────────────────────
+// Staff (admin, walker) still use PIN-based auth. These helpers are ONLY
+// wired into the client portal auth flow.
+
+// Sign up with email + password. Supabase will send a confirmation email
+// using the template configured in the dashboard. `emailRedirectTo` is where
+// the user lands after clicking the confirmation link.
+async function authSignUpWithEmail({ email, password }) {
+  const { data, error } = await supabase.auth.signUp({
+    email: email.trim().toLowerCase(),
+    password,
+    options: {
+      emailRedirectTo: `${window.location.origin}/?auth=verified`,
+    },
+  });
+  return { data, error };
+}
+
+async function authSignInWithEmail({ email, password }) {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email.trim().toLowerCase(),
+    password,
+  });
+  return { data, error };
+}
+
+async function authSignInWithGoogle() {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${window.location.origin}/?auth=oauth`,
+    },
+  });
+  return { data, error };
+}
+
+async function authSendPasswordReset(email) {
+  const { data, error } = await supabase.auth.resetPasswordForEmail(
+    email.trim().toLowerCase(),
+    { redirectTo: `${window.location.origin}/?auth=reset` }
+  );
+  return { data, error };
+}
+
+async function authUpdatePassword(newPassword) {
+  const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+  return { data, error };
+}
+
+async function authSignOut() {
+  try { await supabase.auth.signOut(); } catch (e) { console.error("[authSignOut]", e); }
+}
+
+async function authGetSession() {
+  const { data } = await supabase.auth.getSession();
+  return data?.session || null;
+}
+
+function authOnChange(callback) {
+  const { data } = supabase.auth.onAuthStateChange((event, session) => {
+    callback(event, session);
+  });
+  return data?.subscription;
+}
+
+// Look up a client row by Supabase Auth user_id. Returns the parsed client
+// object with its PIN attached, or null if not found.
+async function loadClientByUserId(userId) {
+  if (!userId) return null;
+  try {
+    const rows = await sbFetch(`clients?user_id=eq.${encodeURIComponent(userId)}&select=pin,email,data,user_id`);
+    if (!rows || rows.length === 0) return null;
+    const row = rows[0];
+    try {
+      const parsed = JSON.parse(row.data);
+      return { ...parsed, pin: row.pin, user_id: row.user_id };
+    } catch {
+      return null;
+    }
+  } catch (e) {
+    console.error("[loadClientByUserId] failed:", e);
+    return null;
+  }
+}
+
+// Generate a synthetic PIN for Supabase-Auth clients. The clients map is
+// keyed by PIN throughout the app, so we need a stable unique value.
+function synthPinFromUserId(userId) {
+  return `au_${String(userId || "").replace(/-/g, "").slice(0, 10)}`;
 }

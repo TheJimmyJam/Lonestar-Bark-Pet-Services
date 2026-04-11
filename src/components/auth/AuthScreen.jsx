@@ -1,442 +1,511 @@
-import { useState, useEffect, useRef } from "react";
-import { SERVICES } from "../../constants.js";
-import { notifyAdmin } from "../../supabase.js";
-import { addrToString, emptyAddr, firstName, formatPhone, generateCode } from "../../helpers.js";
-import PinPad from "../shared/PinPad.jsx";
+import { useState, useRef, useEffect } from "react";
 import LogoBadge from "../shared/LogoBadge.jsx";
-import AddressFields from "../shared/AddressFields.jsx";
 import { GLOBAL_STYLES } from "../../styles.js";
-import useRateLimiter from "../../hooks/useRateLimiter.js";
+import {
+  authSignUpWithEmail,
+  authSignInWithEmail,
+  authSignInWithGoogle,
+  authSendPasswordReset,
+} from "../../supabase.js";
 
-// ─── Auth Screen ──────────────────────────────────────────────────────────────
-function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onSetPin, onRequestPinReset, onVerifyPinReset }) {
-  // stage: "entry" | "login-pin" | "register-pin" | "register-name" | "setpin" | "confirmpin" | "forgot-email" | "forgot-code"
-  const savedEmail = (() => { try { return localStorage.getItem("dwi_saved_email") || ""; } catch { return ""; } })();
-  const [stage, setStage] = useState(() => {
-    if (savedEmail) {
-      const existing = Object.values(clients).find(c => c.email === savedEmail);
-      if (existing) return existing.mustSetPin ? "setpin" : "login-pin";
-    }
-    return "entry";
-  });
-  const [email, setEmail] = useState(savedEmail);
-  const [emailError, setEmailError] = useState("");
-  const [pinError, setPinError] = useState("");
+// ─── Client Auth Screen (Supabase Auth) ───────────────────────────────────────
+// Clients authenticate with email + password or Google OAuth. Staff (admins,
+// walkers) still use PIN-based auth via their own screens.
+//
+// Stages:
+//   "login"        → email + password + Google + "Sign up" + "Forgot password"
+//   "signup"       → email + password + confirm + Google + "Log in"
+//   "register-name"→ after a successful email signup, collect name/pets
+//   "forgot"       → enter email, send reset link, show "check your email"
+function AuthScreen({ onRegister, onBack, onBackToLanding, pendingRegistration, clearPendingRegistration }) {
+  // If we arrived here with a Supabase Auth session but no matching client
+  // row (fresh Google signup), App.jsx passes `pendingRegistration` with the
+  // auth user so we can skip straight to the name/pets form.
+  const [stage, setStage] = useState(() => (pendingRegistration ? "register-name" : "login"));
+
+  // Auth form state
+  const [email, setEmail] = useState(pendingRegistration?.email || "");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [formError, setFormError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Register-name stage state
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [dogs, setDogs] = useState([""]);
   const [cats, setCats] = useState([""]);
-  
-  const [pendingPin, setPendingPin] = useState("");
-  const [newClientPin, setNewClientPin] = useState(null);
-  const [isNew, setIsNew] = useState(false);
-  const [resetEmail, setResetEmail] = useState("");
-  const [resetEmailError, setResetEmailError] = useState("");
-  const [resetCode, setResetCode] = useState("");
-  const [resetCodeError, setResetCodeError] = useState("");
-  const [resetSending, setResetSending] = useState(false);
-  const rateLimiter = useRateLimiter(email);
 
-  const pinSectionRef  = useRef(null);
-  const nameSectionRef = useRef(null);
+  const formRef = useRef(null);
 
-  // Scroll to PIN pad when stage changes to login-pin or register-pin
   useEffect(() => {
-    if (stage === "login-pin" || stage === "register-pin" || stage === "setpin" || stage === "confirmpin") {
-      setTimeout(() => pinSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
-    }
     if (stage === "register-name") {
-      setTimeout(() => nameSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
     }
   }, [stage]);
 
-  const handleEmailSubmit = () => {
+  // ── Handlers ────────────────────────────────────────────────────────────────
+  const handleLogin = async () => {
+    setFormError("");
     const e = email.trim().toLowerCase();
-    if (!e || !e.includes("@")) { setEmailError("Please enter a valid email address."); return; }
-    setEmailError("");
-    const existing = Object.values(clients).find(c => c.email === e);
-    if (existing) {
-      setIsNew(false);
-      setStage(existing.mustSetPin ? "setpin" : "login-pin");
-    }
-    else { setIsNew(true); setStage("register-pin"); }
-  };
-
-  const handleLoginPin = (pin) => {
-    if (rateLimiter.locked) return;
-    const client = Object.values(clients).find(c => c.email === email.trim().toLowerCase());
-    if (client && client.pin === pin) {
-      if (client.emailVerified === false) {
-        setPinError("Please verify your email before logging in. Check your inbox for the verification link.");
-        return;
-      }
-      rateLimiter.clearFailures();
-      try { localStorage.setItem("dwi_saved_email", email.trim().toLowerCase()); } catch {}
-      onLogin(client);
-    }
-    else {
-      const nowLocked = rateLimiter.recordFailure();
-      if (nowLocked) {
-        setPinError("Too many failed attempts. Account locked."); setTimeout(() => setPinError(""), 100);
+    if (!e || !e.includes("@")) { setFormError("Enter a valid email address."); return; }
+    if (!password) { setFormError("Enter your password."); return; }
+    setSubmitting(true);
+    const { error } = await authSignInWithEmail({ email: e, password });
+    setSubmitting(false);
+    if (error) {
+      const msg = (error.message || "").toLowerCase();
+      if (msg.includes("email not confirmed")) {
+        setFormError("Please verify your email first — check your inbox for the confirmation link.");
+      } else if (msg.includes("invalid login")) {
+        setFormError("Wrong email or password.");
       } else {
-        setPinError(`Incorrect PIN. ${rateLimiter.attemptsLeft - 1} attempt${rateLimiter.attemptsLeft - 1 === 1 ? "" : "s"} remaining.`);
-        setTimeout(() => setPinError(""), 100);
+        setFormError(error.message || "Login failed. Try again.");
       }
-    }
-  };
-
-  const handleSetClientPin = (pin) => {
-    if (!newClientPin) {
-      setNewClientPin(pin);
-      setStage("confirmpin");
       return;
     }
-    if (pin !== newClientPin) {
-      setPinError("PINs don't match — try again."); setTimeout(() => setPinError(""), 100);
-      setNewClientPin(null); setStage("setpin"); return;
+    // App.jsx's onAuthStateChange listener will pick up the session and route.
+  };
+
+  const handleSignup = async () => {
+    setFormError("");
+    const e = email.trim().toLowerCase();
+    if (!e || !e.includes("@")) { setFormError("Enter a valid email address."); return; }
+    if (!password || password.length < 8) { setFormError("Password must be at least 8 characters."); return; }
+    if (password !== confirmPassword) { setFormError("Passwords don't match."); return; }
+    setSubmitting(true);
+    const { data, error } = await authSignUpWithEmail({ email: e, password });
+    setSubmitting(false);
+    if (error) {
+      const msg = (error.message || "").toLowerCase();
+      if (msg.includes("already registered") || msg.includes("user already")) {
+        setFormError("That email is already registered. Try logging in instead.");
+      } else {
+        setFormError(error.message || "Signup failed. Try again.");
+      }
+      return;
     }
-    const client = Object.values(clients).find(c => c.email === email.trim().toLowerCase());
-    if (client && onSetPin) onSetPin(client.id, pin);
-    try { localStorage.setItem("dwi_saved_email", email.trim().toLowerCase()); } catch {}
-    onLogin({ ...client, pin, mustSetPin: false });
-  };
-
-  const forgetSavedEmail = () => {
-    try { localStorage.removeItem("dwi_saved_email"); } catch {}
-    setEmail(""); setStage("entry"); setPinError(""); setNewClientPin(null);
-  };
-
-  const handleRegisterPin = (pin) => {
-    setPendingPin(pin);
+    // If email confirmation is required, `data.session` will be null.
+    if (!data?.session) {
+      setNotice(`Check your inbox — we sent a confirmation link to ${e}. Click it to activate your account.`);
+      setStage("login");
+      setPassword("");
+      setConfirmPassword("");
+      return;
+    }
+    // Otherwise session exists immediately → move to name/pets form.
     setStage("register-name");
   };
 
+  const handleGoogle = async () => {
+    setFormError("");
+    setSubmitting(true);
+    const { error } = await authSignInWithGoogle();
+    if (error) {
+      setSubmitting(false);
+      setFormError(error.message || "Google sign-in failed.");
+    }
+    // On success, the browser redirects to Google and back.
+  };
+
+  const handleForgot = async () => {
+    setFormError("");
+    const e = email.trim().toLowerCase();
+    if (!e || !e.includes("@")) { setFormError("Enter a valid email address."); return; }
+    setSubmitting(true);
+    const { error } = await authSendPasswordReset(e);
+    setSubmitting(false);
+    if (error) { setFormError(error.message || "Couldn't send reset email."); return; }
+    setNotice(`Reset link sent to ${e}. Check your inbox.`);
+    setStage("login");
+  };
+
+  // ── Register-name stage ─────────────────────────────────────────────────────
   const validDogs = dogs.map(d => d.trim()).filter(Boolean);
   const validCats = cats.map(c => c.trim()).filter(Boolean);
-  const canSubmit = firstName.trim() && lastName.trim() && (validDogs.length > 0 || validCats.length > 0);
+  const canSubmitName = firstName.trim() && lastName.trim() && (validDogs.length > 0 || validCats.length > 0);
 
   const handleFinishRegister = () => {
-    if (!canSubmit) return;
-    const newClient = {
-      id: `c_${Date.now()}`,
-      email: email.trim().toLowerCase(),
-      pin: pendingPin,
+    if (!canSubmitName) return;
+    // onRegister in App.jsx creates the clients row linked to user_id.
+    // `pendingRegistration` is passed in when this came from a Google OAuth
+    // new-user flow; otherwise the current Supabase session is used.
+    const profile = {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       name: `${firstName.trim()} ${lastName.trim()}`,
       dogs: validDogs,
       cats: validCats,
-      walkSchedule: null,
-      preferredDuration: null,
-      handoffDone: false,
-      bookings: [],
-      createdAt: new Date().toISOString(),
-      emailVerified: false,
     };
-    onRegister(newClient);
+    onRegister(profile, pendingRegistration || null);
+    if (clearPendingRegistration) clearPendingRegistration();
   };
 
+  // ── Shared styles ───────────────────────────────────────────────────────────
   const inputStyle = {
-    width: "100%", padding: "12px 14px", borderRadius: "10px",
+    width: "100%", padding: "14px 16px", borderRadius: "12px",
     border: "1.5px solid #4A2E18", background: "#0B1423", color: "#fff",
     fontSize: "16px", fontFamily: "'DM Sans', sans-serif",
+    boxSizing: "border-box", outline: "none",
   };
-
   const labelStyle = {
-    display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+    display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
     fontWeight: 600, letterSpacing: "1.5px", textTransform: "uppercase",
     color: "#ffffffaa", marginBottom: "6px",
   };
+  const primaryBtn = {
+    width: "100%", padding: "14px", borderRadius: "12px", border: "none",
+    background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
+    fontSize: "16px", fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer",
+    opacity: submitting ? 0.7 : 1, letterSpacing: "0.3px",
+  };
+  const secondaryLink = {
+    background: "none", border: "none", color: "#C4541A",
+    fontFamily: "'DM Sans', sans-serif", fontSize: "14px", cursor: "pointer",
+    textDecoration: "underline", padding: 0,
+  };
+  const googleBtn = {
+    width: "100%", padding: "13px", borderRadius: "12px",
+    border: "1.5px solid #4A2E18", background: "#fff", color: "#1a1a1a",
+    fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
+    cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.7 : 1,
+    display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
+    marginTop: "12px",
+  };
 
-  
+  // Simple "G" logo (matches Google's colors)
+  const GoogleG = () => (
+    <svg width="18" height="18" viewBox="0 0 48 48">
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C33.7 6.1 29.1 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5z"/>
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C33.7 6.1 29.1 4 24 4 16.3 4 9.7 8.4 6.3 14.7z"/>
+      <path fill="#4CAF50" d="M24 44c5.1 0 9.8-2 13.3-5.1l-6.1-5.2C29.2 35.3 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.5l.1.1 6.1 5.2c-.4.4 6.6-4.8 6.6-14.8 0-1.3-.1-2.3-.4-3.5z"/>
+    </svg>
+  );
 
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: "100svh", background: "linear-gradient(135deg,#0a1220 0%,#0B1423 50%,#0a1220 100%)",
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: "clamp(12px, 3vw, 28px) 16px" }}>
+    <div style={{
+      minHeight: "100svh",
+      background: "linear-gradient(135deg,#0a1220 0%,#0B1423 50%,#0a1220 100%)",
+      display: "flex", flexDirection: "column", alignItems: "center",
+      justifyContent: "flex-start", padding: "clamp(12px, 3vw, 28px) 16px",
+    }}>
       <style>{GLOBAL_STYLES}</style>
 
       <div style={{ textAlign: "center", marginBottom: "20px" }}>
         <LogoBadge size={60} />
-        <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
-          fontSize: "15px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "2px", marginBottom: "6px" }}>
+        <div style={{
+          fontFamily: "'DM Sans', sans-serif", color: "#fff",
+          fontSize: "15px", textTransform: "uppercase", fontWeight: 600,
+          letterSpacing: "2px", marginBottom: "6px", marginTop: "10px",
+        }}>
           Lonestar Bark Co.
         </div>
-        <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
-          fontSize: "15px", letterSpacing: "3px", textTransform: "uppercase" }}>
+        <div style={{
+          fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
+          fontSize: "13px", letterSpacing: "3px", textTransform: "uppercase",
+        }}>
           Client Portal
         </div>
       </div>
 
-      <div className="auth-card" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
-        borderRadius: "24px", padding: "24px 28px" }}>
+      <div className="auth-card fade-up" style={{
+        background: "rgba(255,255,255,0.03)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: "24px", padding: "28px 28px 24px",
+        width: "100%", maxWidth: "420px",
+      }}>
 
-        {/* Email entry */}
-        {stage === "entry" && (
-          <div className="fade-up">
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffbb", fontSize: "15px",
-              textAlign: "center", marginBottom: "24px", lineHeight: "1.6" }}>
-              Enter your email to log in or create an account.
+        {/* Notice banner (e.g. "check your email") */}
+        {notice && (
+          <div style={{
+            background: "rgba(196, 84, 26, 0.12)",
+            border: "1px solid rgba(196, 84, 26, 0.35)",
+            borderRadius: "10px", padding: "12px 14px", marginBottom: "18px",
+            fontFamily: "'DM Sans', sans-serif", color: "#f3d5bd",
+            fontSize: "14px", lineHeight: "1.5",
+          }}>
+            {notice}
+          </div>
+        )}
+
+        {/* ─── LOGIN ─────────────────────────────────────────────────────── */}
+        {stage === "login" && (
+          <>
+            <div style={{
+              fontFamily: "'DM Sans', sans-serif", color: "#fff",
+              fontSize: "20px", fontWeight: 700, marginBottom: "4px",
+              textAlign: "center",
+            }}>
+              Welcome back
             </div>
+            <div style={{
+              fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
+              fontSize: "14px", marginBottom: "22px", textAlign: "center",
+            }}>
+              Sign in to manage your walks.
+            </div>
+
+            <label style={labelStyle}>Email</label>
             <input
               type="email" placeholder="your@email.com" value={email}
-              onChange={e => { setEmail(e.target.value); setEmailError(""); }}
-              onKeyDown={e => e.key === "Enter" && handleEmailSubmit()}
-              style={{
-                width: "100%", padding: "14px 16px", borderRadius: "12px",
-                border: emailError ? "1.5px solid #ef4444" : "1.5px solid #4A2E18",
-                background: "#0B1423", color: "#fff", fontSize: "15px",
-                fontFamily: "'DM Sans', sans-serif", marginBottom: "12px",
-              }} />
-            {emailError && <div style={{ color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
-              fontSize: "16px", marginBottom: "10px" }}>{emailError}</div>}
-            <button onClick={handleEmailSubmit} style={{
-              width: "100%", padding: "14px", borderRadius: "12px", border: "none",
-              background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif",
-              fontSize: "16px", fontWeight: 500, cursor: "pointer", letterSpacing: "0.3px",
-            }}>Continue →</button>
-          </div>
+              onChange={e => { setEmail(e.target.value); setFormError(""); }}
+              onKeyDown={e => e.key === "Enter" && handleLogin()}
+              style={{ ...inputStyle, marginBottom: "14px" }}
+            />
+
+            <label style={labelStyle}>Password</label>
+            <div style={{ position: "relative", marginBottom: "6px" }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••" value={password}
+                onChange={e => { setPassword(e.target.value); setFormError(""); }}
+                onKeyDown={e => e.key === "Enter" && handleLogin()}
+                style={{ ...inputStyle, paddingRight: "60px" }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(s => !s)}
+                style={{
+                  position: "absolute", right: "10px", top: "50%",
+                  transform: "translateY(-50%)", background: "none",
+                  border: "none", color: "#ffffff88", fontSize: "12px",
+                  cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                }}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
+
+            <div style={{ textAlign: "right", marginBottom: "14px" }}>
+              <button onClick={() => { setFormError(""); setNotice(""); setStage("forgot"); }}
+                style={secondaryLink}>
+                Forgot password?
+              </button>
+            </div>
+
+            {formError && (
+              <div style={{
+                color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
+                fontSize: "13px", marginBottom: "12px",
+              }}>{formError}</div>
+            )}
+
+            <button onClick={handleLogin} disabled={submitting} style={primaryBtn}>
+              {submitting ? "Signing in…" : "Log in"}
+            </button>
+
+            <div style={{
+              display: "flex", alignItems: "center", gap: "10px",
+              margin: "18px 0 10px",
+            }}>
+              <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.1)" }} />
+              <span style={{
+                fontFamily: "'DM Sans', sans-serif", color: "#ffffff66",
+                fontSize: "12px", letterSpacing: "2px",
+              }}>OR</span>
+              <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.1)" }} />
+            </div>
+
+            <button onClick={handleGoogle} disabled={submitting} style={googleBtn}>
+              <GoogleG /> Continue with Google
+            </button>
+
+            <div style={{
+              marginTop: "22px", textAlign: "center",
+              fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa", fontSize: "14px",
+            }}>
+              Don't have an account?{" "}
+              <button onClick={() => { setFormError(""); setNotice(""); setPassword(""); setStage("signup"); }}
+                style={secondaryLink}>
+                Sign up
+              </button>
+            </div>
+          </>
         )}
 
-        {/* Login with PIN */}
-        {stage === "login-pin" && (
-          <div ref={pinSectionRef} className="fade-up">
-            <div style={{ textAlign: "center", marginBottom: "8px" }}>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffbb", fontSize: "15px",
-                marginBottom: "6px" }}>Welcome back!</div>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: "8px",
-                background: "rgba(255,255,255,0.08)", borderRadius: "20px",
-                padding: "6px 14px", marginBottom: "4px" }}>
-                <span style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffcc", fontSize: "15px" }}>
-                  {email.trim().toLowerCase()}
-                </span>
-                <button onClick={forgetSavedEmail} style={{ background: "none", border: "none",
-                  color: "#ffffff55", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
-                  fontSize: "15px", padding: 0, lineHeight: 1 }}>✕</button>
-              </div>
+        {/* ─── SIGNUP ────────────────────────────────────────────────────── */}
+        {stage === "signup" && (
+          <>
+            <div style={{
+              fontFamily: "'DM Sans', sans-serif", color: "#fff",
+              fontSize: "20px", fontWeight: 700, marginBottom: "4px",
+              textAlign: "center",
+            }}>
+              Create your account
             </div>
-            <div style={{ marginTop: "12px" }}>
-              {rateLimiter.locked ? (
-                <div style={{ textAlign: "center", padding: "24px 16px" }}>
-                  <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔒</div>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ef4444",
-                    fontSize: "15px", fontWeight: 600, marginBottom: "8px" }}>
-                    Account Locked
-                  </div>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
-                    fontSize: "15px", lineHeight: "1.6", marginBottom: "12px" }}>
-                    Too many failed PIN attempts. Try again in:
-                  </div>
-                  <div style={{ fontFamily: "'DM Sans', monospace", color: "#fff",
-                    fontSize: "28px", fontWeight: 700, letterSpacing: "2px" }}>
-                    {rateLimiter.formatRemaining()}
-                  </div>
-                </div>
-              ) : (
-                <PinPad label="Enter your PIN" onComplete={handleLoginPin}
-                  error={pinError} color="#C4541A" />
-              )}
+            <div style={{
+              fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
+              fontSize: "14px", marginBottom: "22px", textAlign: "center",
+            }}>
+              Takes less than a minute.
             </div>
-            <button onClick={() => { forgetSavedEmail(); }}
-              style={{ marginTop: "12px", background: "none", border: "none", color: "#ffffffaa",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "15px", cursor: "pointer",
-                width: "100%", textAlign: "center" }}>
-              Not you? Use a different account
-            </button>
-            <button onClick={() => { setResetEmail(email); setResetEmailError(""); setStage("forgot-email"); }}
-              style={{ marginTop: "6px", background: "none", border: "none", color: "#C4541A",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "13px", cursor: "pointer",
-                width: "100%", textAlign: "center", textDecoration: "underline" }}>
-              Forgot PIN?
-            </button>
-          </div>
-        )}
 
-        {/* Forgot PIN — enter email */}
-        {stage === "forgot-email" && (
-          <div className="fade-up" style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔑</div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff", fontSize: "20px",
-              fontWeight: 700, marginBottom: "8px" }}>Reset Your PIN</div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa", fontSize: "14px",
-              lineHeight: "1.6", marginBottom: "24px" }}>
-              Enter your email and we'll send you a 6-digit reset code.
-            </div>
+            <label style={labelStyle}>Email</label>
             <input
-              type="email"
-              value={resetEmail}
-              onChange={e => { setResetEmail(e.target.value); setResetEmailError(""); }}
-              placeholder="your@email.com"
-              style={{ width: "100%", padding: "12px 16px", borderRadius: "10px", border: resetEmailError ? "1.5px solid #ef4444" : "1.5px solid #444",
-                background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "15px", boxSizing: "border-box", marginBottom: "8px", outline: "none" }}
+              type="email" placeholder="your@email.com" value={email}
+              onChange={e => { setEmail(e.target.value); setFormError(""); }}
+              style={{ ...inputStyle, marginBottom: "14px" }}
             />
-            {resetEmailError && <div style={{ color: "#ef4444", fontSize: "13px", marginBottom: "8px" }}>{resetEmailError}</div>}
-            <button
-              disabled={resetSending}
-              onClick={async () => {
-                if (!resetEmail.trim()) { setResetEmailError("Enter your email."); return; }
-                setResetSending(true);
-                const ok = await onRequestPinReset(resetEmail.trim().toLowerCase());
-                setResetSending(false);
-                if (!ok) { setResetEmailError("No account found with that email."); return; }
-                setResetCodeError(""); setResetCode(""); setStage("forgot-code");
-              }}
-              style={{ width: "100%", padding: "13px", background: "#C4541A", color: "#fff",
-                border: "none", borderRadius: "10px", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "15px", fontWeight: 700, cursor: resetSending ? "not-allowed" : "pointer",
-                opacity: resetSending ? 0.7 : 1, marginBottom: "12px" }}>
-              {resetSending ? "Sending…" : "Send Reset Code"}
-            </button>
-            <button onClick={() => setStage("login-pin")}
-              style={{ background: "none", border: "none", color: "#ffffffaa", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "14px", cursor: "pointer", textDecoration: "underline" }}>
-              Back to login
-            </button>
-          </div>
-        )}
 
-        {/* Forgot PIN — enter code */}
-        {stage === "forgot-code" && (
-          <div className="fade-up" style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "32px", marginBottom: "12px" }}>📬</div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff", fontSize: "20px",
-              fontWeight: 700, marginBottom: "8px" }}>Check Your Email</div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa", fontSize: "14px",
-              lineHeight: "1.6", marginBottom: "24px" }}>
-              We sent a 6-digit code to <strong style={{ color: "#fff" }}>{resetEmail}</strong>.<br/>
-              Enter it below. It expires in 15 minutes.
-            </div>
+            <label style={labelStyle}>Password</label>
             <input
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              value={resetCode}
-              onChange={e => { setResetCode(e.target.value.replace(/\D/g, "")); setResetCodeError(""); }}
-              placeholder="000000"
-              style={{ width: "100%", padding: "14px 16px", borderRadius: "10px",
-                border: resetCodeError ? "1.5px solid #ef4444" : "1.5px solid #444",
-                background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "28px", fontWeight: 700, letterSpacing: "8px", textAlign: "center",
-                boxSizing: "border-box", marginBottom: "8px", outline: "none" }}
+              type={showPassword ? "text" : "password"}
+              placeholder="At least 8 characters" value={password}
+              onChange={e => { setPassword(e.target.value); setFormError(""); }}
+              style={{ ...inputStyle, marginBottom: "14px" }}
             />
-            {resetCodeError && <div style={{ color: "#ef4444", fontSize: "13px", marginBottom: "8px" }}>{resetCodeError}</div>}
-            <button
-              onClick={() => {
-                if (resetCode.length !== 6) { setResetCodeError("Enter the 6-digit code from your email."); return; }
-                const valid = onVerifyPinReset(resetEmail, resetCode);
-                if (!valid) { setResetCodeError("Invalid or expired code. Try again."); return; }
-                const client = Object.values(clients).find(c => c.email?.toLowerCase() === resetEmail.toLowerCase());
-                if (client) { setEmail(client.email); }
-                setNewClientPin(null); setStage("setpin");
-              }}
-              style={{ width: "100%", padding: "13px", background: "#C4541A", color: "#fff",
-                border: "none", borderRadius: "10px", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "15px", fontWeight: 700, cursor: "pointer", marginBottom: "12px" }}>
-              Verify Code
-            </button>
-            <button onClick={() => setStage("forgot-email")}
-              style={{ background: "none", border: "none", color: "#ffffffaa", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "14px", cursor: "pointer", textDecoration: "underline" }}>
-              Resend code
-            </button>
-          </div>
-        )}
 
-        {/* First-login PIN setup (walker/admin added this client) */}
-        {(stage === "setpin" || stage === "confirmpin") && (
-          <div ref={pinSectionRef} className="fade-up">
-            <div style={{ textAlign: "center", marginBottom: "20px" }}>
-              <div style={{ fontSize: "32px", marginBottom: "10px" }}>🔐</div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
-                fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600, marginBottom: "6px" }}>
-                {stage === "setpin" ? "Set Your PIN" : "Confirm Your PIN"}
-              </div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#D4A880",
-                fontSize: "16px", lineHeight: "1.6" }}>
-                {stage === "setpin"
-                  ? "Welcome! Choose a 6-digit PIN — you'll use it every time you log in."
-                  : "Enter your new PIN one more time to confirm."}
-              </div>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: "8px",
-                background: "rgba(255,255,255,0.08)", borderRadius: "20px",
-                padding: "6px 14px", marginTop: "10px" }}>
-                <span style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffcc", fontSize: "16px" }}>
-                  {email.trim().toLowerCase()}
-                </span>
-              </div>
-            </div>
-            <PinPad
-              label={stage === "setpin" ? "Choose a 6-digit PIN" : "Confirm PIN"}
-              onComplete={handleSetClientPin}
-              error={pinError}
-              color="#C4541A"
+            <label style={labelStyle}>Confirm Password</label>
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Type it again" value={confirmPassword}
+              onChange={e => { setConfirmPassword(e.target.value); setFormError(""); }}
+              onKeyDown={e => e.key === "Enter" && handleSignup()}
+              style={{ ...inputStyle, marginBottom: "10px" }}
             />
-            <button onClick={forgetSavedEmail}
-              style={{ marginTop: "20px", background: "none", border: "none", color: "#ffffffaa",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "16px", cursor: "pointer",
-                width: "100%", textAlign: "center" }}>
-              ← Use a different account
+
+            <div style={{ marginBottom: "14px" }}>
+              <label style={{
+                display: "flex", alignItems: "center", gap: "8px",
+                fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
+                fontSize: "13px", cursor: "pointer",
+              }}>
+                <input type="checkbox" checked={showPassword}
+                  onChange={e => setShowPassword(e.target.checked)} />
+                Show password
+              </label>
+            </div>
+
+            {formError && (
+              <div style={{
+                color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
+                fontSize: "13px", marginBottom: "12px",
+              }}>{formError}</div>
+            )}
+
+            <button onClick={handleSignup} disabled={submitting} style={primaryBtn}>
+              {submitting ? "Creating account…" : "Sign up"}
             </button>
-          </div>
+
+            <div style={{
+              display: "flex", alignItems: "center", gap: "10px",
+              margin: "18px 0 10px",
+            }}>
+              <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.1)" }} />
+              <span style={{
+                fontFamily: "'DM Sans', sans-serif", color: "#ffffff66",
+                fontSize: "12px", letterSpacing: "2px",
+              }}>OR</span>
+              <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.1)" }} />
+            </div>
+
+            <button onClick={handleGoogle} disabled={submitting} style={googleBtn}>
+              <GoogleG /> Continue with Google
+            </button>
+
+            <div style={{
+              marginTop: "22px", textAlign: "center",
+              fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa", fontSize: "14px",
+            }}>
+              Already have an account?{" "}
+              <button onClick={() => { setFormError(""); setNotice(""); setPassword(""); setConfirmPassword(""); setStage("login"); }}
+                style={secondaryLink}>
+                Log in
+              </button>
+            </div>
+          </>
         )}
 
-        {/* New account — set PIN */}
-        {stage === "register-pin" && (
-          <div ref={pinSectionRef} className="fade-up">
-            <div style={{ textAlign: "center", marginBottom: "8px" }}>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffbb", fontSize: "15px",
-                marginBottom: "4px" }}>Create your account</div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa", fontSize: "16px" }}>
-                {email.trim().toLowerCase()}
-              </div>
+        {/* ─── FORGOT PASSWORD ───────────────────────────────────────────── */}
+        {stage === "forgot" && (
+          <>
+            <div style={{ fontSize: "32px", marginBottom: "12px", textAlign: "center" }}>🔑</div>
+            <div style={{
+              fontFamily: "'DM Sans', sans-serif", color: "#fff",
+              fontSize: "20px", fontWeight: 700, marginBottom: "6px",
+              textAlign: "center",
+            }}>
+              Reset your password
             </div>
-            <div style={{ marginTop: "24px" }}>
-              <PinPad label="Choose a 6-digit PIN" onComplete={handleRegisterPin} color="#C4541A" />
+            <div style={{
+              fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
+              fontSize: "14px", lineHeight: "1.6", marginBottom: "22px",
+              textAlign: "center",
+            }}>
+              Enter your email and we'll send you a reset link.
             </div>
-            <button onClick={() => setStage("entry")}
-              style={{ marginTop: "20px", background: "none", border: "none", color: "#ffffffaa",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "16px", cursor: "pointer",
-                width: "100%", textAlign: "center" }}>
-              ← Back
+
+            <label style={labelStyle}>Email</label>
+            <input
+              type="email" placeholder="your@email.com" value={email}
+              onChange={e => { setEmail(e.target.value); setFormError(""); }}
+              onKeyDown={e => e.key === "Enter" && handleForgot()}
+              style={{ ...inputStyle, marginBottom: "14px" }}
+            />
+
+            {formError && (
+              <div style={{
+                color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
+                fontSize: "13px", marginBottom: "12px",
+              }}>{formError}</div>
+            )}
+
+            <button onClick={handleForgot} disabled={submitting} style={primaryBtn}>
+              {submitting ? "Sending…" : "Send reset link"}
             </button>
-          </div>
+
+            <div style={{ textAlign: "center", marginTop: "16px" }}>
+              <button onClick={() => { setFormError(""); setStage("login"); }} style={secondaryLink}>
+                Back to login
+              </button>
+            </div>
+          </>
         )}
 
-        {/* New account — name + pets + schedule */}
+        {/* ─── REGISTER NAME / PETS ──────────────────────────────────────── */}
         {stage === "register-name" && (
-          <div ref={nameSectionRef} className="fade-up" style={{ maxHeight: "70vh", overflowY: "auto", paddingRight: "4px" }}>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffbb", fontSize: "15px",
-              textAlign: "center", marginBottom: "24px" }}>
-              Almost done! Tell us about yourself and your pets.
+          <div ref={formRef} style={{ maxHeight: "70vh", overflowY: "auto", paddingRight: "4px" }}>
+            <div style={{
+              fontFamily: "'DM Sans', sans-serif", color: "#fff",
+              fontSize: "20px", fontWeight: 700, marginBottom: "6px",
+              textAlign: "center",
+            }}>
+              Almost done!
+            </div>
+            <div style={{
+              fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
+              fontSize: "14px", textAlign: "center", marginBottom: "22px",
+            }}>
+              Tell us about you and your pets.
             </div>
 
-            {/* First & Last Name */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "18px" }}>
               <div>
                 <label style={labelStyle}>First Name</label>
                 <input type="text" placeholder="First name" value={firstName}
-                  onChange={e => setFirstName(e.target.value)}
-                  style={inputStyle} />
+                  onChange={e => setFirstName(e.target.value)} style={inputStyle} />
               </div>
               <div>
                 <label style={labelStyle}>Last Name</label>
                 <input type="text" placeholder="Last name" value={lastName}
-                  onChange={e => setLastName(e.target.value)}
-                  style={inputStyle} />
+                  onChange={e => setLastName(e.target.value)} style={inputStyle} />
               </div>
             </div>
 
-            {/* Dogs — mandatory */}
-            <div style={{ marginBottom: "20px" }}>
+            {/* Dogs */}
+            <div style={{ marginBottom: "18px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
                 <label style={{ ...labelStyle, marginBottom: 0 }}>
-                  Dogs <span style={{ fontWeight: 400, color: "#1a2d45", textTransform: "none",
-                    letterSpacing: "0", fontSize: "15px" }}>(optional)</span>
+                  Dogs <span style={{ fontWeight: 400, color: "#ffffff55", textTransform: "none", letterSpacing: "0", fontSize: "13px" }}>(optional)</span>
                 </label>
                 <button onClick={() => setDogs(d => [...d, ""])} style={{
                   background: "none", border: "1px solid #4A2E18", color: "#D4A843",
                   borderRadius: "6px", padding: "3px 10px", cursor: "pointer",
-                  fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500,
+                  fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 500,
                 }}>+ Add Dog</button>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -444,15 +513,12 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
                   <div key={i} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                     <input type="text" placeholder={i === 0 ? "Dog's name" : `Dog ${i + 1}'s name`} value={dog}
                       onChange={e => setDogs(d => d.map((v, j) => j === i ? e.target.value : v))}
-                      style={{
-                        ...inputStyle,
-                        flex: 1,
-                      }} />
+                      style={{ ...inputStyle, flex: 1 }} />
                     {dogs.length > 1 && (
                       <button onClick={() => setDogs(d => d.filter((_, j) => j !== i))} style={{
                         background: "none", border: "1px solid #4A2E18", color: "#6b7280",
                         borderRadius: "6px", padding: "8px 10px", cursor: "pointer",
-                        fontFamily: "'DM Sans', sans-serif", fontSize: "15px", flexShrink: 0,
+                        fontFamily: "'DM Sans', sans-serif", fontSize: "14px", flexShrink: 0,
                       }}>✕</button>
                     )}
                   </div>
@@ -460,17 +526,16 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
               </div>
             </div>
 
-            {/* Cats — optional */}
+            {/* Cats */}
             <div style={{ marginBottom: "20px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
                 <label style={{ ...labelStyle, marginBottom: 0 }}>
-                  Cats <span style={{ fontWeight: 400, color: "#1a2d45", textTransform: "none",
-                    letterSpacing: "0", fontSize: "15px" }}>(optional)</span>
+                  Cats <span style={{ fontWeight: 400, color: "#ffffff55", textTransform: "none", letterSpacing: "0", fontSize: "13px" }}>(optional)</span>
                 </label>
                 <button onClick={() => setCats(c => [...c, ""])} style={{
                   background: "none", border: "1px solid #4A2E18", color: "#D4A843",
                   borderRadius: "6px", padding: "3px 10px", cursor: "pointer",
-                  fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500,
+                  fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 500,
                 }}>+ Add Cat</button>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -482,27 +547,26 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
                     <button onClick={() => setCats(c => c.filter((_, j) => j !== i))} style={{
                       background: "none", border: "1px solid #4A2E18", color: "#6b7280",
                       borderRadius: "6px", padding: "8px 10px", cursor: "pointer",
-                      fontFamily: "'DM Sans', sans-serif", fontSize: "15px", flexShrink: 0,
+                      fontFamily: "'DM Sans', sans-serif", fontSize: "14px", flexShrink: 0,
                     }}>✕</button>
                   </div>
                 ))}
-                {cats.length === 0 && (
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                    color: "#1a2d45", fontStyle: "italic" }}>No cats added yet.</div>
-                )}
               </div>
             </div>
 
-            <button onClick={handleFinishRegister} disabled={!canSubmit} style={{
-              width: "100%", padding: "14px", borderRadius: "12px", border: "none",
-              background: canSubmit ? "#C4541A" : "#1e3550",
-              color: canSubmit ? "#fff" : "#ffffff55",
-              fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-              fontWeight: 500, cursor: canSubmit ? "pointer" : "default", letterSpacing: "0.3px",
-            }}>Create Account →</button>
-            {!canSubmit && firstName.trim() && lastName.trim() && (
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                color: "#ffffffaa", textAlign: "center", marginTop: "8px" }}>
+            <button onClick={handleFinishRegister} disabled={!canSubmitName} style={{
+              ...primaryBtn,
+              background: canSubmitName ? "#C4541A" : "#1e3550",
+              color: canSubmitName ? "#fff" : "#ffffff55",
+              cursor: canSubmitName ? "pointer" : "default",
+            }}>
+              Create Account →
+            </button>
+            {!canSubmitName && firstName.trim() && lastName.trim() && (
+              <div style={{
+                fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                color: "#ffffffaa", textAlign: "center", marginTop: "8px",
+              }}>
                 Add at least one pet name to continue.
               </div>
             )}
@@ -510,19 +574,19 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
         )}
       </div>
 
-      {onBack && (
+      {onBack && stage !== "register-name" && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", marginTop: "20px" }}>
           <button onClick={onBack} style={{
             background: "none", border: "none",
             color: "#ffffffaa", fontFamily: "'DM Sans', sans-serif",
-            fontSize: "16px", cursor: "pointer", letterSpacing: "0.3px",
+            fontSize: "14px", cursor: "pointer", letterSpacing: "0.3px",
           }}>
             ← Back to portal selector
           </button>
           <button onClick={onBackToLanding} style={{
             background: "none", border: "none",
             color: "#ffffff55", fontFamily: "'DM Sans', sans-serif",
-            fontSize: "15px", cursor: "pointer", letterSpacing: "0.3px",
+            fontSize: "13px", cursor: "pointer", letterSpacing: "0.3px",
           }}>
             ← Back to homepage
           </button>
@@ -531,6 +595,5 @@ function AuthScreen({ clients, onLogin, onRegister, onBack, onBackToLanding, onS
     </div>
   );
 }
-
 
 export default AuthScreen;

@@ -22,7 +22,8 @@ import CustomerErrorBoundary from "./components/ErrorBoundary.jsx";
 import { generateRecurringBookings, extendRecurringBookings } from "./components/recurring.js";
 import HandoffFlow from "./components/HandoffFlow.jsx";
 import { addrFromString, applySameDayDiscount, dateStrFromDate, getSessionPrice, repriceWeekBookings } from "./helpers.js";
-import { SUPABASE_URL, notifyAdmin, updateInvoiceInDB, sendWelcomeEmail, sendInvoicePaidEmail, sendPinResetCode, createRefund, sendBookingConfirmation, sendWalkerBookingNotification } from "./supabase.js";
+import { SUPABASE_URL, notifyAdmin, updateInvoiceInDB, sendWelcomeEmail, sendInvoicePaidEmail, sendPinResetCode, createRefund, sendBookingConfirmation, sendWalkerBookingNotification, authOnChange, authGetSession, authSignOut, loadClientByUserId, synthPinFromUserId } from "./supabase.js";
+import PasswordResetScreen from "./components/auth/PasswordResetScreen.jsx";
 import OfflineBanner from "./components/shared/OfflineBanner.jsx";
 
 export default function LonestarBark() {
@@ -56,6 +57,15 @@ export default function LonestarBark() {
   const [selectedRole, setSelectedRole] = useState(null);
   // The logged-in entity (customer client obj, walker obj, or admin obj)
   const [activeUser, setActiveUser] = useState(null);
+  // Supabase Auth session info — clients only. Staff still use PIN.
+  const [authSession, setAuthSession] = useState(null);
+  // When a Supabase Auth user signs in but has no matching `clients` row yet
+  // (e.g. fresh Google OAuth signup), we stash the auth user here so
+  // AuthScreen jumps to the name/pets form.
+  const [pendingRegistration, setPendingRegistration] = useState(null);
+  // True when Supabase fires the PASSWORD_RECOVERY event (user clicked the
+  // reset link in their email). Shows PasswordResetScreen instead of normal flow.
+  const [recoveryMode, setRecoveryMode] = useState(false);
 
   // Stamp the returning-visitor flag whenever anyone successfully logs in
   const handleLogin = (user) => {
@@ -339,25 +349,138 @@ export default function LonestarBark() {
 
   const [pendingVerification, setPendingVerification] = useState(null); // { name, email } while awaiting verification
 
-  // ── Customer handlers (unchanged from original) ──────────────────────────
-  const handleCustomerLogin = (c) => handleLogin(c);
+  // ── Supabase Auth session listener (clients only) ────────────────────────
+  // Admin and walker flows still use PIN auth and are unaffected.
+  useEffect(() => {
+    let cancelled = false;
 
-  const handleRegister = async (newClient) => {
-    const updated = { ...clients, [newClient.id]: newClient };
+    const handleSession = async (session) => {
+      if (cancelled) return;
+      setAuthSession(session);
+      if (!session?.user) return;
+      // Only route an auth session to the customer portal if the user is
+      // actively trying to log in as a customer (or arrived fresh from the
+      // landing page). We don't want to hijack the admin/walker flows.
+      if (selectedRole && selectedRole !== "customer") return;
+
+      const user = session.user;
+      const existing = await loadClientByUserId(user.id);
+      if (cancelled) return;
+      if (existing) {
+        // Returning client — route straight into the portal.
+        setSelectedRole("customer");
+        setShowApp(true);
+        setActiveUser(existing);
+        setPendingRegistration(null);
+      } else {
+        // Fresh signup (usually Google OAuth) — show name/pets form.
+        setSelectedRole("customer");
+        setShowApp(true);
+        setPendingRegistration({
+          user_id: user.id,
+          email: user.email || "",
+          firstName: user.user_metadata?.given_name || user.user_metadata?.name?.split(" ")[0] || "",
+          lastName: user.user_metadata?.family_name || user.user_metadata?.name?.split(" ").slice(1).join(" ") || "",
+        });
+      }
+    };
+
+    // Pick up any existing session on mount
+    authGetSession().then(handleSession);
+
+    // Subscribe to auth changes
+    const subscription = authOnChange(async (event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setRecoveryMode(true);
+        return;
+      }
+      if (event === "SIGNED_OUT") {
+        setAuthSession(null);
+        setPendingRegistration(null);
+        return;
+      }
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+        await handleSession(session);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      if (subscription && typeof subscription.unsubscribe === "function") {
+        subscription.unsubscribe();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
+  // ── New-client registration via Supabase Auth ────────────────────────────
+  // Called from AuthScreen after the user completes the name/pets form.
+  // `profile` = { firstName, lastName, name, dogs, cats }
+  // `pending` = { user_id, email, ... } or null (falls back to current session)
+  const handleRegister = async (profile, pending) => {
+    const session = authSession || (await authGetSession());
+    const user = pending || session?.user || null;
+    const userId = pending?.user_id || session?.user?.id;
+    const email = (pending?.email || session?.user?.email || "").toLowerCase();
+    if (!userId || !email) {
+      console.error("handleRegister: no auth session/user available");
+      return;
+    }
+
+    // Synthetic PIN so the clients map keyed by PIN keeps working
+    const pinKey = synthPinFromUserId(userId);
+    const newClient = {
+      id: `c_${Date.now()}`,
+      user_id: userId,
+      email,
+      pin: pinKey,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      name: profile.name || `${profile.firstName} ${profile.lastName}`.trim(),
+      dogs: profile.dogs || [],
+      cats: profile.cats || [],
+      walkSchedule: null,
+      preferredDuration: null,
+      handoffDone: false,
+      bookings: [],
+      createdAt: new Date().toISOString(),
+      // Supabase Auth handles email verification, so treat as verified by
+      // the time the client row exists (signInWithPassword would've failed
+      // for unconfirmed email/password users).
+      emailVerified: true,
+    };
+
+    // Persist directly via REST so we can set user_id on the row itself
+    // (our JSON blob lives in `data`, but user_id is a real column).
+    try {
+      const { invoices: _inv, ...rest } = newClient;
+      await sbFetch("clients?on_conflict=pin", {
+        method: "POST",
+        headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify([{
+          pin: pinKey,
+          email,
+          user_id: userId,
+          data: JSON.stringify(rest),
+        }]),
+      });
+    } catch (e) {
+      console.error("saveClient (auth) failed:", e);
+    }
+
+    const updated = { ...clients, [pinKey]: newClient };
     setClients(updated);
-    saveClients(updated);
-    // Show "check your email" screen immediately — don't wait for the email to send
-    setPendingVerification({ name: newClient.name, email: newClient.email });
-    // Fire verification + welcome emails in background
-    fetch(`${SUPABASE_URL}/functions/v1/send-verification`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: newClient.email, clientName: newClient.name }),
-    }).catch(e => console.error("Failed to send verification email:", e));
+    // Send welcome email + notify admins (Supabase already handled verification)
     sendWelcomeEmail(newClient.name, newClient.email);
-    // Notify admins
     const pets = [...(newClient.dogs || []), ...(newClient.cats || [])].join(", ");
     notifyAdmin("new_client", { name: newClient.name, email: newClient.email, pets });
+
+    // Route into the portal
+    setPendingRegistration(null);
+    setSelectedRole("customer");
+    setShowApp(true);
+    setActiveUser(newClient);
   };
 
   const handleHandoffComplete = (handoffData) => {
@@ -413,13 +536,29 @@ export default function LonestarBark() {
 
   // ── Global logout ─────────────────────────────────────────────────────────
   const handleLogout = () => {
+    // Sign out of Supabase Auth (clients) — no-op for staff sessions
+    authSignOut();
     setActiveUser(null);
     setSelectedRole(null);
     setShowApp(false);
+    setAuthSession(null);
+    setPendingRegistration(null);
+    setRecoveryMode(false);
     // Returning visitors go straight back to the login/role screen
     const isReturning = (() => { try { return !!localStorage.getItem("dwi_has_visited"); } catch { return false; } })();
     setShowLogin(isReturning);
   };
+
+  // ── Password recovery (user clicked reset link in email) ────────────────
+  if (recoveryMode) return (
+    <PasswordResetScreen onDone={() => {
+      setRecoveryMode(false);
+      setActiveUser(null);
+      setSelectedRole("customer");
+      setShowApp(true);
+      setShowLogin(true);
+    }} />
+  );
 
   // ── Loading splash ────────────────────────────────────────────────────────
   if (loading) return (
@@ -570,37 +709,11 @@ export default function LonestarBark() {
     <CustomerErrorBoundary>
       <OfflineBanner />
       <AuthScreen
-        clients={clients}
-        onLogin={handleCustomerLogin}
         onRegister={handleRegister}
         onBack={() => { setSelectedRole(null); setShowApp(false); setShowLogin(true); }}
         onBackToLanding={() => { setSelectedRole(null); setShowApp(false); setShowLogin(false); }}
-        onSetPin={(clientId, pin) => {
-          const updated = { ...clients };
-          if (updated[clientId]) {
-            updated[clientId] = { ...updated[clientId], pin, mustSetPin: false, resetCode: null, resetCodeExpiry: null };
-            setClients(updated);
-            saveClients(updated);
-          }
-        }}
-        onRequestPinReset={async (email) => {
-          const client = Object.values(clients).find(c => c.email?.toLowerCase() === email.toLowerCase());
-          if (!client) return false;
-          const code = String(Math.floor(100000 + Math.random() * 900000));
-          const expiry = Date.now() + 15 * 60 * 1000;
-          const updated = { ...clients, [client.id]: { ...client, resetCode: code, resetCodeExpiry: expiry } };
-          setClients(updated);
-          saveClients(updated);
-          await sendPinResetCode({ name: client.name, email: client.email, code });
-          return true;
-        }}
-        onVerifyPinReset={(email, code) => {
-          const client = Object.values(clients).find(c => c.email?.toLowerCase() === email.toLowerCase());
-          if (!client || !client.resetCode) return false;
-          if (client.resetCode !== code) return false;
-          if (Date.now() > client.resetCodeExpiry) return false;
-          return true;
-        }}
+        pendingRegistration={pendingRegistration}
+        clearPendingRegistration={() => setPendingRegistration(null)}
       />
     </CustomerErrorBoundary>
   );
