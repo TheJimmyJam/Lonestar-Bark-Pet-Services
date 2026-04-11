@@ -22,7 +22,7 @@ import CustomerErrorBoundary from "./components/ErrorBoundary.jsx";
 import { generateRecurringBookings, extendRecurringBookings } from "./components/recurring.js";
 import HandoffFlow from "./components/HandoffFlow.jsx";
 import { addrFromString, applySameDayDiscount, dateStrFromDate, getSessionPrice, repriceWeekBookings } from "./helpers.js";
-import { SUPABASE_URL, notifyAdmin, updateInvoiceInDB, sendWelcomeEmail, sendInvoicePaidEmail, sendPinResetCode, createRefund, sendBookingConfirmation, sendWalkerBookingNotification, authOnChange, authGetSession, authSignOut, loadClientByUserId, synthPinFromUserId } from "./supabase.js";
+import { SUPABASE_URL, notifyAdmin, updateInvoiceInDB, sendWelcomeEmail, sendInvoicePaidEmail, sendPinResetCode, createRefund, sendBookingConfirmation, sendWalkerBookingNotification, createBookingCheckout, authOnChange, authGetSession, authSignOut, loadClientByUserId, synthPinFromUserId } from "./supabase.js";
 import PasswordResetScreen from "./components/auth/PasswordResetScreen.jsx";
 import OfflineBanner from "./components/shared/OfflineBanner.jsx";
 
@@ -483,7 +483,7 @@ export default function LonestarBark() {
     setActiveUser(newClient);
   };
 
-  const handleHandoffComplete = (handoffData) => {
+  const handleHandoffComplete = async (handoffData) => {
     // Resolve the PIN map key consistently — map is keyed by PIN, not by id
     const pinKey = activeUser.pin
       || Object.keys(clients).find(k => clients[k]?.id === activeUser.id)
@@ -491,12 +491,13 @@ export default function LonestarBark() {
       || activeUser.id;
     const client = clients[pinKey] || activeUser;
     let bookings = client.bookings || [];
+    let followOnBooking = null;
     if (handoffData.followOnWalk) {
       const fw = handoffData.followOnWalk;
       const apptDate = new Date(fw.date);
       apptDate.setHours(fw.hour, fw.minute, 0, 0);
       const pet = (client.dogs || client.pets || [])[0] || (client.cats || [])[0] || "";
-      const followOnBooking = {
+      followOnBooking = {
         key: `dog-${apptDate.toISOString().slice(0, 10)}-firstwalk`,
         service: "dog",
         day: FULL_DAYS[fw.dayOfWeek],
@@ -529,6 +530,37 @@ export default function LonestarBark() {
     setClients(updatedClients);
     saveClients(updatedClients);
     setActiveUser(updated);
+
+    // If the client added a follow-on walk, redirect to Stripe immediately.
+    // The booking is already saved as pending_payment — on success the webhook
+    // marks it confirmed; on cancel the booking_cancelled handler removes it.
+    if (followOnBooking) {
+      try {
+        try {
+          localStorage.setItem("dwi_stripe_return_clientId", pinKey);
+          localStorage.setItem("dwi_pending_booking_keys", JSON.stringify([followOnBooking.key]));
+        } catch {}
+        const { url } = await createBookingCheckout({
+          clientId: pinKey,
+          clientName: updated.name,
+          clientEmail: updated.email,
+          bookingKey: followOnBooking.key,
+          service: followOnBooking.service,
+          date: followOnBooking.date,
+          day: followOnBooking.day,
+          time: followOnBooking.slot.time,
+          duration: followOnBooking.slot.duration,
+          walker: followOnBooking.form.walker,
+          pet: followOnBooking.form.pet,
+          amount: followOnBooking.price,
+        });
+        window.location.href = url;
+      } catch (err) {
+        console.error("[handleHandoffComplete] Stripe redirect failed:", err);
+        // Fall through — client lands in dashboard with the pending_payment badge
+        // so they can retry payment from My Walks
+      }
+    }
   };
 
   const handleSetClients = (updated) => {
