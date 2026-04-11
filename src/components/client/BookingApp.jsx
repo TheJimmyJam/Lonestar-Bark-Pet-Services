@@ -272,11 +272,22 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     return (client.bookings || []).some(b => b.cancelled && b.cancelledAt && new Date(b.cancelledAt) >= sevenDaysAgo);
   });
   const [cancelBannerFading, setCancelBannerFading] = useState(false);
+  const [cancelBannerProgress, setCancelBannerProgress] = useState(100);
   useEffect(() => {
     if (!showCancelBanner) return;
-    const fadeTimer = setTimeout(() => setCancelBannerFading(true), 4500);
-    const hideTimer = setTimeout(() => setShowCancelBanner(false), 5000);
-    return () => { clearTimeout(fadeTimer); clearTimeout(hideTimer); };
+    setCancelBannerFading(false);
+    setCancelBannerProgress(100);
+    const duration = 5000;
+    const interval = 30;
+    const steps = duration / interval;
+    let step = 0;
+    const progressTimer = setInterval(() => {
+      step++;
+      setCancelBannerProgress(Math.max(0, 100 - (step / steps) * 100));
+    }, interval);
+    const fadeTimer = setTimeout(() => setCancelBannerFading(true), duration - 500);
+    const hideTimer = setTimeout(() => { setShowCancelBanner(false); setCancelBannerProgress(100); }, duration);
+    return () => { clearInterval(progressTimer); clearTimeout(fadeTimer); clearTimeout(hideTimer); };
   }, [showCancelBanner]);
   const [handoffCancelConfirm, setHandoffCancelConfirm] = useState(false);
   const [handoffReschedDay, setHandoffReschedDay] = useState(null);
@@ -839,44 +850,81 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           b.cancelled && b.cancelledAt && new Date(b.cancelledAt) >= sevenDaysAgo
         );
         const pet = recentCancels[0]?.form?.pet || recentCancels[0]?.pet || null;
+        const dismiss = () => { setCancelBannerFading(true); setTimeout(() => setShowCancelBanner(false), 400); };
         return (
           <div style={{
             position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
+            display: "flex", justifyContent: "center",
+            padding: "12px 16px 0",
+            pointerEvents: "none",
             opacity: cancelBannerFading ? 0 : 1,
-            transform: cancelBannerFading ? "translateY(-100%)" : "translateY(0)",
-            transition: "opacity 0.45s ease, transform 0.45s ease",
+            transform: cancelBannerFading ? "translateY(-20px)" : "translateY(0)",
+            transition: "opacity 0.4s ease, transform 0.4s ease",
           }}>
             <div style={{
-              background: "linear-gradient(90deg, #C4541A 0%, #d97706 100%)",
-              boxShadow: "0 4px 20px rgba(196,84,26,0.35)",
-              padding: "14px 20px",
-              display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
+              pointerEvents: "auto",
+              background: "#1a1a1a",
+              borderRadius: "14px",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.28), 0 2px 8px rgba(0,0,0,0.12)",
+              padding: "0",
+              maxWidth: "460px",
+              width: "100%",
+              overflow: "hidden",
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
-                <span style={{ fontSize: "22px", flexShrink: 0 }}>🐾</span>
-                <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                  <span style={{ color: "#fff", fontWeight: 700, fontSize: "15px" }}>
-                    {pet ? `We'll miss ${pet}! ` : "Sorry to see you go! "}
-                  </span>
-                  <span style={{ color: "rgba(255,255,255,0.85)", fontSize: "14px" }}>
+              {/* Main content row */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: "12px",
+                padding: "13px 14px 13px 16px",
+              }}>
+                {/* Icon circle */}
+                <div style={{
+                  width: "36px", height: "36px", borderRadius: "50%", flexShrink: 0,
+                  background: "linear-gradient(135deg, #C4541A, #f59e0b)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "17px",
+                }}>🐾</div>
+
+                {/* Text */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
+                    fontSize: "14px", color: "#ffffff", lineHeight: 1.3,
+                    marginBottom: "2px" }}>
+                    {pet ? `We'll miss ${pet}!` : "Walk cancelled"}
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif",
+                    fontSize: "13px", color: "rgba(255,255,255,0.55)", lineHeight: 1.3 }}>
                     Ready to hit the trail again?{" "}
-                  </span>
-                  <button onClick={() => { setShowCancelBanner(false); setPage("book"); }}
-                    style={{ background: "none", border: "none", cursor: "pointer",
-                      color: "#fff", fontFamily: "'DM Sans', sans-serif",
-                      fontSize: "14px", fontWeight: 700, padding: 0,
-                      textDecoration: "underline", textUnderlineOffset: "2px" }}>
-                    Book your next walk →
-                  </button>
+                    <button onClick={() => { dismiss(); setPage("book"); }}
+                      style={{ background: "none", border: "none", cursor: "pointer",
+                        color: "#f59e0b", fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "13px", fontWeight: 700, padding: 0 }}>
+                      Book a walk →
+                    </button>
+                  </div>
                 </div>
+
+                {/* Close button */}
+                <button onClick={dismiss}
+                  style={{ background: "rgba(255,255,255,0.08)", border: "none", cursor: "pointer",
+                    color: "rgba(255,255,255,0.5)", fontSize: "13px", flexShrink: 0,
+                    width: "26px", height: "26px", borderRadius: "50%",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    transition: "background 0.15s" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}>
+                  ✕
+                </button>
               </div>
-              <button onClick={() => { setCancelBannerFading(true); setTimeout(() => setShowCancelBanner(false), 450); }}
-                style={{ background: "rgba(255,255,255,0.2)", border: "none", cursor: "pointer",
-                  color: "#fff", fontSize: "16px", lineHeight: 1, flexShrink: 0,
-                  width: "28px", height: "28px", borderRadius: "50%",
-                  display: "flex", alignItems: "center", justifyContent: "center" }}>
-                ✕
-              </button>
+
+              {/* Progress bar */}
+              <div style={{ height: "3px", background: "rgba(255,255,255,0.08)" }}>
+                <div style={{
+                  height: "100%",
+                  width: `${cancelBannerProgress}%`,
+                  background: "linear-gradient(90deg, #C4541A, #f59e0b)",
+                  transition: "width 0.03s linear",
+                }} />
+              </div>
             </div>
           </div>
         );
