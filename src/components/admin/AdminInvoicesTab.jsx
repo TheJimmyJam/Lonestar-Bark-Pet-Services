@@ -526,10 +526,6 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [], admin =
           <div style={{ display: "flex", gap: "6px", marginBottom: "16px", flexWrap: "wrap" }}>
             {[
               { id: "all", label: "All" },
-              { id: "sent", label: "Pending" },
-              { id: "overdue", label: "Overdue" },
-              { id: "paid", label: "Paid" },
-              { id: "draft", label: "Draft" },
               { id: "stripe", label: `Stripe (${stripeReceiptsAll.length})` },
               { id: "refunds", label: `Refunds (${allRefundedBookings.length})` },
             ].map(f => (
