@@ -307,7 +307,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   // Walker availability loaded from Supabase — keyed by walkerId then dateKey
   const [walkerAvailability, setWalkerAvailability] = useState({});
   const preferredWalkerRef = useRef(null);
-  const cancellingRef = useRef(false); // prevents double-fire when both list + detail panel "Yes, cancel" are visible
+  const [cancelling, setCancelling] = useState(false); // prevents double-fire during cancel flow
   useEffect(() => {
     // Load availability for the visible 12-week window
     const start = toDateKey(getWeekDates(0)[0]);
@@ -666,11 +666,10 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   };
 
   const handleCancel = async (bookingKey) => {
-    if (cancellingRef.current) return; // already in-flight — block double-fire
-    cancellingRef.current = true;
-    try {
+    if (cancelling) return; // already in-flight — block double-fire
+    setCancelling(true);
     const booking = (client.bookings || []).find(b => b.key === bookingKey);
-    if (!booking || booking.cancelled) { return; } // already cancelled
+    if (!booking || booking.cancelled) { setCancelling(false); return; } // already cancelled
     const cancelledAt = new Date().toISOString();
 
     // ── Refund policy ────────────────────────────────────────────────────────
@@ -842,9 +841,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       stripeRefundSucceeded,
       stripeRefundId,
     });
-    } finally {
-      cancellingRef.current = false; // always release, even if something throws
-    }
+    setCancelling(false);
   };
 
 
@@ -2531,10 +2528,10 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                               {policy.penalty === 0 ? "Cancel for free?" : `Cancel with a $${penaltyAmount} fee?`}
                             </div>
                             <div style={{ display: "flex", gap: "8px" }}>
-                              <button onClick={() => { handleCancel(b.key); setSelectedBooking(null); setRecurringCancelConfirm(null); setCancelConfirm(null); }}
-                                style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "none", background: "#dc2626",
-                                  color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, cursor: "pointer" }}>
-                                Yes, cancel
+                              <button disabled={cancelling} onClick={() => { handleCancel(b.key); setSelectedBooking(null); setRecurringCancelConfirm(null); setCancelConfirm(null); }}
+                                style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "none", background: cancelling ? "#f87171" : "#dc2626",
+                                  color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, cursor: cancelling ? "not-allowed" : "pointer" }}>
+                                {cancelling ? "Cancelling…" : "Yes, cancel"}
                               </button>
                               <button onClick={() => setRecurringCancelConfirm(null)}
                                 style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "1px solid #d1d5db",
@@ -3687,11 +3684,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                             : "You're within 12 hours of your appointment. The full session fee applies."}
                         </div>
                         <div style={{ display: "flex", gap: "8px" }}>
-                          <button onClick={() => { handleCancel(b.key); setSelectedBooking(null); setRecurringCancelConfirm(null); setCancelConfirm(null); }}
+                          <button disabled={cancelling} onClick={() => { handleCancel(b.key); setSelectedBooking(null); setRecurringCancelConfirm(null); setCancelConfirm(null); }}
                             style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "none",
-                              background: "#dc2626", color: "#fff", fontFamily: "'DM Sans', sans-serif",
-                              fontSize: "15px", fontWeight: 500, cursor: "pointer" }}>
-                            Yes, cancel
+                              background: cancelling ? "#f87171" : "#dc2626", color: "#fff", fontFamily: "'DM Sans', sans-serif",
+                              fontSize: "15px", fontWeight: 500, cursor: cancelling ? "not-allowed" : "pointer" }}>
+                            {cancelling ? "Cancelling…" : "Yes, cancel"}
                           </button>
                           <button onClick={() => setRecurringCancelConfirm(null)}
                             style={{ flex: 1, padding: "12px", borderRadius: "10px",
