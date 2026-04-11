@@ -735,13 +735,13 @@ async function sendWalkerCancellationNotification({ walkerName, walkerEmail, cli
   }
 }
 
-async function sendClientCancellationNotification({ clientName, clientEmail, pet, service, date, day, time, duration, walker }) {
+async function sendClientCancellationNotification({ clientName, clientEmail, pet, service, date, day, time, duration, walker, refundAmount, refundPercent }) {
   if (!clientEmail) return;
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/send-client-cancellation-notification`, {
       method: "POST",
       headers: edgeHeaders,
-      body: JSON.stringify({ clientName, clientEmail, pet, service, date, day, time, duration, walker }),
+      body: JSON.stringify({ clientName, clientEmail, pet, service, date, day, time, duration, walker, refundAmount, refundPercent }),
     });
     const body = await res.json();
     console.log(`[sendClientCancellationNotification] ${clientEmail} → ${res.status}`, body);

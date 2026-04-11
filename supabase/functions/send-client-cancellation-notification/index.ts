@@ -23,7 +23,10 @@ serve(async (req) => {
   }
 
   try {
-    const { clientName, clientEmail, pet, service, date, day, time, duration, walker } = await req.json();
+    const {
+      clientName, clientEmail, pet, service, date, day, time, duration, walker,
+      refundAmount, refundPercent,
+    } = await req.json();
 
     if (!clientEmail) {
       return new Response(JSON.stringify({ error: "No client email provided" }), { status: 400 });
@@ -31,7 +34,16 @@ serve(async (req) => {
 
     const firstName = (clientName || "").split(" ")[0] || "there";
     const svc = SERVICE_MAP[service] || { label: service || "Service", emoji: "🐾" };
-    const subject = `Your Lonestar Bark appointment has been cancelled`;
+
+    const hasRefund = refundAmount && refundAmount > 0;
+    const refundLabel = hasRefund
+      ? `$${Number(refundAmount).toFixed(2)}`
+      : null;
+    const refundPct = refundPercent != null ? Math.round(refundPercent * 100) : 0;
+
+    const subject = hasRefund
+      ? `Your Lonestar Bark appointment has been cancelled — refund of ${refundLabel} is on the way`
+      : `Your Lonestar Bark appointment has been cancelled`;
 
     const walkerRow = walker
       ? `<tr>
@@ -53,6 +65,62 @@ serve(async (req) => {
            <td style="font-size:14px;color:#111827;font-weight:600;padding:8px 0;text-align:right;">${duration}</td>
          </tr>`
       : "";
+
+    // Refund block — only shown when a refund is being issued
+    const refundBlock = hasRefund ? `
+        <!-- Refund Card -->
+        <tr>
+          <td style="padding:0 40px 28px;">
+            <table width="100%" cellpadding="0" cellspacing="0"
+              style="background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0;overflow:hidden;">
+              <tr>
+                <td style="padding:18px 24px 4px;" colspan="2">
+                  <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#16a34a;">
+                    💰 Refund Issued
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:0 24px 16px;" colspan="2">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="font-size:13px;color:#6b7280;padding:8px 0;border-bottom:1px solid #dcfce7;width:140px;">Refund Amount</td>
+                      <td style="font-size:18px;color:#15803d;font-weight:700;padding:8px 0;border-bottom:1px solid #dcfce7;text-align:right;">${refundLabel}</td>
+                    </tr>
+                    <tr>
+                      <td style="font-size:13px;color:#6b7280;padding:8px 0;border-bottom:1px solid #dcfce7;">Refund Rate</td>
+                      <td style="font-size:14px;color:#111827;font-weight:600;padding:8px 0;border-bottom:1px solid #dcfce7;text-align:right;">${refundPct}% of booking total</td>
+                    </tr>
+                    <tr>
+                      <td style="font-size:13px;color:#6b7280;padding:8px 0;">Processing Time</td>
+                      <td style="font-size:14px;color:#111827;font-weight:600;padding:8px 0;text-align:right;">5–10 business days</td>
+                    </tr>
+                  </table>
+                  <p style="margin:12px 0 0;font-size:12px;color:#6b7280;line-height:1.6;">
+                    The refund has been submitted to your original payment method. Processing time depends on your card issuer.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>` : `
+        <!-- No Refund Note -->
+        <tr>
+          <td style="padding:0 40px 28px;">
+            <table width="100%" cellpadding="0" cellspacing="0"
+              style="background:#fffbeb;border-radius:12px;border:1px solid #fde68a;overflow:hidden;">
+              <tr>
+                <td style="padding:16px 24px;">
+                  <div style="font-size:13px;color:#92400e;line-height:1.6;">
+                    <strong>No refund applies</strong> to this cancellation based on our cancellation policy
+                    (cancellations within 12 hours of the scheduled walk are non-refundable).
+                    If you have questions, reply to this email and we'll be happy to help.
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>`;
 
     const html = `<!DOCTYPE html>
 <html>
@@ -86,22 +154,24 @@ serve(async (req) => {
 
         <!-- Greeting -->
         <tr>
-          <td style="padding:32px 40px 8px;">
+          <td style="padding:32px 40px 16px;">
             <p style="margin:0;font-size:16px;color:#111827;font-weight:600;">Hi ${firstName},</p>
             <p style="margin:14px 0 0;font-size:15px;color:#4b5563;line-height:1.7;">
               We're confirming that your upcoming appointment with Lonestar Bark Co. has been successfully cancelled.
-              The details are listed below for your records.
+              ${hasRefund
+                ? `A refund of <strong style="color:#15803d;">${refundLabel}</strong> has been submitted to your original payment method.`
+                : ""}
             </p>
           </td>
         </tr>
 
         <!-- Booking Details Card -->
         <tr>
-          <td style="padding:20px 40px;">
+          <td style="padding:0 40px 24px;">
             <table width="100%" cellpadding="0" cellspacing="0"
               style="background:#fafafa;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden;">
               <tr>
-                <td style="padding:18px 24px 4px;border-bottom:1px solid #f3f4f6;" colspan="2">
+                <td style="padding:18px 24px 4px;" colspan="2">
                   <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#9ca3af;">
                     Cancelled Appointment
                   </div>
@@ -132,9 +202,11 @@ serve(async (req) => {
           </td>
         </tr>
 
+        ${refundBlock}
+
         <!-- Rebook CTA -->
         <tr>
-          <td style="padding:8px 40px 32px;text-align:center;">
+          <td style="padding:0 40px 32px;text-align:center;">
             <p style="margin:0 0 20px;font-size:14px;color:#6b7280;line-height:1.7;">
               Want to schedule a new appointment? Log in to your account and book at any time —
               we'd love to see ${pet ? pet : "your pup"} again soon. 🐶

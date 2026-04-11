@@ -702,7 +702,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           duration: booking.slot?.duration || "—",
         });
       }
-      // Send cancellation confirmation to the client
+      // Send cancellation + refund confirmation to the client
       if (client.email) {
         sendClientCancellationNotification({
           clientName: client.name,
@@ -714,6 +714,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           time: booking.slot?.time || "—",
           duration: booking.slot?.duration || "—",
           walker: walkerName || "",
+          refundAmount: refundAmount || 0,
+          refundPercent: refundPercent || 0,
         });
       }
     }
