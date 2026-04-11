@@ -1132,6 +1132,22 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                     const updated = { ...clients, [b.clientId]: { ...client, bookings: updatedBookings } };
                     setClients(updated);
                     saveClients(updated);
+                    const prevWalker = b.form?.walker || "";
+                    const newWalker  = d.walker || "";
+                    if (newWalker && newWalker !== prevWalker) {
+                      logAuditEvent({ adminId: admin.id, adminName: admin.name,
+                        action: "walker_assigned", entityType: "booking", entityId: b.key,
+                        details: {
+                          clientName: b.clientName, walkerName: newWalker,
+                          previousWalker: prevWalker || null,
+                          date: d.date,
+                          note: prevWalker ? `Reassigned from ${prevWalker} to ${newWalker}` : `Assigned to ${newWalker}`,
+                        } });
+                    } else {
+                      logAuditEvent({ adminId: admin.id, adminName: admin.name,
+                        action: "booking_edited", entityType: "booking", entityId: b.key,
+                        details: { clientName: b.clientName, date: d.date, walkerName: newWalker } });
+                    }
                     setOvwExpandedWalkKey(null);
                     setOvwWalkEditDraft(null);
                   };
@@ -1994,9 +2010,22 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
             };
             setClients(updatedClients);
             saveClients(updatedClients);
-            logAuditEvent({ adminId: admin.id, adminName: admin.name,
-              action: "booking_edited", entityType: "booking", entityId: editingBookingKey,
-              details: { date: editDraft.date, walkerName: editDraft.walker } });
+            const prevWalker = booking.form?.walker || "";
+            const newWalker  = editDraft.walker || "";
+            if (newWalker && newWalker !== prevWalker) {
+              logAuditEvent({ adminId: admin.id, adminName: admin.name,
+                action: "walker_assigned", entityType: "booking", entityId: editingBookingKey,
+                details: {
+                  clientName: booking.clientName, walkerName: newWalker,
+                  previousWalker: prevWalker || null,
+                  date: editDraft.date,
+                  note: prevWalker ? `Reassigned from ${prevWalker} to ${newWalker}` : `Assigned to ${newWalker}`,
+                } });
+            } else {
+              logAuditEvent({ adminId: admin.id, adminName: admin.name,
+                action: "booking_edited", entityType: "booking", entityId: editingBookingKey,
+                details: { date: editDraft.date, walkerName: newWalker } });
+            }
             setEditingBookingKey(null);
             setEditDraft(null);
             setExpandedBooking(null);
