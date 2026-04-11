@@ -144,17 +144,14 @@ serve(async (req) => {
         ${(walkPhotos as string[]).length > 0 ? `
         <tr>
           <td style="padding:0 40px 28px;">
-            <div style="color:#C4541A;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;">Photos from today's walk 📸</div>
-            <table cellpadding="0" cellspacing="0" width="100%">
-              <tr>
-                ${(walkPhotos as string[]).slice(0, 4).map((url: string, i: number) => `
-                  <td style="width:${Math.floor(100 / Math.min((walkPhotos as string[]).length, 4))}%;padding:0 4px ${i === 0 ? 'padding-left:0' : ''};">
-                    <img src="${url}" alt="Walk photo ${i + 1}"
-                      style="width:100%;height:120px;object-fit:cover;border-radius:10px;display:block;border:1.5px solid #f3f4f6;" />
-                  </td>`).join("")}
-              </tr>
-            </table>
-            ${(walkPhotos as string[]).length > 4 ? `<p style="margin:8px 0 0;color:#9ca3af;font-size:12px;text-align:center;">+ ${(walkPhotos as string[]).length - 4} more photo${(walkPhotos as string[]).length - 4 !== 1 ? "s" : ""}</p>` : ""}
+            <div style="color:#C4541A;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">Photos from today's walk 📸</div>
+            <div style="color:#9ca3af;font-size:12px;margin-bottom:14px;">Tap any photo to view full size or save to your device.</div>
+            ${(walkPhotos as string[]).map((url: string, i: number) => `
+            <a href="${url}" target="_blank" rel="noreferrer"
+              style="display:block;margin-bottom:12px;border-radius:12px;overflow:hidden;border:1.5px solid #f3f4f6;text-decoration:none;">
+              <img src="${url}" alt="Walk photo ${i + 1}"
+                style="width:100%;height:auto;display:block;border-radius:10px;" />
+            </a>`).join("")}
           </td>
         </tr>` : ""}
 
