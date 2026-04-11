@@ -11,6 +11,7 @@ function LogoBadge({ size = 48 }) {
       style={{
         display: "block",
         flexShrink: 0,
+        margin: "0 auto",
         borderRadius: "50%",
         objectFit: "cover",
         width: size,

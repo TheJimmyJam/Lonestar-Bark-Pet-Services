@@ -101,23 +101,37 @@ function getCancellationPolicy(scheduledDateTime) {
 }
 
 function repriceWeekBookings(bookings) {
-  // Find all bookings in the current week, sorted by bookedAt
-  const { monday, sunday } = getCurrentWeekRange();
-  const weekIdxs = [];
+  // Group bookings by the week they are SCHEDULED (Mon–Sun).
+  // Each scheduled week is priced independently based on how many active
+  // walks fall within that week — NOT by when the booking was created.
+  const byWeek = {};
   bookings.forEach((b, i) => {
-    const d = new Date(b.bookedAt);
-    if (d >= monday && d <= sunday && !b.cancelled) weekIdxs.push(i);
+    if (b.cancelled) return;
+    // Use scheduledDateTime to determine which week the walk happens in.
+    // Fall back to bookedAt for legacy records that lack scheduledDateTime.
+    const d = new Date(b.scheduledDateTime || b.bookedAt);
+    if (isNaN(d)) return;
+    const dow = d.getDay();
+    const off = dow === 0 ? -6 : 1 - dow;
+    const mon = new Date(d);
+    mon.setDate(d.getDate() + off);
+    mon.setHours(0, 0, 0, 0);
+    const key = mon.toISOString().slice(0, 10);
+    if (!byWeek[key]) byWeek[key] = [];
+    byWeek[key].push(i);
   });
-  // Reprice based on total count
-  const count = weekIdxs.length;
-  const tier = getPriceTier(count);
+
   const updated = [...bookings];
-  weekIdxs.forEach(i => {
-    // Never reprice completed or Stripe-paid bookings — price is locked at what was charged
-    if (updated[i].adminCompleted || updated[i].stripeSessionId) return;
-    const basePrice = tier.prices[updated[i].slot?.duration] || tier.prices["30 min"];
-    const dogCharge = (updated[i].additionalDogCount || 0) * 10;
-    updated[i] = { ...updated[i], price: basePrice + dogCharge, priceTier: tier.label, sameDayDiscount: false };
+  Object.values(byWeek).forEach(idxs => {
+    const count = idxs.length;
+    const tier = getPriceTier(count);
+    idxs.forEach(i => {
+      // Never reprice completed or Stripe-paid bookings — price is locked at what was charged
+      if (updated[i].adminCompleted || updated[i].stripeSessionId) return;
+      const basePrice = tier.prices[updated[i].slot?.duration] || tier.prices["30 min"];
+      const dogCharge = (updated[i].additionalDogCount || 0) * 10;
+      updated[i] = { ...updated[i], price: basePrice + dogCharge, priceTier: tier.label, sameDayDiscount: false };
+    });
   });
   return updated;
 }

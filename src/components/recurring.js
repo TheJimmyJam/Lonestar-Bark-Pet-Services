@@ -1,7 +1,6 @@
 import { FULL_DAYS, SERVICES, SERVICE_SLOTS } from "../constants.js";
 import { saveClients } from "../supabase.js";
 import { applySameDayDiscount, getPriceTier, getSessionPrice, getWeekBookingCountForOffset, getWeekDates, getWeekRangeForOffset, repriceWeekBookings } from "../helpers.js";
-import { autoCreateWalkInvoice, generateInvoiceId } from "./invoices/invoiceHelpers.js";
 
 // ─── Generate concrete booking entries from recurring schedules ───────────────
 // ─── Generate concrete booking entries from recurring schedules ───────────────

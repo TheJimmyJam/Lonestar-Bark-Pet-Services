@@ -6,8 +6,8 @@ import {
   loadDirectMessages, saveDirectMessage,
   loadWalkerAvailability, saveWalkerAvailabilityDay,
   loadCompletedPayrolls, saveCompletedPayrolls,
-  loadClientMessages, saveClientMessage, saveInvoiceToDB,
-  uploadWalkPhoto, sendInvoiceEmail,
+  loadClientMessages, saveClientMessage,
+  uploadWalkPhoto,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout,
@@ -22,7 +22,7 @@ import LogoBadge from "../shared/LogoBadge.jsx";
 import AddressFields from "../shared/AddressFields.jsx";
 import WalkerClientEditor from "./WalkerClientEditor.jsx";
 import { TAB_SLOTS, slotsToShifts, shiftsToSlots, ShiftSlider, DayAvailSliders, AVAIL_SLIDER_CSS } from "./AvailabilityComponents.jsx";
-import { autoCreateWalkInvoice, generateInvoiceId, invoiceStatusMeta } from "../invoices/invoiceHelpers.js";
+import { invoiceStatusMeta } from "../invoices/invoiceHelpers.js";
 import { spawnNextRecurringOccurrence } from "../recurring.js";
 import { GLOBAL_STYLES } from "../../styles.js";
 import { WALKER_CREDENTIALS, getAllWalkers } from "../auth/WalkerAuthScreen.jsx";
@@ -327,23 +327,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
       }
     }
 
-    // Auto-generate invoice on completion
-    const completedBooking = { ...targetBooking, completedAt };
-    const updatedClientRecord = autoCreateWalkInvoice(
-      { ...clientRecord, bookings: updatedBookings },
-      completedBooking
-    );
-
-    // Persist new invoice to the dedicated DB table + send email with any walk photos
-    const existingIds = new Set((clientRecord.invoices || []).map(i => i.id));
-    const newInv = (updatedClientRecord.invoices || []).find(i => !existingIds.has(i.id));
-    if (newInv) {
-      const clientName  = clientRecord.name  || targetBooking.clientName  || "";
-      const clientEmail = clientRecord.email || targetBooking.clientEmail || "";
-      saveInvoiceToDB(newInv, clientId, clientName, clientEmail);
-      sendInvoiceEmail(newInv, clientName, clientEmail, targetBooking.walkPhotos || []);
-    }
-
+    const updatedClientRecord = { ...clientRecord, bookings: updatedBookings };
     const updated = { ...clients, [clientId]: updatedClientRecord };
     setClients(updated);
     saveClients(updated);
@@ -374,16 +358,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
           updatedBookings = applySameDayDiscount(repriceWeekBookings([...updatedBookings, next]));
         }
       }
-      // Auto-generate invoice on completion
-      const completedBooking = { ...targetBooking, completedAt: now };
-      const existingIds = new Set((clientRecord.invoices || []).map(i => i.id));
-      updated[clientId] = autoCreateWalkInvoice(
-        { ...clientRecord, bookings: updatedBookings },
-        completedBooking
-      );
-      // Persist new invoice to the dedicated DB table
-      const newInv = (updated[clientId].invoices || []).find(i => !existingIds.has(i.id));
-      if (newInv) saveInvoiceToDB(newInv, clientId, clientRecord.name || "", clientRecord.email || "");
+      updated[clientId] = { ...clientRecord, bookings: updatedBookings };
     });
     setClients(updated);
     saveClients(updated);
@@ -1876,7 +1851,8 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                 {isConfirming && !isExpanded && (() => {
                   const isFuture = b.scheduledDateTime && new Date(b.scheduledDateTime) > new Date();
                   const ackChecked = earlyAckKey === b.key;
-                  const canConfirm = !isFuture || ackChecked;
+                  const hasPhotos = (b.walkPhotos || []).length > 0;
+                  const canConfirm = hasPhotos && (!isFuture || ackChecked);
                   return (
                     <div className="fade-up" style={{ borderTop: `1px solid ${accentBlue}18`,
                       background: "#EBF4F6", padding: "14px 18px" }}>
@@ -1884,6 +1860,19 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                         fontWeight: 600, color: "#111827", marginBottom: "10px" }}>
                         Mark this walk as completed?
                       </div>
+                      {!hasPhotos && (
+                        <div style={{ background: "#fef2f2", border: "1.5px solid #fecaca",
+                          borderRadius: "10px", padding: "11px 13px", marginBottom: "10px" }}>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                            fontWeight: 700, color: "#dc2626", marginBottom: "2px" }}>
+                            📸 Photo required
+                          </div>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                            color: "#991b1b" }}>
+                            Please expand the walk card and upload at least one photo before marking complete.
+                          </div>
+                        </div>
+                      )}
                       {isFuture && (
                         <div style={{ background: "#fef3c7", border: "1.5px solid #fde68a",
                           borderRadius: "10px", padding: "11px 13px", marginBottom: "10px" }}>
@@ -1947,13 +1936,27 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                       ) : (() => {
                         const isFuture = b.scheduledDateTime && new Date(b.scheduledDateTime) > new Date();
                         const ackChecked = earlyAckKey === b.key;
-                        const canConfirm = !isFuture || ackChecked;
+                        const hasPhotos = (b.walkPhotos || []).length > 0;
+                        const canConfirm = hasPhotos && (!isFuture || ackChecked);
                         return (
                           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                               fontWeight: 600, color: "#111827" }}>
                               Confirm walk completed?
                             </div>
+                            {!hasPhotos && (
+                              <div style={{ background: "#fef2f2", border: "1.5px solid #fecaca",
+                                borderRadius: "10px", padding: "12px 14px" }}>
+                                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                                  fontWeight: 700, color: "#dc2626", marginBottom: "2px" }}>
+                                  📸 Photo required
+                                </div>
+                                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                                  color: "#991b1b" }}>
+                                  Upload at least one walk photo below before marking this walk complete.
+                                </div>
+                              </div>
+                            )}
                             {isFuture && (
                               <div style={{ background: "#fef3c7", border: "1.5px solid #fde68a",
                                 borderRadius: "10px", padding: "12px 14px" }}>

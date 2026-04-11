@@ -22,7 +22,7 @@ import ClientMyInfoPage from "./ClientMyInfoPage.jsx";
 import QuickRebookBanner from "./QuickRebookBanner.jsx";
 import ClientInvoicesPage from "../invoices/ClientInvoicesPage.jsx";
 import HandoffFlow from "../HandoffFlow.jsx";
-import { autoCreateWalkInvoice, generateInvoiceId, invoiceStatusMeta } from "../invoices/invoiceHelpers.js";
+import { invoiceStatusMeta } from "../invoices/invoiceHelpers.js";
 import { spawnNextRecurringOccurrence } from "../recurring.js";
 import { GLOBAL_STYLES } from "../../styles.js";
 import { getAllWalkers } from "../auth/WalkerAuthScreen.jsx";
@@ -684,7 +684,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     let refundAmount = 0;
     let hoursUntilWalk = null;
     const bookingPrice = booking?.price || 0;
-    if (bookingPrice > 0) {
+    const wasActuallyPaid = !!(booking?.paidAt);
+    if (bookingPrice > 0 && wasActuallyPaid) {
       // Prefer stored scheduledDateTime; otherwise reconstruct from date + slot.time
       let apptMs = null;
       if (booking.scheduledDateTime) {
@@ -737,7 +738,25 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     const updatedBookings = applySameDayDiscount(repriceWeekBookings(
       client.bookings.map(b => b.key === bookingKey ? cancelledBooking : b)
     ));
-    const updated = { ...client, bookings: updatedBookings };
+
+    // If this was a stored recurring booking, also mark its week as cancelled
+    // so the dynamic recurring instance generator doesn't immediately respawn it.
+    let updatedRecurringSchedules = client.recurringSchedules || [];
+    if (booking.recurringId && booking.scheduledDateTime) {
+      const d = new Date(booking.scheduledDateTime);
+      const dow = d.getDay();
+      const daysToMon = dow === 0 ? -6 : 1 - dow;
+      const mon = new Date(d);
+      mon.setDate(d.getDate() + daysToMon);
+      const weekKey = mon.toISOString().slice(0, 10);
+      updatedRecurringSchedules = updatedRecurringSchedules.map(r =>
+        r.id === booking.recurringId
+          ? { ...r, cancelledWeeks: [...(r.cancelledWeeks || []), weekKey] }
+          : r
+      );
+    }
+
+    const updated = { ...client, bookings: updatedBookings, recurringSchedules: updatedRecurringSchedules };
     const updatedClients = { ...clients, [clientPinKey]: updated };
     setClients(updatedClients);
     saveClients(updatedClients);
@@ -825,19 +844,21 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           isStripeRefund: stripeRefundSucceeded,
           refundId: stripeRefundId,
           receiptUrl: stripeReceiptUrl,
-          bookingPrice,
+          bookingPrice: wasActuallyPaid ? bookingPrice : 0,
         });
       }
     }
 
     // Show the cancellation result screen with refund details
-    const finalRefund = stripeRefundSucceeded ? confirmedRefundAmount : refundAmount;
+    const finalRefund = wasActuallyPaid
+      ? (stripeRefundSucceeded ? confirmedRefundAmount : refundAmount)
+      : 0;
     setCancelResult({
       booking,
       refundAmount: finalRefund,
-      refundPercent,
+      refundPercent: wasActuallyPaid ? refundPercent : 0,
       hoursUntilWalk,
-      bookingPrice,
+      bookingPrice: wasActuallyPaid ? bookingPrice : 0,
       stripeRefundSucceeded,
       stripeRefundId,
     });
@@ -2339,7 +2360,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                                       💳 Pay ${b.price} to confirm →
                                     </button>
                                   )}
-                                  {!b.isRecurringInstance && !(b.isFirstWalk && b.status === "pending_payment" && !b.paidAt) && (
+                                  {!b.isRecurringInstance && (
                                     <button onClick={() => setSelectedBooking(b)}
                                       style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                                         color: "#6b7280", background: "none", border: "none",
@@ -2460,93 +2481,142 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               </div>
             )}
 
-            {/* Booking detail sheet (shared with book tab) */}
-            {selectedBooking && (() => {
-              const b = selectedBooking;
-              const s = SERVICES[b.service] || SERVICES["dog"];
-              const policy = b.scheduledDateTime ? getCancellationPolicy(b.scheduledDateTime) : null;
-              const penaltyAmount = policy ? Math.round((b.price || 0) * policy.penalty) : 0;
-              return (
-                <div className="fade-up" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
-                  zIndex: 100, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-                  <div className="bottom-sheet">
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600, color: "#111827" }}>Booking Details</div>
-                      <button onClick={() => { setSelectedBooking(null); setRecurringCancelConfirm(null); }}
-                        style={{ background: "#f3f4f6", border: "none", borderRadius: "50%", width: "32px", height: "32px",
-                          cursor: "pointer", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7280" }}>✕</button>
-                    </div>
-                    <div style={{ background: s.light, border: `1.5px solid ${s.border}`, borderRadius: "14px",
-                      padding: "16px 18px", marginBottom: "20px", display: "flex", alignItems: "center", gap: "14px" }}>
-                      <span style={{ fontSize: "28px" }}>{s.icon}</span>
-                      <div>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", color: "#111827" }}>{s.label}</div>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: s.color }}>
-                          {b.day} {fmtBookingDate(b.scheduledDateTime)} at {b.slot?.time} · {b.slot?.duration}
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0", border: "1.5px solid #e4e7ec",
-                      borderRadius: "14px", overflow: "hidden", marginBottom: "20px" }}>
-                      {[["Pet", b.form.pet], ["Owner", b.form.name], ["Email", b.form.email],
-                        b.form.phone && ["Phone", b.form.phone], b.form.address && ["Address", b.form.address],
-                        b.form.walker && ["Walker", firstName(b.form.walker)], b.form.notes && ["Notes", b.form.notes],
-                        b.price > 0 && ["Session Price", b.sameDayDiscount
-                          ? `${fmt(b.price, true)} (${b.priceTier} rate · 20% same-day discount — was ${fmt(b.priceBeforeSameDayDiscount, true)})`
-                          : `${fmt(b.price, true)} (${b.priceTier} rate)`],
-                      ].filter(Boolean).map(([label, val], i, arr) => (
-                        <div key={label} style={{ padding: "12px 16px", borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none",
-                          display: "flex", justifyContent: "space-between", gap: "12px", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
-                          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#9ca3af", flexShrink: 0 }}>{label}</span>
-                          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#374151", textAlign: "right" }}>{val}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {policy?.canCancel && (
-                      <>
-                        <div style={{ padding: "12px 16px", borderRadius: "12px", marginBottom: "16px",
-                          background: policy.penalty === 0 ? "#FDF5EC" : policy.penalty === 0.5 ? "#fffbeb" : "#fef2f2",
-                          border: `1.5px solid ${policy.penalty === 0 ? "#D4A843" : policy.penalty === 0.5 ? "#fcd34d" : "#fecaca"}` }}>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: "15px", color: policy.color, marginBottom: "3px" }}>
-                            {policy.label}{penaltyAmount > 0 ? ` — $${penaltyAmount} charge` : ""}
-                          </div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#6b7280" }}>
-                            {policy.penalty === 0 ? "Free cancellation — more than 24 hours out."
-                              : policy.penalty === 0.5 ? "Within 12–24 hours. A 50% fee applies."
-                              : "Within 12 hours. The full session fee applies."}
-                          </div>
-                        </div>
-                        {cancelConfirm !== b.key ? (
-                          <button onClick={() => setCancelConfirm(b.key)} style={{ width: "100%", padding: "14px",
-                            borderRadius: "12px", border: "1.5px solid #fecaca", background: "#fff",
-                            color: "#dc2626", fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 500, cursor: "pointer" }}>
-                            Cancel This Appointment
-                          </button>
-                        ) : (
-                          <div style={{ padding: "16px", background: "#fef2f2", borderRadius: "12px", border: "1.5px solid #fecaca" }}>
-                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: "16px", color: "#dc2626", marginBottom: "6px" }}>
-                              {policy.penalty === 0 ? "Cancel for free?" : `Cancel with a $${penaltyAmount} fee?`}
-                            </div>
-                            <div style={{ display: "flex", gap: "8px" }}>
-                              <button disabled={cancelling} onClick={() => { handleCancel(b.key); setSelectedBooking(null); setRecurringCancelConfirm(null); setCancelConfirm(null); }}
-                                style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "none", background: cancelling ? "#f87171" : "#dc2626",
-                                  color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, cursor: cancelling ? "not-allowed" : "pointer" }}>
-                                {cancelling ? "Cancelling…" : "Yes, cancel"}
-                              </button>
-                              <button onClick={() => setRecurringCancelConfirm(null)}
-                                style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "1px solid #d1d5db",
-                                  background: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", cursor: "pointer", color: "#374151" }}>
-                                Keep it
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
+          </div>
+        );
+      })()}
+
+      {/* ── BOOKING DETAIL SHEET (global — works from any page) ── */}
+      {selectedBooking && (() => {
+        const b = selectedBooking;
+        const s = SERVICES[b.service] || SERVICES["dog"];
+        const policy = b.scheduledDateTime ? getCancellationPolicy(b.scheduledDateTime) : null;
+        const penaltyAmount = policy ? Math.round((b.price || 0) * policy.penalty) : 0;
+        return (
+          <div className="fade-up" style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
+            zIndex: 100, display: "flex", alignItems: "flex-end", justifyContent: "center",
+          }}>
+            <div className="bottom-sheet">
+
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between",
+                alignItems: "center", marginBottom: "24px" }}>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
+                  fontWeight: 600, color: "#111827" }}>Booking Details</div>
+                <button onClick={() => { setSelectedBooking(null); setRecurringCancelConfirm(null); setCancelConfirm(null); }}
+                  style={{ background: "#f3f4f6", border: "none", borderRadius: "50%",
+                    width: "32px", height: "32px", cursor: "pointer", fontSize: "16px",
+                    display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7280" }}>✕</button>
+              </div>
+
+              {/* Service badge */}
+              <div style={{ background: s.light, border: `1.5px solid ${s.border}`,
+                borderRadius: "14px", padding: "16px 18px", marginBottom: "20px",
+                display: "flex", alignItems: "center", gap: "14px" }}>
+                <span style={{ fontSize: "28px" }}>{s.icon}</span>
+                <div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                    fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", color: "#111827" }}>{s.label}</div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: s.color }}>
+                    {b.day} {fmtBookingDate(b.scheduledDateTime)} at {b.slot?.time} · {b.slot?.duration}
                   </div>
                 </div>
-              );
-            })()}
+              </div>
+
+              {/* Detail rows */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "0",
+                border: "1.5px solid #e4e7ec", borderRadius: "14px",
+                overflow: "hidden", marginBottom: "20px" }}>
+                {[
+                  ["Pet", b.form.pet],
+                  ["Owner", b.form.name],
+                  ["Email", b.form.email],
+                  b.form.phone && ["Phone", b.form.phone],
+                  b.form.address && ["Address", b.form.address],
+                  b.form.walker && ["Walker", firstName(b.form.walker)],
+                  b.form.notes && ["Notes", b.form.notes],
+                  b.price > 0 && ["Session Price", b.sameDayDiscount
+                    ? `${fmt(b.price, true)} (${b.priceTier} rate · 20% same-day discount — was ${fmt(b.priceBeforeSameDayDiscount, true)})`
+                    : `${fmt(b.price, true)} (${b.priceTier} rate)`],
+                ].filter(Boolean).map(([label, val], i, arr) => (
+                  <div key={label} style={{ padding: "12px 16px",
+                    borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none",
+                    display: "flex", justifyContent: "space-between", gap: "12px",
+                    background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                      color: "#9ca3af", flexShrink: 0 }}>{label}</span>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                      color: "#374151", textAlign: "right" }}>{val}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Cancellation policy */}
+              {policy && (
+                <div style={{ padding: "12px 16px", borderRadius: "12px", marginBottom: "16px",
+                  background: policy.penalty === 0 ? "#FDF5EC" : policy.penalty === 0.5 ? "#fffbeb" : "#fef2f2",
+                  border: `1.5px solid ${policy.penalty === 0 ? "#D4A843" : policy.penalty === 0.5 ? "#fcd34d" : "#fecaca"}` }}>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                    fontSize: "15px", color: policy.color, marginBottom: "3px" }}>
+                    {policy.label}{penaltyAmount > 0 ? ` — $${penaltyAmount} charge` : ""}
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#6b7280" }}>
+                    {policy.penalty === 0
+                      ? "You can cancel this appointment for free — more than 24 hours out."
+                      : policy.penalty === 0.5
+                      ? "You're within 12–24 hours of your appointment. A 50% fee applies if cancelled."
+                      : "You're within 12 hours of your appointment. The full session fee applies if cancelled."}
+                  </div>
+                </div>
+              )}
+
+              {/* Cancel button */}
+              {policy?.canCancel && !cancelConfirm && (
+                <button onClick={() => setCancelConfirm(b.key)}
+                  style={{ width: "100%", padding: "14px", borderRadius: "12px",
+                    border: "1.5px solid #fecaca", background: "#fff",
+                    color: "#dc2626", fontFamily: "'DM Sans', sans-serif",
+                    fontSize: "16px", fontWeight: 500, cursor: "pointer" }}>
+                  Cancel This Appointment
+                </button>
+              )}
+
+              {/* Cancel confirmation */}
+              {cancelConfirm === b.key && (
+                <div className="fade-up" style={{ padding: "16px", background: "#fef2f2",
+                  borderRadius: "12px", border: "1.5px solid #fecaca" }}>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                    fontSize: "16px", color: "#dc2626", marginBottom: "6px" }}>
+                    {policy.penalty === 0
+                      ? "Cancel for free?"
+                      : `Cancel with a $${penaltyAmount} ${policy.penalty === 1 ? "100%" : "50%"} fee?`}
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                    color: "#6b7280", marginBottom: "16px" }}>
+                    {policy.penalty === 0
+                      ? "No charge — cancellation is free more than 24 hours in advance."
+                      : policy.penalty === 0.5
+                      ? "You're within 12–24 hours of your appointment. A 50% fee applies."
+                      : "You're within 12 hours of your appointment. The full session fee applies."}
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button disabled={cancelling} onClick={() => { handleCancel(b.key); setSelectedBooking(null); setRecurringCancelConfirm(null); setCancelConfirm(null); }}
+                      style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "none",
+                        background: cancelling ? "#f87171" : "#dc2626", color: "#fff", fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "15px", fontWeight: 500, cursor: cancelling ? "not-allowed" : "pointer" }}>
+                      {cancelling ? "Cancelling…" : "Yes, cancel"}
+                    </button>
+                    <button onClick={() => setCancelConfirm(null)}
+                      style={{ flex: 1, padding: "12px", borderRadius: "10px",
+                        border: "1px solid #d1d5db", background: "#fff",
+                        fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                        cursor: "pointer", color: "#374151" }}>
+                      Keep it
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         );
       })()}
@@ -3570,140 +3640,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               </div>
             )}
 
-            {/* BOOKING DETAIL STEP */}
-            {step === "pick" && selectedBooking && (() => {
-              const b = selectedBooking;
-              const s = SERVICES[b.service] || SERVICES["dog"];
-              const policy = b.scheduledDateTime ? getCancellationPolicy(b.scheduledDateTime) : null;
-              const penaltyAmount = policy ? Math.round((b.price || 0) * policy.penalty) : 0;
-              return (
-                <div className="fade-up" style={{
-                  position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
-                  zIndex: 100, display: "flex", alignItems: "flex-end", justifyContent: "center",
-                }}>
-                  <div className="bottom-sheet">
-
-                    {/* Header */}
-                    <div style={{ display: "flex", justifyContent: "space-between",
-                      alignItems: "center", marginBottom: "24px" }}>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                        fontWeight: 600, color: "#111827" }}>Booking Details</div>
-                      <button onClick={() => { setSelectedBooking(null); setRecurringCancelConfirm(null); }}
-                        style={{ background: "#f3f4f6", border: "none", borderRadius: "50%",
-                          width: "32px", height: "32px", cursor: "pointer", fontSize: "16px",
-                          display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7280" }}>✕</button>
-                    </div>
-
-                    {/* Service badge */}
-                    <div style={{ background: s.light, border: `1.5px solid ${s.border}`,
-                      borderRadius: "14px", padding: "16px 18px", marginBottom: "20px",
-                      display: "flex", alignItems: "center", gap: "14px" }}>
-                      <span style={{ fontSize: "28px" }}>{s.icon}</span>
-                      <div>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                          fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", color: "#111827" }}>{s.label}</div>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: s.color }}>
-                          {b.day} at {b.slot?.time} · {b.slot?.duration}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Detail rows */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0",
-                      border: "1.5px solid #e4e7ec", borderRadius: "14px",
-                      overflow: "hidden", marginBottom: "20px" }}>
-                      {[
-                        ["Pet", b.form.pet],
-                        ["Owner", b.form.name],
-                        ["Email", b.form.email],
-                        b.form.phone && ["Phone", b.form.phone],
-                        b.form.address && ["Address", b.form.address],
-                        b.form.walker && ["Walker", firstName(b.form.walker)],
-                        b.form.notes && ["Notes", b.form.notes],
-                        b.price > 0 && ["Session Price", b.sameDayDiscount
-                          ? `${fmt(b.price, true)} (${b.priceTier} rate · 20% same-day discount — was ${fmt(b.priceBeforeSameDayDiscount, true)})`
-                          : `${fmt(b.price, true)} (${b.priceTier} rate)`],
-                      ].filter(Boolean).map(([label, val], i, arr) => (
-                        <div key={label} style={{ padding: "12px 16px",
-                          borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none",
-                          display: "flex", justifyContent: "space-between", gap: "12px",
-                          background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
-                          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                            color: "#9ca3af", flexShrink: 0 }}>{label}</span>
-                          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                            color: "#374151", textAlign: "right" }}>{val}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Cancellation policy status */}
-                    {policy && (
-                      <div style={{ padding: "12px 16px", borderRadius: "12px", marginBottom: "16px",
-                        background: policy.penalty === 0 ? "#FDF5EC" : policy.penalty === 0.5 ? "#fffbeb" : "#fef2f2",
-                        border: `1.5px solid ${policy.penalty === 0 ? "#D4A843" : policy.penalty === 0.5 ? "#fcd34d" : "#fecaca"}` }}>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                          fontSize: "15px", color: policy.color, marginBottom: "3px" }}>
-                          {policy.label}{penaltyAmount > 0 ? ` — $${penaltyAmount} charge` : ""}
-                        </div>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#6b7280" }}>
-                          {policy.penalty === 0
-                            ? "You can cancel this appointment for free — more than 24 hours out."
-                            : policy.penalty === 0.5
-                            ? "You're within 12–24 hours of your appointment. A 50% fee applies if cancelled."
-                            : "You're within 12 hours of your appointment. The full session fee applies if cancelled."}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Cancel confirmation or cancel button */}
-                    {policy?.canCancel && !cancelConfirm && (
-                      <button onClick={() => setCancelConfirm(b.key)}
-                        style={{ width: "100%", padding: "14px", borderRadius: "12px",
-                          border: "1.5px solid #fecaca", background: "#fff",
-                          color: "#dc2626", fontFamily: "'DM Sans', sans-serif",
-                          fontSize: "16px", fontWeight: 500, cursor: "pointer" }}>
-                        Cancel This Appointment
-                      </button>
-                    )}
-
-                    {cancelConfirm === b.key && (
-                      <div className="fade-up" style={{ padding: "16px", background: "#fef2f2",
-                        borderRadius: "12px", border: "1.5px solid #fecaca" }}>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                          fontSize: "16px", color: "#dc2626", marginBottom: "6px" }}>
-                          {policy.penalty === 0
-                            ? "Cancel for free?"
-                            : `Cancel with a $${penaltyAmount} ${policy.penalty === 1 ? "100%" : "50%"} fee?`}
-                        </div>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                          color: "#6b7280", marginBottom: "16px" }}>
-                          {policy.penalty === 0
-                            ? "No charge — cancellation is free more than 24 hours in advance."
-                            : policy.penalty === 0.5
-                            ? "You're within 12–24 hours of your appointment. A 50% fee applies."
-                            : "You're within 12 hours of your appointment. The full session fee applies."}
-                        </div>
-                        <div style={{ display: "flex", gap: "8px" }}>
-                          <button disabled={cancelling} onClick={() => { handleCancel(b.key); setSelectedBooking(null); setRecurringCancelConfirm(null); setCancelConfirm(null); }}
-                            style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "none",
-                              background: cancelling ? "#f87171" : "#dc2626", color: "#fff", fontFamily: "'DM Sans', sans-serif",
-                              fontSize: "15px", fontWeight: 500, cursor: cancelling ? "not-allowed" : "pointer" }}>
-                            {cancelling ? "Cancelling…" : "Yes, cancel"}
-                          </button>
-                          <button onClick={() => setRecurringCancelConfirm(null)}
-                            style={{ flex: 1, padding: "12px", borderRadius: "10px",
-                              border: "1px solid #d1d5db", background: "#fff",
-                              fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                              cursor: "pointer", color: "#374151" }}>
-                            Keep it
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
 
             {step === "form" && selectedSlot && service !== "overnight" && (
               <div className="fade-up">

@@ -7,7 +7,7 @@ import {
   loadWalkerAvailability, saveWalkerAvailabilityDay,
   loadCompletedPayrolls, saveCompletedPayrolls,
   loadAllWalkersAvailability,
-  saveInvoiceToDB, updateInvoiceInDB, sendInvoiceEmail,
+  updateInvoiceInDB,
   loadContactSubmissions,
   logAuditEvent,
 } from "../../supabase.js";
@@ -30,7 +30,7 @@ import AdminAdminsTab from "./AdminAdminsTab.jsx";
 import AdminMyInfo from "./AdminMyInfo.jsx";
 import AdminContactTab from "./AdminContactTab.jsx";
 import AdminAuditTab from "./AdminAuditTab.jsx";
-import { autoCreateWalkInvoice, generateInvoiceId, getAllInvoices, invoiceStatusMeta } from "../invoices/invoiceHelpers.js";
+import { generateInvoiceId, getAllInvoices, invoiceStatusMeta } from "../invoices/invoiceHelpers.js";
 import { generateRecurringBookings, extendRecurringBookings, spawnNextRecurringOccurrence } from "../recurring.js";
 import { GLOBAL_STYLES } from "../../styles.js";
 import { WALKER_CREDENTIALS, getAllWalkers, injectCustomWalkers } from "../auth/WalkerAuthScreen.jsx";
@@ -287,24 +287,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
       }
     }
 
-    // Auto-generate invoice on completion
-    const completedBooking = { ...booking, completedAt };
-    const existingIds = new Set((c.invoices || []).map(i => i.id));
-    const updatedClientRecord = autoCreateWalkInvoice(
-      { ...c, bookings: updatedBookings },
-      completedBooking
-    );
-    // Persist new invoice to the dedicated DB table
-    const newInv = (updatedClientRecord.invoices || []).find(i => !existingIds.has(i.id));
-    if (newInv) {
-      saveInvoiceToDB(newInv, booking.clientId, booking.clientName || "", booking.clientEmail || "");
-      // Pull walkPhotos from the live booking record (walker may have uploaded photos)
-      const liveBooking = (c.bookings || []).find(bk => bk.key === booking.key);
-      const walkPhotos = liveBooking?.walkPhotos || booking.walkPhotos || [];
-      sendInvoiceEmail(newInv, booking.clientName || c.name, booking.clientEmail || c.email, walkPhotos);
-    }
-
-    const updatedClients = { ...clients, [clientId]: updatedClientRecord };
+    const updatedClients = { ...clients, [clientId]: { ...c, bookings: updatedBookings } };
     setClients(updatedClients);
     saveClients(updatedClients);
     notifyAdmin("walk_completed", {
