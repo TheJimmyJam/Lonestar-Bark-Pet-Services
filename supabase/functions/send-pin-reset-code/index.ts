@@ -72,7 +72,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Lonestar Bark Co. <hello@lonestarbarkco.com>",
+        from: "Lonestar Bark <hello@send.lonestarbarkco.com>",
         to: [email],
         subject: `Your Lonestar Bark Co. PIN reset code: ${code}`,
         html,

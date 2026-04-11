@@ -102,7 +102,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Lonestar Bark Co. <hello@lonestarbarkco.com>",
+        from: "Lonestar Bark <hello@send.lonestarbarkco.com>",
         to: [clientEmail],
         subject: `✓ Payment of $${Number(amount || 0).toFixed(2)} received — thank you!`,
         html,

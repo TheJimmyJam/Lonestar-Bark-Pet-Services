@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-const FROM = "Lonestar Bark Co. <hello@lonestarbarkco.com>";
+const FROM = "Lonestar Bark Alerts <alerts@send.lonestarbarkco.com>";
 
 const SERVICE_MAP: Record<string, { label: string; emoji: string }> = {
   "30-min-walk":    { label: "30-Minute Walk",    emoji: "🐾" },

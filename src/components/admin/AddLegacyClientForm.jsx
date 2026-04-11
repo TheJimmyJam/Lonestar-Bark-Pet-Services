@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { SERVICES, SERVICE_SLOTS, DAYS } from "../../constants.js";
-import { saveClients, notifyAdmin } from "../../supabase.js";
+import { saveClients, notifyAdmin, logAuditEvent } from "../../supabase.js";
 import { addrToString, applySameDayDiscount, emptyAddr, firstName, fmt, formatPhone, generateCode, repriceWeekBookings } from "../../helpers.js";
 import AddressFields from "../shared/AddressFields.jsx";
 import { getAllWalkers } from "../auth/WalkerAuthScreen.jsx";
@@ -19,7 +19,7 @@ function LegacySection({ title, children }) {
   );
 }
 
-function AddLegacyClientForm({ clients, setClients, onDone, walkerProfiles = {}, lockedWalker = "" }) {
+function AddLegacyClientForm({ clients, setClients, onDone, walkerProfiles = {}, lockedWalker = "", admin = {} }) {
   const SCHEDULE_DAYS  = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
   const SCHEDULE_TIMES = [];
   for (let h = 7; h <= 19; h++) {
@@ -149,6 +149,10 @@ function AddLegacyClientForm({ clients, setClients, onDone, walkerProfiles = {},
     const updated = { ...clients, [newClient.id]: newClient };
     setClients(updated);
     saveClients(updated);
+    logAuditEvent({ adminId: admin?.id, adminName: admin?.name,
+      action: "client_added", entityType: "client", entityId: newClient.id,
+      details: { clientName: newClient.name, email: newClient.email,
+        pets: [...validDogs, ...validCats], walker: newClient.preferredWalker } });
     setSaved(true);
     setForm(blank);
     setErrors({});

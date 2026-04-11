@@ -139,7 +139,7 @@ serve(async (req) => {
         "Authorization": `Bearer ${Deno.env.get("RESEND_API_KEY")}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ from: "Lonestar Bark Co. <hello@lonestarbarkco.com>", to: walkerEmail, subject, html }),
+      body: JSON.stringify({ from: "Lonestar Bark Alerts <alerts@send.lonestarbarkco.com>", to: walkerEmail, subject, html }),
     });
 
     const data = await res.json();
