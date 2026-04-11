@@ -147,16 +147,32 @@ function AdminMapView({ clients, walkerProfiles, geoCache, setGeoCache }) {
 
     leafletMapRef.current = map;
 
-    // Helper: build colored circle div icon for booking pins
-    const bookingIcon = (color, timeLabel) => L.divIcon({
-      className: "",
-      html: `<div style="width:36px;height:36px;border-radius:50%;background:${color};
-        border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,0.28);
-        display:flex;align-items:center;justify-content:center;
-        font-family:sans-serif;font-size:9px;font-weight:700;color:#fff;
-        line-height:1;text-align:center;padding:2px">${timeLabel}</div>`,
-      iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -20],
-    });
+    // Helper: build icon for booking pins — circle=30min, triangle=60min
+    const bookingIcon = (color, timeLabel, duration) => {
+      const is60 = (duration || "").includes("60");
+      if (is60) {
+        return L.divIcon({
+          className: "",
+          html: `<div style="width:42px;height:42px;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.28))">
+            <div style="width:42px;height:42px;clip-path:polygon(50% 0%,0% 100%,100% 100%);
+              background:${color};border:none;
+              display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px;
+              font-family:sans-serif;font-size:8px;font-weight:700;color:#fff;line-height:1;
+              text-align:center">${timeLabel}</div>
+          </div>`,
+          iconSize: [42, 42], iconAnchor: [21, 21], popupAnchor: [0, -22],
+        });
+      }
+      return L.divIcon({
+        className: "",
+        html: `<div style="width:36px;height:36px;border-radius:50%;background:${color};
+          border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,0.28);
+          display:flex;align-items:center;justify-content:center;
+          font-family:sans-serif;font-size:9px;font-weight:700;color:#fff;
+          line-height:1;text-align:center;padding:2px">${timeLabel}</div>`,
+        iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -20],
+      });
+    };
 
     // Helper: rounded-square walker icon with initials
     const walkerIcon = (color, name) => {
@@ -193,7 +209,7 @@ function AdminMapView({ clients, walkerProfiles, geoCache, setGeoCache }) {
       const shortTime = apptTime.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
         .replace(":00", "").replace(" AM", "a").replace(" PM", "p");
 
-      L.marker([lat, lng], { icon: bookingIcon(band.color, shortTime) })
+      L.marker([lat, lng], { icon: bookingIcon(band.color, shortTime, b.slot?.duration) })
         .addTo(map)
         .bindPopup(`
           <div style="font-family:'DM Sans',sans-serif;min-width:190px;padding:2px">
@@ -272,6 +288,7 @@ function AdminMapView({ clients, walkerProfiles, geoCache, setGeoCache }) {
 
       {/* Legend */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" }}>
+        {/* Time-of-day color bands */}
         {TIME_BANDS.map(b => (
           <div key={b.id} style={{ display: "flex", alignItems: "center", gap: "6px",
             background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "8px",
@@ -282,6 +299,25 @@ function AdminMapView({ clients, walkerProfiles, geoCache, setGeoCache }) {
               color: "#374151", fontWeight: 500 }}>{b.label} <span style={{ color: "#9ca3af" }}>{b.range}</span></span>
           </div>
         ))}
+        {/* Duration shapes */}
+        <div style={{ display: "flex", alignItems: "center", gap: "6px",
+          background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "8px",
+          padding: "5px 10px" }}>
+          <div style={{ width: "14px", height: "14px", borderRadius: "50%",
+            background: "#6b7280", flexShrink: 0 }} />
+          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+            color: "#374151", fontWeight: 500 }}>30 min</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px",
+          background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "8px",
+          padding: "5px 10px" }}>
+          <div style={{ width: 0, height: 0, flexShrink: 0,
+            borderLeft: "8px solid transparent", borderRight: "8px solid transparent",
+            borderBottom: "14px solid #6b7280" }} />
+          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+            color: "#374151", fontWeight: 500 }}>60 min</span>
+        </div>
+        {/* Walker home */}
         <div style={{ display: "flex", alignItems: "center", gap: "6px",
           background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "8px",
           padding: "5px 10px" }}>
