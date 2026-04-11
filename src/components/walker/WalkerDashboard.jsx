@@ -341,8 +341,10 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     const existingIds = new Set((clientRecord.invoices || []).map(i => i.id));
     const newInv = (updatedClientRecord.invoices || []).find(i => !existingIds.has(i.id));
     if (newInv) {
-      saveInvoiceToDB(newInv, clientId, clientRecord.name || "", clientRecord.email || "");
-      sendInvoiceEmail(newInv, clientRecord.name || "", clientRecord.email || "", targetBooking.walkPhotos || []);
+      const clientName  = clientRecord.name  || targetBooking.clientName  || "";
+      const clientEmail = clientRecord.email || targetBooking.clientEmail || "";
+      saveInvoiceToDB(newInv, clientId, clientName, clientEmail);
+      sendInvoiceEmail(newInv, clientName, clientEmail, targetBooking.walkPhotos || []);
     }
 
     const updated = { ...clients, [clientId]: updatedClientRecord };

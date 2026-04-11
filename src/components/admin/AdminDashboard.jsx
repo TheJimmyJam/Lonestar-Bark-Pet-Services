@@ -908,6 +908,24 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                                       <div style={{ color: "#374151" }}>{b.form.notes}</div>
                                     </div>
                                   )}
+                                  {b.walkPhotos?.length > 0 && (
+                                    <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px solid #fde68a" }}>
+                                      <div style={{ color: "#9ca3af", fontSize: "11px", fontWeight: 600,
+                                        textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>
+                                        📸 Walk Photos ({b.walkPhotos.length})
+                                      </div>
+                                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                        {b.walkPhotos.map((url, pi) => (
+                                          <a key={pi} href={url} target="_blank" rel="noreferrer">
+                                            <img src={url} alt={`Walk photo ${pi + 1}`}
+                                              style={{ width: "72px", height: "72px", objectFit: "cover",
+                                                borderRadius: "8px", border: "1.5px solid #fde68a",
+                                                cursor: "pointer" }} />
+                                          </a>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
