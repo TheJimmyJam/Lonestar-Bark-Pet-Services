@@ -623,6 +623,33 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     setErrors({}); setMapCoords(null); setMapError(null);
   };
 
+  // ── Pay for unpaid first walk (booked by walker during handoff) ──
+  const handlePayFirstWalk = async (booking) => {
+    try {
+      try {
+        localStorage.setItem("dwi_stripe_return_clientId", clientPinKey);
+        localStorage.setItem("dwi_pending_booking_keys", JSON.stringify([booking.key]));
+      } catch {}
+      const { url } = await createBookingCheckout({
+        clientId: clientPinKey,
+        clientName: client.name,
+        clientEmail: client.email,
+        bookingKey: booking.key,
+        service: booking.service || "dog",
+        date: booking.date || "",
+        day: booking.day || "",
+        time: booking.slot?.time || "—",
+        duration: booking.slot?.duration || "—",
+        walker: booking.form?.walker || "",
+        pet: booking.form?.pet || "",
+        amount: booking.price || 0,
+      });
+      window.location.href = url;
+    } catch (err) {
+      alert("Unable to open payment page. Please try again or contact us.");
+    }
+  };
+
   const handleCancel = async (bookingKey) => {
     const booking = (client.bookings || []).find(b => b.key === bookingKey);
     const cancelledAt = new Date().toISOString();
@@ -1185,6 +1212,43 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                         Book your next walk →
                       </button>
                     </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── Unpaid first walk banner ── */}
+            {(() => {
+              const unpaidFirstWalk = (client.bookings || []).find(
+                b => b.isFirstWalk && b.status === "pending_payment" && !b.cancelled && !b.paidAt
+              );
+              if (!unpaidFirstWalk) return null;
+              return (
+                <div style={{
+                  background: "linear-gradient(135deg, #fef2f2, #fff)",
+                  border: "1.5px solid #fca5a5",
+                  borderRadius: "16px",
+                  padding: "18px 20px",
+                  marginBottom: "20px",
+                  display: "flex", alignItems: "flex-start", gap: "14px",
+                }}>
+                  <span style={{ fontSize: "24px", flexShrink: 0, marginTop: "2px" }}>💳</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
+                      fontSize: "16px", color: "#111827", marginBottom: "4px" }}>
+                      Payment needed for your first walk
+                    </div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                      color: "#6b7280", lineHeight: "1.6", marginBottom: "12px" }}>
+                      Your {unpaidFirstWalk.slot?.duration} walk on {unpaidFirstWalk.day}, {unpaidFirstWalk.date} at {unpaidFirstWalk.slot?.time} is reserved but unpaid.
+                    </div>
+                    <button onClick={() => handlePayFirstWalk(unpaidFirstWalk)}
+                      style={{ padding: "10px 20px", borderRadius: "10px", border: "none",
+                        background: "#C4541A", color: "#fff",
+                        fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                        fontWeight: 700, cursor: "pointer" }}>
+                      Pay ${unpaidFirstWalk.price} now →
+                    </button>
                   </div>
                 </div>
               );
@@ -1973,11 +2037,17 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                                         borderRadius: "4px", padding: "1px 5px",
                                         fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>🔁 recurring</span>
                                     )}
-                                    {b.isFirstWalk && (
+                                    {b.isFirstWalk && b.status !== "pending_payment" && (
                                       <span style={{ fontSize: "16px", background: "#EBF4F6",
                                         color: "#3D6B7A", border: "1px solid #8EBCC6",
                                         borderRadius: "4px", padding: "1px 5px",
                                         fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>⭐ first walk</span>
+                                    )}
+                                    {b.isFirstWalk && b.status === "pending_payment" && !b.paidAt && (
+                                      <span style={{ fontSize: "16px", background: "#fef2f2",
+                                        color: "#dc2626", border: "1px solid #fca5a5",
+                                        borderRadius: "4px", padding: "1px 5px",
+                                        fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>💳 unpaid</span>
                                     )}
                                   </div>
                                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280" }}>
@@ -2026,7 +2096,16 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                                       </button>
                                     </div>
                                   )}
-                                  {!b.isRecurringInstance && (
+                                  {b.isFirstWalk && b.status === "pending_payment" && !b.paidAt && (
+                                    <button onClick={() => handlePayFirstWalk(b)}
+                                      style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                                        fontWeight: 700, color: "#fff", background: "#C4541A",
+                                        border: "none", borderRadius: "8px",
+                                        padding: "6px 14px", cursor: "pointer", marginTop: "6px" }}>
+                                      💳 Pay ${b.price} to confirm →
+                                    </button>
+                                  )}
+                                  {!b.isRecurringInstance && !(b.isFirstWalk && b.status === "pending_payment" && !b.paidAt) && (
                                     <button onClick={() => setSelectedBooking(b)}
                                       style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                                         color: "#6b7280", background: "none", border: "none",
