@@ -242,12 +242,12 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     return 0;
   });
   // Single walk selection for the active day
-  const [selectedWalk, setSelectedWalk] = useState({ slotId: "", duration: null });
+  const [selectedWalk, setSelectedWalk] = useState({ slotId: "", duration: "30 min" });
   // Aliases for minimal diff with rest of code
   const selectedWalks = [selectedWalk];
   const setSelectedWalks = (fn) => {
     const next = typeof fn === "function" ? fn([selectedWalk]) : fn;
-    setSelectedWalk(next[0] || { slotId: "", duration: null });
+    setSelectedWalk(next[0] || { slotId: "", duration: "30 min" });
   };
   const selectedDay = activeDay;
   const walksByDay = { [activeDay]: [selectedWalk] };
@@ -258,7 +258,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const savedDogs = client.dogs || client.pets || [];
   const savedCats = client.cats || [];
   const savedPets = service === "dog" ? savedDogs : savedCats;
-  const [form, setForm] = useState({ name: client.name || "", pet: (service === "dog" ? savedDogs : savedCats).slice(-1)[0] || "", email: client.email, phone: client.phone || "", address: client.address || "", addrObj: addrFromString(client.address || ""), walker: client.preferredWalker || "", notes: client.notes || "" });
+  const [form, setForm] = useState({ name: client.name || "", pet: (service === "dog" ? savedDogs : savedCats).slice(-1)[0] || "", email: client.email, phone: client.phone || "", address: client.address || "", addrObj: client.addrObj || addrFromString(client.address || ""), walker: client.preferredWalker || "", notes: client.notes || "" });
   const [additionalDogs, setAdditionalDogs] = useState([]);
   const [isRecurring, setIsRecurring] = useState(false);
   const [errors, setErrors] = useState({});
@@ -268,10 +268,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const [cancelConfirm, setCancelConfirm] = useState(null);
   const [cancelResult, setCancelResult] = useState(null); // { booking, refundAmount, refundPercent, hoursUntilWalk, bookingPrice }
   const [handoffEditOpen, setHandoffEditOpen] = useState(false);
-  const [showCancelBanner, setShowCancelBanner] = useState(() => {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    return (client.bookings || []).some(b => b.cancelled && b.cancelledAt && new Date(b.cancelledAt) >= sevenDaysAgo);
-  });
+  const [showCancelBanner, setShowCancelBanner] = useState(false); // only shown after a cancellation in this session
   const [cancelBannerFading, setCancelBannerFading] = useState(false);
   const [cancelBannerProgress, setCancelBannerProgress] = useState(100);
   useEffect(() => {
@@ -634,9 +631,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const handleReset = () => {
     setStep("pick"); setSelectedSlot(null);
     const pets = service === "dog" ? savedDogs : savedCats;
-    setForm({ name: client.name || "", pet: pets.slice(-1)[0] || "", email: client.email, phone: client.phone || "", address: client.address || "", addrObj: addrFromString(client.address || ""), walker: client.preferredWalker || "", notes: client.notes || "" });
+    setForm({ name: client.name || "", pet: pets.slice(-1)[0] || "", email: client.email, phone: client.phone || "", address: client.address || "", addrObj: client.addrObj || addrFromString(client.address || ""), walker: client.preferredWalker || "", notes: client.notes || "" });
     setAdditionalDogs([]);
-    setSelectedWalk({ slotId: "", duration: null });
+    setSelectedWalk({ slotId: "", duration: "30 min" });
     setIsRecurring(false);
     setErrors({});
   };
@@ -671,8 +668,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const handleCancel = async (bookingKey) => {
     if (cancellingRef.current) return; // already in-flight — block double-fire
     cancellingRef.current = true;
+    try {
     const booking = (client.bookings || []).find(b => b.key === bookingKey);
-    if (!booking || booking.cancelled) { cancellingRef.current = false; return; } // already cancelled
+    if (!booking || booking.cancelled) { return; } // already cancelled
     const cancelledAt = new Date().toISOString();
 
     // ── Refund policy ────────────────────────────────────────────────────────
@@ -844,7 +842,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       stripeRefundSucceeded,
       stripeRefundId,
     });
-    cancellingRef.current = false; // release the guard
+    } finally {
+      cancellingRef.current = false; // always release, even if something throws
+    }
   };
 
 
@@ -989,7 +989,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
 
               {/* CTA */}
               <button
-                onClick={() => { setCancelResult(null); setShowCancelBanner(false); }}
+                onClick={() => { setCancelResult(null); setShowCancelBanner(true); }}
                 style={{
                   width: "100%", padding: "13px", borderRadius: "11px", border: "none",
                   background: "#C4541A", color: "#fff",
@@ -2815,7 +2815,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     const pets = s.id === "dog" ? savedDogs : savedCats;
                     setService(s.id);
                     setSelectedSlot(null);
-                    setSelectedWalks([{ slotId: "", duration: null }]);
+                    setSelectedWalks([{ slotId: "", duration: "30 min" }]);
                     setForm(f => ({ ...f, pet: pets.slice(-1)[0] || "" }));
                     if (step === "form") setStep("pick");
                   }}
@@ -3414,7 +3414,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                                       if (!found) return;
                                       setWeekOffset(found.weekOffset);
                                       setActiveDay(found.dayIndex);
-                                      setSelectedWalk({ slotId: "", duration: null });
+                                      setSelectedWalk({ slotId: "", duration: "30 min" });
                                     }}
                                     itemHeight={44}
                                     visibleCount={5}
