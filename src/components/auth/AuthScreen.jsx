@@ -4,7 +4,6 @@ import { GLOBAL_STYLES } from "../../styles.js";
 import {
   authSignUpWithEmail,
   authSignInWithEmail,
-  authSignInWithGoogle,
   authSendPasswordReset,
 } from "../../supabase.js";
 
@@ -99,17 +98,6 @@ function AuthScreen({ onRegister, onBack, onBackToLanding, pendingRegistration, 
     setStage("register-name");
   };
 
-  const handleGoogle = async () => {
-    setFormError("");
-    setSubmitting(true);
-    const { error } = await authSignInWithGoogle();
-    if (error) {
-      setSubmitting(false);
-      setFormError(error.message || "Google sign-in failed.");
-    }
-    // On success, the browser redirects to Google and back.
-  };
-
   const handleForgot = async () => {
     setFormError("");
     const e = email.trim().toLowerCase();
@@ -166,25 +154,6 @@ function AuthScreen({ onRegister, onBack, onBackToLanding, pendingRegistration, 
     fontFamily: "'DM Sans', sans-serif", fontSize: "14px", cursor: "pointer",
     textDecoration: "underline", padding: 0,
   };
-  const googleBtn = {
-    width: "100%", padding: "13px", borderRadius: "12px",
-    border: "1.5px solid #4A2E18", background: "#fff", color: "#1a1a1a",
-    fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
-    cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.7 : 1,
-    display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
-    marginTop: "12px",
-  };
-
-  // Simple "G" logo (matches Google's colors)
-  const GoogleG = () => (
-    <svg width="18" height="18" viewBox="0 0 48 48">
-      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C33.7 6.1 29.1 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5z"/>
-      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C33.7 6.1 29.1 4 24 4 16.3 4 9.7 8.4 6.3 14.7z"/>
-      <path fill="#4CAF50" d="M24 44c5.1 0 9.8-2 13.3-5.1l-6.1-5.2C29.2 35.3 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
-      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.5l.1.1 6.1 5.2c-.4.4 6.6-4.8 6.6-14.8 0-1.3-.1-2.3-.4-3.5z"/>
-    </svg>
-  );
-
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div style={{
@@ -314,22 +283,6 @@ function AuthScreen({ onRegister, onBack, onBackToLanding, pendingRegistration, 
             <button onClick={handleLogin} disabled={submitting} style={primaryBtn}>
               {submitting ? "Signing in…" : "Log in"}
             </button>
-
-            <div style={{
-              display: "flex", alignItems: "center", gap: "10px",
-              margin: "18px 0 10px",
-            }}>
-              <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.1)" }} />
-              <span style={{
-                fontFamily: "'DM Sans', sans-serif", color: "#ffffff66",
-                fontSize: "12px", letterSpacing: "2px",
-              }}>OR</span>
-              <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.1)" }} />
-            </div>
-
-            <button onClick={handleGoogle} disabled={submitting} style={googleBtn}>
-              <GoogleG /> Continue with Google
-            </button>
           </>
         )}
 
@@ -395,22 +348,6 @@ function AuthScreen({ onRegister, onBack, onBackToLanding, pendingRegistration, 
 
             <button onClick={handleSignup} disabled={submitting} style={primaryBtn}>
               {submitting ? "Creating account…" : "Sign up"}
-            </button>
-
-            <div style={{
-              display: "flex", alignItems: "center", gap: "10px",
-              margin: "18px 0 10px",
-            }}>
-              <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.1)" }} />
-              <span style={{
-                fontFamily: "'DM Sans', sans-serif", color: "#ffffff66",
-                fontSize: "12px", letterSpacing: "2px",
-              }}>OR</span>
-              <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.1)" }} />
-            </div>
-
-            <button onClick={handleGoogle} disabled={submitting} style={googleBtn}>
-              <GoogleG /> Continue with Google
             </button>
 
             <div style={{

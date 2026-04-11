@@ -25,7 +25,7 @@ serve(async (req) => {
   try {
     const {
       clientName, clientEmail, pet, service, date, day, time, duration, walker,
-      refundAmount, refundPercent, isStripeRefund, refundId, bookingPrice,
+      refundAmount, refundPercent, isStripeRefund, refundId, receiptUrl, bookingPrice,
     } = await req.json();
 
     if (!clientEmail) {
@@ -220,6 +220,21 @@ serve(async (req) => {
         </tr>
 
         ${refundBlock}
+
+        ${isStripeRefund && receiptUrl ? `
+        <!-- Stripe Receipt CTA -->
+        <tr>
+          <td style="padding:0 40px 24px;text-align:center;">
+            <a href="${receiptUrl}"
+              style="display:inline-block;background:#0B1423;color:#ffffff;font-size:14px;font-weight:700;
+                     text-decoration:none;padding:14px 32px;border-radius:8px;letter-spacing:0.5px;">
+              View Stripe Receipt →
+            </a>
+            <p style="margin:10px 0 0;font-size:12px;color:#9ca3af;">
+              Your receipt will show the refund once it has been processed by Stripe.
+            </p>
+          </td>
+        </tr>` : ""}
 
         <!-- Rebook CTA -->
         <tr>

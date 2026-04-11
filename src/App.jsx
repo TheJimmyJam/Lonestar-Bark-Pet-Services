@@ -771,7 +771,7 @@ export default function LonestarBark() {
   );
   if (!activeUser.handoffDone) return (
     <CustomerErrorBoundary>
-      <HandoffFlow client={activeUser} onComplete={handleHandoffComplete} walkerProfiles={walkerProfiles} />
+      <HandoffFlow client={activeUser} onComplete={handleHandoffComplete} onLogout={handleLogout} walkerProfiles={walkerProfiles} />
     </CustomerErrorBoundary>
   );
   return (

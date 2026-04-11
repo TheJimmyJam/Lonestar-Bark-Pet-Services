@@ -21,7 +21,7 @@ function getInitialHandoff() {
   return [0, 0, null];
 }
 
-function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
+function HandoffFlow({ client, onComplete, onLogout, walkerProfiles = {} }) {
   // stage: "intro" | "team" | "pick" | "verify" | "done"
   const [stage, setStage] = useState("intro");
   const [selDay, setSelDay] = useState(() => getInitialHandoff()[1]);
@@ -98,6 +98,19 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
       <style>{GLOBAL_STYLES}</style>
 
       <div className="app-container">
+
+        {/* Log out link — always visible so clients can exit the M&G gate */}
+        {onLogout && (
+          <div style={{ textAlign: "right", marginBottom: "8px" }}>
+            <button onClick={onLogout} style={{
+              background: "none", border: "none", cursor: "pointer",
+              fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+              color: "#9ca3af", padding: "4px 0",
+            }}>
+              Log out
+            </button>
+          </div>
+        )}
 
         {/* Intro */}
         {stage === "intro" && (

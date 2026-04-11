@@ -62,7 +62,19 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ refundId: refund.id, status: refund.status, amount: refund.amount / 100 }), {
+    // Retrieve the charge to get the hosted receipt URL (shows the refund)
+    let receiptUrl: string | null = null;
+    try {
+      const piRes = await fetch(`https://api.stripe.com/v1/payment_intents/${session.payment_intent}?expand[]=latest_charge`, {
+        headers: { "Authorization": `Bearer ${STRIPE_SECRET_KEY}` },
+      });
+      const pi = await piRes.json();
+      receiptUrl = pi?.latest_charge?.receipt_url ?? null;
+    } catch (e) {
+      console.error("Could not retrieve receipt_url:", e);
+    }
+
+    return new Response(JSON.stringify({ refundId: refund.id, status: refund.status, amount: refund.amount / 100, receiptUrl }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

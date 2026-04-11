@@ -306,13 +306,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const [walksSearch, setWalksSearch] = useState("");
   const [invoicesSearch, setInvoicesSearch] = useState("");
   const [messagesSearch, setMessagesSearch] = useState("");
-  const [mapCoords, setMapCoords] = useState(null);
-  const [mapLoading, setMapLoading] = useState(false);
-  const [mapError, setMapError] = useState(null);
 
   // Walker availability loaded from Supabase — keyed by walkerId then dateKey
   const [walkerAvailability, setWalkerAvailability] = useState({});
   const preferredWalkerRef = useRef(null);
+  const cancellingRef = useRef(false); // prevents double-fire when both list + detail panel "Yes, cancel" are visible
   useEffect(() => {
     // Load availability for the visible 12-week window
     const start = toDateKey(getWeekDates(0)[0]);
@@ -465,9 +463,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const bookingsUntilNextTier = nextTier ? nextTier.minBookings - weekBookingCount : 0;
 
   // Auto-load map if client already has a saved address
-  useEffect(() => {
-    if (client.address) geocodeAddress(client.address);
-  }, []);
 
   const bookingKey = (svcId, day, slotId) => {
     const d = weekDates[day];
@@ -643,7 +638,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     setAdditionalDogs([]);
     setSelectedWalk({ slotId: "", duration: null });
     setIsRecurring(false);
-    setErrors({}); setMapCoords(null); setMapError(null);
+    setErrors({});
   };
 
   // ── Pay for unpaid first walk (booked by walker during handoff) ──
@@ -674,7 +669,10 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   };
 
   const handleCancel = async (bookingKey) => {
+    if (cancellingRef.current) return; // already in-flight — block double-fire
+    cancellingRef.current = true;
     const booking = (client.bookings || []).find(b => b.key === bookingKey);
+    if (!booking || booking.cancelled) { cancellingRef.current = false; return; } // already cancelled
     const cancelledAt = new Date().toISOString();
 
     // ── Refund policy ────────────────────────────────────────────────────────
@@ -752,6 +750,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     let stripeRefundSucceeded = false;
     let confirmedRefundAmount = 0;
     let stripeRefundId = null;
+    let stripeReceiptUrl = null;
     if (refundAmount > 0 && booking?.stripeSessionId) {
       try {
         console.log("[handleCancel] calling createRefund", {
@@ -766,6 +765,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         console.log("[handleCancel] createRefund result:", result);
         stripeRefundSucceeded = true;
         stripeRefundId = result?.refundId || null;
+        stripeReceiptUrl = result?.receiptUrl || null;
         // Use Stripe's confirmed amount; fall back to computed if Stripe returns 0
         const stripeAmt = Number(result?.amount);
         confirmedRefundAmount = Number.isFinite(stripeAmt) && stripeAmt > 0 ? stripeAmt : refundAmount;
@@ -827,6 +827,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           refundPercent: emailRefundAmount > 0 ? refundPercent : 0,
           isStripeRefund: stripeRefundSucceeded,
           refundId: stripeRefundId,
+          receiptUrl: stripeReceiptUrl,
           bookingPrice,
         });
       }
@@ -843,19 +844,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       stripeRefundSucceeded,
       stripeRefundId,
     });
+    cancellingRef.current = false; // release the guard
   };
 
-  const geocodeAddress = async (address) => {
-    if (!address.trim()) return;
-    setMapLoading(true); setMapError(null); setMapCoords(null);
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`);
-      const data = await res.json();
-      if (data.length > 0) setMapCoords({ lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), display: data[0].display_name });
-      else setMapError("Address not found. Please try a more specific address.");
-    } catch { setMapError("Could not load map."); }
-    setMapLoading(false);
-  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#f5f6f8" }}>
@@ -880,120 +871,117 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           <div style={{
             position: "fixed", inset: 0, zIndex: 9999,
             background: "#0B1423",
-            display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center",
-            padding: "24px",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: "16px",
             fontFamily: "'DM Sans', sans-serif",
           }}>
-            {/* Card */}
             <div style={{
-              background: "#111827", borderRadius: "24px",
-              padding: "40px 32px", maxWidth: "440px", width: "100%",
+              background: "#111827", borderRadius: "18px",
+              padding: "20px 18px", maxWidth: "400px", width: "100%",
               border: "1.5px solid #1f2937",
               boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
-              display: "flex", flexDirection: "column", alignItems: "center", gap: "0",
             }}>
-              {/* Icon */}
-              <div style={{ fontSize: "52px", marginBottom: "16px" }}>🚫</div>
-
-              <div style={{ fontWeight: 700, fontSize: "22px", color: "#fff", marginBottom: "6px", textAlign: "center" }}>
-                Appointment Cancelled
-              </div>
-              <div style={{ fontSize: "15px", color: "#9ca3af", marginBottom: "28px", textAlign: "center" }}>
-                {cb?.form?.pet ? `We'll miss ${cb.form.pet}!` : "Your walk has been cancelled."}
+              {/* Icon + heading */}
+              <div style={{ textAlign: "center", marginBottom: "14px" }}>
+                <div style={{ fontSize: "30px", marginBottom: "6px" }}>🚫</div>
+                <div style={{ fontWeight: 700, fontSize: "18px", color: "#fff", marginBottom: "2px" }}>
+                  Appointment Cancelled
+                </div>
+                <div style={{ fontSize: "13px", color: "#9ca3af" }}>
+                  {cb?.form?.pet ? `We'll miss ${cb.form.pet}!` : "Your walk has been cancelled."}
+                </div>
               </div>
 
               {/* Appointment details */}
               <div style={{
-                width: "100%", background: "#1f2937", borderRadius: "14px",
-                padding: "20px", marginBottom: "16px",
+                background: "#1f2937", borderRadius: "10px",
+                padding: "12px 14px", marginBottom: "10px",
                 border: "1px solid #374151",
               }}>
-                <div style={{ fontWeight: 600, fontSize: "13px", color: "#6b7280",
-                  textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "14px" }}>
+                <div style={{ fontWeight: 600, fontSize: "10px", color: "#6b7280",
+                  textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
                   Cancelled Appointment
                 </div>
                 {cb?.form?.pet && (
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
-                    <span style={{ color: "#9ca3af", fontSize: "15px" }}>Pet</span>
-                    <span style={{ color: "#fff", fontSize: "15px", fontWeight: 500 }}>{cb.form.pet}</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+                    <span style={{ color: "#9ca3af", fontSize: "13px" }}>Pet</span>
+                    <span style={{ color: "#fff", fontSize: "13px", fontWeight: 500 }}>{cb.form.pet}</span>
                   </div>
                 )}
                 {cb?.date && (
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
-                    <span style={{ color: "#9ca3af", fontSize: "15px" }}>Date</span>
-                    <span style={{ color: "#fff", fontSize: "15px", fontWeight: 500 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+                    <span style={{ color: "#9ca3af", fontSize: "13px" }}>Date</span>
+                    <span style={{ color: "#fff", fontSize: "13px", fontWeight: 500 }}>
                       {cb.day ? `${cb.day}, ` : ""}{cb.date}
                     </span>
                   </div>
                 )}
                 {cb?.slot?.time && (
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
-                    <span style={{ color: "#9ca3af", fontSize: "15px" }}>Time</span>
-                    <span style={{ color: "#fff", fontSize: "15px", fontWeight: 500 }}>{cb.slot.time}</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+                    <span style={{ color: "#9ca3af", fontSize: "13px" }}>Time</span>
+                    <span style={{ color: "#fff", fontSize: "13px", fontWeight: 500 }}>{cb.slot.time}</span>
                   </div>
                 )}
                 {cb?.slot?.duration && (
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
-                    <span style={{ color: "#9ca3af", fontSize: "15px" }}>Duration</span>
-                    <span style={{ color: "#fff", fontSize: "15px", fontWeight: 500 }}>{cb.slot.duration}</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+                    <span style={{ color: "#9ca3af", fontSize: "13px" }}>Duration</span>
+                    <span style={{ color: "#fff", fontSize: "13px", fontWeight: 500 }}>{cb.slot.duration}</span>
                   </div>
                 )}
                 {cb?.form?.walker && (
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "#9ca3af", fontSize: "15px" }}>Walker</span>
-                    <span style={{ color: "#fff", fontSize: "15px", fontWeight: 500 }}>{cb.form.walker}</span>
+                    <span style={{ color: "#9ca3af", fontSize: "13px" }}>Walker</span>
+                    <span style={{ color: "#fff", fontSize: "13px", fontWeight: 500 }}>{cb.form.walker}</span>
                   </div>
                 )}
               </div>
 
               {/* Refund details */}
               <div style={{
-                width: "100%", background: refundBg, borderRadius: "14px",
-                padding: "20px", marginBottom: "28px",
+                background: refundBg, borderRadius: "10px",
+                padding: "12px 14px", marginBottom: "14px",
                 border: `1px solid ${refundBorder}`,
               }}>
-                <div style={{ fontWeight: 600, fontSize: "13px", color: refundColor,
-                  textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "14px" }}>
+                <div style={{ fontWeight: 600, fontSize: "10px", color: refundColor,
+                  textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
                   Refund Summary
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
-                  <span style={{ color: "#374151", fontSize: "15px" }}>Original charge</span>
-                  <span style={{ color: "#111827", fontSize: "15px", fontWeight: 500 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+                  <span style={{ color: "#374151", fontSize: "13px" }}>Original charge</span>
+                  <span style={{ color: "#111827", fontSize: "13px", fontWeight: 500 }}>
                     ${bp > 0 ? bp.toFixed(2) : "—"}
                   </span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
-                  <span style={{ color: "#374151", fontSize: "15px" }}>Policy</span>
-                  <span style={{ color: "#374151", fontSize: "15px", fontWeight: 500 }}>{windowLabel}</span>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+                  <span style={{ color: "#374151", fontSize: "13px" }}>Policy</span>
+                  <span style={{ color: "#374151", fontSize: "13px", fontWeight: 500 }}>{windowLabel}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
-                  paddingTop: "12px", borderTop: `1px solid ${refundBorder}` }}>
-                  <span style={{ color: "#111827", fontSize: "16px", fontWeight: 700 }}>
+                  paddingTop: "8px", borderTop: `1px solid ${refundBorder}` }}>
+                  <span style={{ color: "#111827", fontSize: "14px", fontWeight: 700 }}>
                     {refundLabel}
                   </span>
-                  <span style={{ color: refundColor, fontSize: "22px", fontWeight: 700 }}>
+                  <span style={{ color: refundColor, fontSize: "18px", fontWeight: 700 }}>
                     {ra > 0 ? `$${ra.toFixed(2)}` : "$0.00"}
                   </span>
                 </div>
                 {ra > 0 && wasPaid && (
-                  <div style={{ marginTop: "10px", fontSize: "13px", color: "#15803d", textAlign: "center" }}>
-                    Your refund has been submitted to your original payment method.
-                    Allow 5–10 business days.
+                  <div style={{ marginTop: "6px", fontSize: "11px", color: "#15803d", textAlign: "center" }}>
+                    Refund submitted to your original payment method. Allow 5–10 business days.
                   </div>
                 )}
                 {ra > 0 && !wasPaid && (
-                  <div style={{ marginTop: "10px", fontSize: "13px", color: "#b45309", textAlign: "center" }}>
+                  <div style={{ marginTop: "6px", fontSize: "11px", color: "#b45309", textAlign: "center" }}>
                     A refund of ${ra.toFixed(2)} will be processed by our team.
                   </div>
                 )}
                 {ra === 0 && bp > 0 && (
-                  <div style={{ marginTop: "10px", fontSize: "13px", color: "#dc2626", textAlign: "center" }}>
+                  <div style={{ marginTop: "6px", fontSize: "11px", color: "#dc2626", textAlign: "center" }}>
                     No refund applies — cancellation was within 12 hours of the appointment.
                   </div>
                 )}
                 {bp === 0 && (
-                  <div style={{ marginTop: "10px", fontSize: "13px", color: "#6b7280", textAlign: "center" }}>
+                  <div style={{ marginTop: "6px", fontSize: "11px", color: "#6b7280", textAlign: "center" }}>
                     No charge was applied to this appointment.
                   </div>
                 )}
@@ -1003,9 +991,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               <button
                 onClick={() => { setCancelResult(null); setShowCancelBanner(false); }}
                 style={{
-                  width: "100%", padding: "15px", borderRadius: "14px", border: "none",
+                  width: "100%", padding: "13px", borderRadius: "11px", border: "none",
                   background: "#C4541A", color: "#fff",
-                  fontSize: "16px", fontWeight: 600, cursor: "pointer",
+                  fontSize: "15px", fontWeight: 600, cursor: "pointer",
                   fontFamily: "'DM Sans', sans-serif",
                 }}>
                 Back to My Walks
@@ -3925,24 +3913,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     }}
                     errors={errors.address ? { street: errors.address } : {}}
                   />
-                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
-                    <button onClick={() => geocodeAddress(form.address)} style={{ padding: "9px 14px",
-                      borderRadius: "9px", border: "1.5px solid #d1d5db", background: "#f5f6f8",
-                      color: "#374151", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
-                      fontSize: "15px", fontWeight: 500, whiteSpace: "nowrap" }}>
-                      {mapLoading ? "📍 Loading..." : "📍 Find on Map"}
-                    </button>
-                  </div>
-                  {mapError && <div style={{ marginTop: "8px", padding: "8px 12px", borderRadius: "8px",
-                    background: "#fef2f2", border: "1.5px solid #fecaca",
-                    fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#dc2626" }}>{mapError}</div>}
-                  {mapCoords && !mapLoading && (
-                    <div style={{ marginTop: "10px" }}>
-                      <iframe title="Address Map" width="100%" height="180"
-                        style={{ border: "none", borderRadius: "10px", display: "block" }}
-                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${mapCoords.lon - 0.01},${mapCoords.lat - 0.01},${mapCoords.lon + 0.01},${mapCoords.lat + 0.01}&layer=mapnik&marker=${mapCoords.lat},${mapCoords.lon}`} />
-                    </div>
-                  )}
                 </div>
 
 
