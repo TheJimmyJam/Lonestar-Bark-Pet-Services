@@ -267,6 +267,17 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const [expandedWalker, setExpandedWalker] = useState(null);
   const [cancelConfirm, setCancelConfirm] = useState(null);
   const [handoffEditOpen, setHandoffEditOpen] = useState(false);
+  const [showCancelBanner, setShowCancelBanner] = useState(() => {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    return (client.bookings || []).some(b => b.cancelled && b.cancelledAt && new Date(b.cancelledAt) >= sevenDaysAgo);
+  });
+  const [cancelBannerFading, setCancelBannerFading] = useState(false);
+  useEffect(() => {
+    if (!showCancelBanner) return;
+    const fadeTimer = setTimeout(() => setCancelBannerFading(true), 4500);
+    const hideTimer = setTimeout(() => setShowCancelBanner(false), 5000);
+    return () => { clearTimeout(fadeTimer); clearTimeout(hideTimer); };
+  }, [showCancelBanner]);
   const [handoffCancelConfirm, setHandoffCancelConfirm] = useState(false);
   const [handoffReschedDay, setHandoffReschedDay] = useState(null);
   const [handoffReschedWindow, setHandoffReschedWindow] = useState(null);
@@ -820,6 +831,57 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#f5f6f8" }}>
       <style>{GLOBAL_STYLES}</style>
+
+      {/* ── Cancel toast banner (fixed top) ── */}
+      {showCancelBanner && (() => {
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const recentCancels = (client.bookings || []).filter(b =>
+          b.cancelled && b.cancelledAt && new Date(b.cancelledAt) >= sevenDaysAgo
+        );
+        const pet = recentCancels[0]?.form?.pet || recentCancels[0]?.pet || null;
+        return (
+          <div style={{
+            position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
+            opacity: cancelBannerFading ? 0 : 1,
+            transform: cancelBannerFading ? "translateY(-100%)" : "translateY(0)",
+            transition: "opacity 0.45s ease, transform 0.45s ease",
+          }}>
+            <div style={{
+              background: "linear-gradient(90deg, #C4541A 0%, #d97706 100%)",
+              boxShadow: "0 4px 20px rgba(196,84,26,0.35)",
+              padding: "14px 20px",
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
+                <span style={{ fontSize: "22px", flexShrink: 0 }}>🐾</span>
+                <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                  <span style={{ color: "#fff", fontWeight: 700, fontSize: "15px" }}>
+                    {pet ? `We'll miss ${pet}! ` : "Sorry to see you go! "}
+                  </span>
+                  <span style={{ color: "rgba(255,255,255,0.85)", fontSize: "14px" }}>
+                    Ready to hit the trail again?{" "}
+                  </span>
+                  <button onClick={() => { setShowCancelBanner(false); setPage("book"); }}
+                    style={{ background: "none", border: "none", cursor: "pointer",
+                      color: "#fff", fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "14px", fontWeight: 700, padding: 0,
+                      textDecoration: "underline", textUnderlineOffset: "2px" }}>
+                    Book your next walk →
+                  </button>
+                </div>
+              </div>
+              <button onClick={() => { setCancelBannerFading(true); setTimeout(() => setShowCancelBanner(false), 450); }}
+                style={{ background: "rgba(255,255,255,0.2)", border: "none", cursor: "pointer",
+                  color: "#fff", fontSize: "16px", lineHeight: 1, flexShrink: 0,
+                  width: "28px", height: "28px", borderRadius: "50%",
+                  display: "flex", alignItems: "center", justifyContent: "center" }}>
+                ✕
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
       <div style={{ flex: 1, overflowY: "scroll", WebkitOverflowScrolling: "touch" }}>
       <Header client={client} onLogout={onLogout} />
       <ClientNav client={client} onLogout={onLogout} page={page} setPage={setPage} notifCounts={clientNotifCountsFull} sticky />
@@ -1175,47 +1237,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 Here's a snapshot of your account.
               </div>
             </div>
-
-            {/* ── Recent cancellation banner ── */}
-            {(() => {
-              const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-              const recentCancels = (client.bookings || []).filter(b =>
-                b.cancelled && b.cancelledAt && new Date(b.cancelledAt) >= sevenDaysAgo
-              );
-              if (recentCancels.length === 0) return null;
-              const pet = recentCancels[0]?.form?.pet || recentCancels[0]?.pet || null;
-              return (
-                <div style={{
-                  background: "linear-gradient(135deg, #FDF5EC, #fff8f0)",
-                  border: "1.5px solid #D4A843",
-                  borderRadius: "16px",
-                  padding: "18px 20px",
-                  marginBottom: "20px",
-                  display: "flex", alignItems: "flex-start", gap: "14px",
-                }}>
-                  <span style={{ fontSize: "26px", flexShrink: 0, marginTop: "2px" }}>🐾</span>
-                  <div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
-                      fontSize: "16px", color: "#111827", marginBottom: "4px" }}>
-                      Sorry to see you cancel!
-                    </div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-                      color: "#6b7280", lineHeight: "1.6" }}>
-                      {pet
-                        ? `We'll miss ${pet}! Whenever you're ready, we'd love to hit the trail again.`
-                        : "Whenever you're ready, we'd love to hit the trail again."}
-                      {" "}
-                      <button onClick={() => setPage("book")}
-                        style={{ background: "none", border: "none", cursor: "pointer",
-                          color: "#C4541A", fontFamily: "'DM Sans', sans-serif",
-                          fontSize: "14px", fontWeight: 700, padding: 0, textDecoration: "underline" }}>
-                        Book your next walk →
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
 
             {/* ── Unpaid first walk banner ── */}
             {(() => {

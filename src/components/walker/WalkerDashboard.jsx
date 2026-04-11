@@ -108,7 +108,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     services: myProfile.services || [],
   });
   const [infoSaved, setInfoSaved] = useState(false);
-  const [infoEditing, setInfoEditing] = useState(false);
+  const infoEditing = true; // fields are always editable
 
   // ── Profile completeness gate for new hires ────────────────────────────
   // A walker must have first name, last name, phone, and a usable address
@@ -128,12 +128,9 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
   };
   const profileIncomplete = !isProfileComplete(myProfile);
 
-  // Force first-login walkers straight into My Info, in edit mode.
+  // Force first-login walkers straight into My Info.
   useEffect(() => {
-    if (profileIncomplete) {
-      setTab("myinfo");
-      setInfoEditing(true);
-    }
+    if (profileIncomplete) setTab("myinfo");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileIncomplete]);
   // PIN change state (lifted from My Info tab to satisfy Rules of Hooks)
@@ -442,8 +439,16 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     if (profileIncomplete && newTab !== "myinfo") {
       window.alert("Please finish setting up your profile first.\n\nWe need your name, phone number, and home address before you can use the rest of the dashboard.");
       setTab("myinfo");
-      setInfoEditing(true);
       return;
+    }
+    if (tab === "myinfo") {
+      const saved = walkerProfiles?.[walker.id] || {};
+      const infoFields = ["firstName","lastName","preferredName","email","phone","preferredAvailability","notes","pendingBio"];
+      const textDirty = infoFields.some(k => (infoForm[k] || "") !== (saved[k] || ""));
+      const daysDirty = JSON.stringify(infoForm.preferredDays || []) !== JSON.stringify(saved.preferredDays || []);
+      const svcDirty  = JSON.stringify(infoForm.services || []) !== JSON.stringify(saved.services || []);
+      const addrDirty = JSON.stringify(infoForm.addrObj || {}) !== JSON.stringify(saved.addrObj || addrFromString(saved.address || ""));
+      if (textDirty || daysDirty || svcDirty || addrDirty) { setPendingNavTab(newTab); return; }
     }
     if (tab === "availability") {
       const allKeys = new Set([...Object.keys(availability), ...Object.keys(savedAvailability)]);
@@ -775,7 +780,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
             <div style={{ fontSize: "32px", marginBottom: "12px", textAlign: "center" }}>⚠️</div>
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
               fontSize: "17px", color: "#111827", marginBottom: "8px", textAlign: "center" }}>
-              Unsaved Availability Changes
+              Unsaved {tab === "myinfo" ? "Profile" : "Availability"} Changes
             </div>
             <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
               color: "#6b7280", lineHeight: "1.6", marginBottom: "22px", textAlign: "center" }}>
@@ -784,7 +789,27 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <button
                 onClick={async () => {
-                  await saveAllAvailability();
+                  if (tab === "myinfo") {
+                    // validate + save info, then navigate
+                    const missing = [];
+                    if (!(infoForm.firstName || "").trim()) missing.push("First name");
+                    if (!(infoForm.lastName || "").trim())  missing.push("Last name");
+                    if ((infoForm.phone || "").trim().length < 10) missing.push("Phone number");
+                    const a = infoForm.addrObj || emptyAddr();
+                    if (!(a.street||"").trim()||!(a.city||"").trim()||!(a.state||"").trim()||!(a.zip||"").trim())
+                      missing.push("Home address");
+                    if (missing.length > 0) {
+                      window.alert("Please fill in the following before saving:\n\n• " + missing.join("\n• "));
+                      setPendingNavTab(null);
+                      return;
+                    }
+                    const updated = { ...(walkerProfiles||{}), [walker.id]: { ...((walkerProfiles||{})[walker.id]||{}), ...infoForm, address: addrToString(infoForm.addrObj) } };
+                    setWalkerProfiles(updated);
+                    setInfoSaved(true);
+                    setTimeout(() => setInfoSaved(false), 2000);
+                  } else {
+                    await saveAllAvailability();
+                  }
                   const dest = pendingNavTab;
                   setPendingNavTab(null);
                   setTab(dest);
@@ -797,7 +822,26 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               </button>
               <button
                 onClick={() => {
-                  setSavedAvailability(JSON.parse(JSON.stringify(availability)));
+                  if (tab === "myinfo") {
+                    // revert form to saved state
+                    const saved = walkerProfiles?.[walker.id] || {};
+                    setInfoForm({
+                      firstName: saved.firstName || (walker.name ? walker.name.split(" ")[0] : "") || "",
+                      lastName: saved.lastName || (walker.name ? walker.name.split(" ").slice(1).join(" ") : "") || "",
+                      preferredName: saved.preferredName || walker.name || "",
+                      email: saved.email || walker.email || "",
+                      phone: saved.phone || "",
+                      address: saved.address || "",
+                      addrObj: saved.addrObj || addrFromString(saved.address || ""),
+                      preferredAvailability: saved.preferredAvailability || "",
+                      preferredDays: saved.preferredDays || [],
+                      notes: saved.notes || "",
+                      pendingBio: saved.pendingBio || "",
+                      services: saved.services || [],
+                    });
+                  } else {
+                    setSavedAvailability(JSON.parse(JSON.stringify(availability)));
+                  }
                   const dest = pendingNavTab;
                   setPendingNavTab(null);
                   setTab(dest);
@@ -815,7 +859,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                   border: "1.5px solid #e4e7ec", background: "#fff",
                   color: "#6b7280", fontFamily: "'DM Sans', sans-serif",
                   fontSize: "15px", cursor: "pointer" }}>
-                Stay on Availability
+                Stay on {tab === "myinfo" ? "My Info" : "Availability"}
               </button>
             </div>
           </div>
@@ -4047,7 +4091,6 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
             };
             setWalkerProfiles(updated);
             setInfoSaved(true);
-            setInfoEditing(false);
             setTimeout(() => setInfoSaved(false), 2000);
           };
 
@@ -4099,54 +4142,46 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               )}
 
               {/* Header */}
-              <div style={{ display: "flex", alignItems: "flex-start",
-                justifyContent: "space-between", marginBottom: "20px", gap: "12px" }}>
-                <div>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                    fontWeight: 600, color: "#111827", marginBottom: "4px" }}>My Info</div>
-                  <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                    color: "#6b7280", lineHeight: "1.5" }}>
-                    Your profile is visible to the admin. Keep it up to date so they can reach you.
-                  </p>
-                </div>
-                {!infoEditing ? (
-                  <button onClick={() => setInfoEditing(true)} style={{
-                    padding: "8px 18px", borderRadius: "9px", border: `1.5px solid ${accentBlue}44`,
-                    background: `${accentBlue}10`, color: accentBlue, cursor: "pointer",
-                    fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                    fontWeight: 600, flexShrink: 0,
-                  }}>✏️ Edit</button>
-                ) : (
-                  <div style={{ display: "flex", gap: "7px", flexShrink: 0 }}>
-                    <button onClick={handleSaveInfo} style={{
-                      padding: "8px 18px", borderRadius: "9px", border: "none",
-                      background: "#059669", color: "#fff", cursor: "pointer",
-                      fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600,
-                    }}>✓ Save</button>
-                    {!profileIncomplete && (
-                    <button onClick={() => { setInfoEditing(false); setInfoForm({
-                      firstName: myProfile.firstName || (walker.name ? walker.name.split(" ")[0] : "") || "",
-                      lastName: myProfile.lastName || (walker.name ? walker.name.split(" ").slice(1).join(" ") : "") || "",
-                      preferredName: myProfile.preferredName || walker.name || "",
-                      email: myProfile.email || walker.email || "",
-                      phone: myProfile.phone || "",
-                      address: myProfile.address || "",
-                      addrObj: myProfile.addrObj || addrFromString(myProfile.address || ""),
-                      preferredAvailability: myProfile.preferredAvailability || "",
-                      preferredDays: myProfile.preferredDays || [],
-                      notes: myProfile.notes || "",
-                      pendingBio: myProfile.pendingBio || "",
-                      services: myProfile.services || [],
-                    }); }} style={{
-                      padding: "8px 14px", borderRadius: "9px",
-                      border: "1.5px solid #e4e7ec", background: "#fff",
-                      color: "#6b7280", cursor: "pointer",
-                      fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                    }}>Cancel</button>
-                    )}
-                  </div>
-                )}
+              <div style={{ marginBottom: "20px" }}>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
+                  fontWeight: 600, color: "#111827", marginBottom: "4px" }}>My Info</div>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                  color: "#6b7280", lineHeight: "1.5" }}>
+                  Your profile is visible to the admin. Keep it up to date so they can reach you.
+                </p>
               </div>
+
+              {/* Sticky save bar — only shows when there are unsaved changes */}
+              {(() => {
+                const saved = walkerProfiles?.[walker.id] || {};
+                const infoFields = ["firstName","lastName","preferredName","email","phone","preferredAvailability","notes","pendingBio"];
+                const textDirty = infoFields.some(k => (infoForm[k] || "") !== (saved[k] || ""));
+                const daysDirty = JSON.stringify(infoForm.preferredDays || []) !== JSON.stringify(saved.preferredDays || []);
+                const svcDirty  = JSON.stringify(infoForm.services || []) !== JSON.stringify(saved.services || []);
+                const addrDirty = JSON.stringify(infoForm.addrObj || {}) !== JSON.stringify(saved.addrObj || addrFromString(saved.address || ""));
+                const dirty = textDirty || daysDirty || svcDirty || addrDirty;
+                if (!dirty) return null;
+                return (
+                  <div style={{
+                    position: "sticky", top: 0, zIndex: 50,
+                    background: "linear-gradient(90deg,#0f766e,#059669)",
+                    borderRadius: "12px", padding: "12px 16px", marginBottom: "16px",
+                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
+                    boxShadow: "0 4px 16px rgba(5,150,105,0.3)",
+                  }}>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                      fontWeight: 600, color: "#fff" }}>
+                      ✏️ You have unsaved changes
+                    </span>
+                    <button onClick={handleSaveInfo} style={{
+                      padding: "8px 20px", borderRadius: "8px", border: "none",
+                      background: "#fff", color: "#059669", cursor: "pointer",
+                      fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 700,
+                      flexShrink: 0,
+                    }}>Save</button>
+                  </div>
+                );
+              })()}
 
               {/* Saved confirmation */}
               {infoSaved && (
@@ -4346,10 +4381,10 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                     );
                   })}
                 </div>
-                {!infoEditing && infoForm.services.length === 0 && (
+                {infoForm.services.length === 0 && (
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                     color: "#9ca3af", fontStyle: "italic", marginTop: "8px" }}>
-                    Click Edit to select your services.
+                    Select the services you offer above.
                   </div>
                 )}
               </div>
