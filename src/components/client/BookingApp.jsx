@@ -3725,25 +3725,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   )}
                 </div>
 
-                {/* Walker preference */}
-                <div style={{ marginBottom: "14px" }}>
-                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif",
-                    fontSize: "16px", fontWeight: 500, color: "#374151", marginBottom: "6px" }}>
-                    Preferred Walker (optional)
-                  </label>
-                  <select value={form.walker} onChange={e => setForm(p => ({ ...p, walker: e.target.value }))}
-                    style={{ width: "100%", padding: "12px 14px", borderRadius: "10px",
-                      border: "1.5px solid #d1d5db", background: "#fff", fontSize: "16px",
-                      fontFamily: "'DM Sans', sans-serif", cursor: "pointer", appearance: "none",
-                      color: form.walker ? "#111827" : "#9ca3af" }}>
-                    <option value="">No preference</option>
-                    {getAllWalkers(walkerProfiles).map(w => <option key={w.id} value={w.name}>{w.name} — {w.role.replace(/ & /g, " / ")}</option>)}
-                  </select>
-                  <div style={{ marginTop: "6px", fontFamily: "'DM Sans', sans-serif",
-                    fontSize: "15px", color: "#9ca3af", lineHeight: "1.5" }}>
-                    Preferred walkers may not always be available and will be substituted with another Lonestar Bark Co. vetted walker.
-                  </div>
-                </div>
 
                 {/* Notes */}
                 <div style={{ marginBottom: "24px" }}>
