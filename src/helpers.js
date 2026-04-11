@@ -123,21 +123,25 @@ function repriceWeekBookings(bookings) {
 }
 
 function applySameDayDiscount(bookings) {
-  // Group active, paid bookings by calendar date (YYYY-MM-DD of scheduledDateTime).
+  // Group active bookings by calendar date (YYYY-MM-DD of scheduledDateTime).
   // Free appointments (price === 0 — e.g. meet & greet) are excluded from the
   // count so they don't trigger the 2-appointment threshold on their own.
   const byDate = {};
   bookings.forEach((b, i) => {
     if (b.cancelled || !b.scheduledDateTime) return;
-    if ((b.price ?? 0) <= 0) return; // free bookings don't count toward the discount
+    if ((b.price ?? 0) <= 0) return;
     const dateKey = b.scheduledDateTime.slice(0, 10);
     if (!byDate[dateKey]) byDate[dateKey] = [];
     byDate[dateKey].push(i);
   });
   const updated = [...bookings];
-  // First pass: strip all existing same-day discounts to get clean base prices
+
+  // First pass: strip same-day discounts from UNPAID bookings only so we get
+  // their clean base price. Never touch already-Stripe-paid bookings — their
+  // price is locked at what Stripe charged.
   updated.forEach((b, i) => {
-    if (b.sameDayDiscount && b.priceBeforeSameDayDiscount != null) {
+    const alreadyPaid = !!(b.stripeSessionId && b.paidAt);
+    if (!alreadyPaid && b.sameDayDiscount && b.priceBeforeSameDayDiscount != null) {
       updated[i] = {
         ...b,
         price: b.priceBeforeSameDayDiscount,
@@ -146,19 +150,59 @@ function applySameDayDiscount(bookings) {
       };
     }
   });
-  // Second pass: apply 20% only to days that have exactly 2+ active bookings
+
+  // Second pass: apply discount logic to days with 2+ active bookings
   Object.values(byDate).forEach(idxs => {
     if (idxs.length < 2) return;
-    idxs.forEach(i => {
-      const base = updated[i].price || 0;
+
+    const paidIdxs   = idxs.filter(i =>  (updated[i].stripeSessionId && updated[i].paidAt));
+    const unpaidIdxs = idxs.filter(i => !(updated[i].stripeSessionId && updated[i].paidAt));
+
+    // All already paid — Stripe charges are final, nothing we can adjust.
+    if (unpaidIdxs.length === 0) return;
+
+    // No paid bookings yet — apply a straight 20% to everyone.
+    if (paidIdxs.length === 0) {
+      idxs.forEach(i => {
+        const base = updated[i].price || 0;
+        updated[i] = {
+          ...updated[i],
+          price: Math.round(base * 0.8),
+          priceBeforeSameDayDiscount: base,
+          sameDayDiscount: true,
+        };
+      });
+      return;
+    }
+
+    // Mixed: some bookings already paid at full price, some not yet charged.
+    // The discount they were owed (20% of their base) couldn't be applied at
+    // checkout, so we roll it into the unpaid booking(s).
+    //
+    // Walk 2 price = Walk2_base × 0.8 − (Walk1_base × 0.2)
+    // = their own 20% off  −  the discount missed on each paid booking
+    //
+    // If there are multiple unpaid bookings we split the missed discount
+    // proportionally by each booking's base price.
+    const paidBaseTotal   = paidIdxs.reduce((s, i) => s + (updated[i].price || 0), 0);
+    const missedDiscount  = Math.round(paidBaseTotal * 0.2);
+    const unpaidBaseTotal = unpaidIdxs.reduce((s, i) => s + (updated[i].price || 0), 0);
+
+    unpaidIdxs.forEach(i => {
+      const base        = updated[i].price || 0;
+      const ownDiscount = Math.round(base * 0.2);
+      const share       = unpaidBaseTotal > 0 ? base / unpaidBaseTotal : 1 / unpaidIdxs.length;
+      const extra       = Math.round(missedDiscount * share);
+      const newPrice    = Math.max(0, base - ownDiscount - extra);
       updated[i] = {
         ...updated[i],
-        price: Math.round(base * 0.8),
+        price: newPrice,
         priceBeforeSameDayDiscount: base,
         sameDayDiscount: true,
       };
     });
   });
+
   return updated;
 }
 
