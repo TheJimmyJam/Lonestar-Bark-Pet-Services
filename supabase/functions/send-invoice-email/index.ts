@@ -127,11 +127,11 @@ serve(async (req) => {
                 <td style="background:#f9fafb;padding:16px 20px;border-top:1.5px solid #e4e7ec;">
                   <table cellpadding="0" cellspacing="0" width="100%">
                     <tr>
-                      <td style="color:#111827;font-size:16px;font-weight:800;">Total Due</td>
-                      <td style="color:#C4541A;font-size:22px;font-weight:800;text-align:right;">$${total.toFixed(2)}</td>
+                      <td style="color:#111827;font-size:16px;font-weight:800;">Total Paid</td>
+                      <td style="color:#059669;font-size:22px;font-weight:800;text-align:right;">$${total.toFixed(2)}</td>
                     </tr>
                     <tr>
-                      <td colspan="2" style="color:#9ca3af;font-size:12px;padding-top:4px;">Due by ${dueDate}</td>
+                      <td colspan="2" style="color:#059669;font-size:12px;padding-top:4px;font-weight:600;">✓ Payment received — you're all set!</td>
                     </tr>
                   </table>
                 </td>
@@ -155,15 +155,15 @@ serve(async (req) => {
           </td>
         </tr>` : ""}
 
-        <!-- ── CTA ────────────────────────────────────────────── -->
+        <!-- ── Book again CTA ─────────────────────────────────── -->
         <tr>
           <td style="padding:28px 40px 36px;text-align:center;">
             <a href="https://lonestarbarkco.com"
                style="display:inline-block;padding:16px 40px;background:#C4541A;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;border-radius:12px;letter-spacing:0.3px;">
-              Pay Invoice →
+              Book Your Next Walk →
             </a>
             <p style="margin:16px 0 0;color:#9ca3af;font-size:13px;line-height:1.6;">
-              You can pay securely anytime through your client portal.<br>Questions? Just reply to this email — we're always here.
+              Questions? Just reply to this email — we're always here.
             </p>
           </td>
         </tr>
