@@ -512,7 +512,10 @@ export default function LonestarBark() {
         bookedAt: new Date().toISOString(),
         scheduledDateTime: apptDate.toISOString(),
         additionalDogCount: 0, additionalDogCharge: 0,
-        price: getSessionPrice(fw.duration, 1), priceTier: "Easy Rider", isFirstWalk: true, status: "pending_payment",
+        price: Math.round(getSessionPrice(fw.duration, 1) * 0.8),
+        priceBeforeSameDayDiscount: getSessionPrice(fw.duration, 1),
+        sameDayDiscount: true,
+        priceTier: "Easy Rider", isFirstWalk: true, status: "pending_payment",
       };
       bookings = applySameDayDiscount(repriceWeekBookings([...bookings, followOnBooking]));
     }

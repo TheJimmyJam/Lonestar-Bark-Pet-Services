@@ -416,12 +416,19 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
                     transition: "all 0.15s", marginBottom: addFollowOnWalk ? "12px" : "0",
                   }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                        fontSize: "16px", color: "#111827", marginBottom: "2px" }}>
-                        🐕 Add a walk after the meet & greet
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "2px", flexWrap: "wrap" }}>
+                        <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                          fontSize: "16px", color: "#111827" }}>
+                          🐕 Add a walk after the meet & greet
+                        </span>
+                        <span style={{
+                          background: "#C4541A", color: "#fff", fontSize: "12px",
+                          fontWeight: 700, padding: "2px 8px", borderRadius: "20px",
+                          letterSpacing: "0.5px", textTransform: "uppercase",
+                        }}>20% OFF</span>
                       </div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#6b7280" }}>
-                        Schedule a 30 or 60 min walk immediately following your 15-min meet & greet
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280" }}>
+                        The walker is already at your place — save 20% on a walk right after
                         {followOn ? ` (starts at ${followOn.time})` : ""}.
                       </div>
                     </div>
@@ -449,22 +456,33 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
                         Walk Duration
                       </div>
                       <div style={{ display: "flex", gap: "10px" }}>
-                        {["30 min", "60 min"].map(d => (
-                          <button key={d} onClick={() => setFollowOnDuration(d)} style={{
-                            flex: 1, padding: "12px", borderRadius: "10px", cursor: "pointer",
-                            border: followOnDuration === d ? "2px solid #8B5E3C" : "1.5px solid #D4A87A",
-                            background: followOnDuration === d ? "#C4541A" : "#fff",
-                            color: followOnDuration === d ? "#fff" : "#374151",
-                            fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                            fontWeight: followOnDuration === d ? 600 : 400,
-                            transition: "all 0.15s",
-                          }}>
-                            {d}
-                          </button>
-                        ))}
+                        {["30 min", "60 min"].map(d => {
+                          const fullPrice = getSessionPrice(d, 1);
+                          const discountedPrice = Math.round(fullPrice * 0.8);
+                          const selected = followOnDuration === d;
+                          return (
+                            <button key={d} onClick={() => setFollowOnDuration(d)} style={{
+                              flex: 1, padding: "12px", borderRadius: "10px", cursor: "pointer",
+                              border: selected ? "2px solid #8B5E3C" : "1.5px solid #D4A87A",
+                              background: selected ? "#C4541A" : "#fff",
+                              color: selected ? "#fff" : "#374151",
+                              fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                              fontWeight: selected ? 600 : 400,
+                              transition: "all 0.15s",
+                            }}>
+                              <div>{d}</div>
+                              <div style={{ marginTop: "4px", fontSize: "13px", opacity: 0.85 }}>
+                                <span style={{ textDecoration: "line-through", marginRight: "4px", opacity: 0.7 }}>
+                                  ${fullPrice}
+                                </span>
+                                <span style={{ fontWeight: 700 }}>${discountedPrice}</span>
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                       <div style={{ marginTop: "10px", fontFamily: "'DM Sans', sans-serif",
-                        fontSize: "16px", color: "#6b7280", lineHeight: "1.5" }}>
+                        fontSize: "14px", color: "#6b7280", lineHeight: "1.5" }}>
                         🤝 Meet & Greet: {selSlot?.label} window
                         <span style={{ marginLeft: "8px", color: "#D4A843" }}>·</span>
                         <span style={{ marginLeft: "8px" }}>
@@ -523,7 +541,9 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
                   textTransform: "uppercase", marginBottom: "12px" }}>Your bookings</div>
                 {[
                   { icon: "🤝", label: "Meet & Greet", time: selSlot?.label + " window", dur: "15 min", price: null },
-                  { icon: "🐕", label: "First Walk", time: getFollowOnTime().time, dur: followOnDuration, price: fmt(getSessionPrice(followOnDuration, 1), true) },
+                  { icon: "🐕", label: "First Walk", time: getFollowOnTime().time, dur: followOnDuration,
+                    fullPrice: fmt(getSessionPrice(followOnDuration, 1), true),
+                    price: fmt(Math.round(getSessionPrice(followOnDuration, 1) * 0.8), true) },
                 ].map((row, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px",
                     paddingTop: i > 0 ? "10px" : "0",
@@ -537,8 +557,16 @@ function HandoffFlow({ client, onComplete, walkerProfiles = {} }) {
                       </div>
                     </div>
                     {row.price && (
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                        fontWeight: 600, color: "#C4541A" }}>{row.price}</div>
+                      <div style={{ textAlign: "right" }}>
+                        {row.fullPrice && (
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                            color: "#9ca3af", textDecoration: "line-through" }}>{row.fullPrice}</div>
+                        )}
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                          fontWeight: 700, color: "#059669" }}>{row.price}</div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px",
+                          color: "#059669", fontWeight: 600 }}>20% off</div>
+                      </div>
                     )}
                   </div>
                 ))}

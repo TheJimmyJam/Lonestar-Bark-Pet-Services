@@ -123,10 +123,13 @@ function repriceWeekBookings(bookings) {
 }
 
 function applySameDayDiscount(bookings) {
-  // Group active bookings by calendar date (YYYY-MM-DD of scheduledDateTime)
+  // Group active, paid bookings by calendar date (YYYY-MM-DD of scheduledDateTime).
+  // Free appointments (price === 0 — e.g. meet & greet) are excluded from the
+  // count so they don't trigger the 2-appointment threshold on their own.
   const byDate = {};
   bookings.forEach((b, i) => {
     if (b.cancelled || !b.scheduledDateTime) return;
+    if ((b.price ?? 0) <= 0) return; // free bookings don't count toward the discount
     const dateKey = b.scheduledDateTime.slice(0, 10);
     if (!byDate[dateKey]) byDate[dateKey] = [];
     byDate[dateKey].push(i);
