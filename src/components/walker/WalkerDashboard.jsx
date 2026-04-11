@@ -149,10 +149,11 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
   const [offerKeySwap, setOfferKeySwap] = useState(false);
 
   // Gather all bookings across clients, flatten with client info
+  // Use the actual map key as clientId (pin for auth clients, id for legacy)
   const allBookings = [];
-  Object.values(clients).forEach(c => {
+  Object.entries(clients).forEach(([mapKey, c]) => {
     (c.bookings || []).forEach(b => {
-      if (!b.cancelled) allBookings.push({ ...b, clientId: c.id, clientName: c.name, clientEmail: c.email, clientAddress: c.address || "", clientKeyholder: c.keyholder || "" });
+      if (!b.cancelled) allBookings.push({ ...b, clientId: mapKey, clientName: c.name, clientEmail: c.email, clientAddress: c.address || "", clientKeyholder: c.keyholder || "" });
     });
   });
 
@@ -164,18 +165,18 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
   });
 
   // Unclaimed meet & greet appointments — no walker assigned yet, in the future
-  const unclaimedHandoffs = Object.values(clients)
-    .filter(c => {
+  const unclaimedHandoffs = Object.entries(clients)
+    .filter(([, c]) => {
       if (!c.handoffInfo?.handoffDate || !c.handoffInfo?.handoffSlot) return false;
       if (c.handoffInfo?.handoffWalker) return false; // already claimed
       const appt = new Date(c.handoffInfo.handoffDate);
       return appt > now;
     })
-    .map(c => ({
-      key: `__handoff_unclaimed__${c.id}`,
+    .map(([mapKey, c]) => ({
+      key: `__handoff_unclaimed__${mapKey}`,
       isHandoff: true,
       isUnclaimedHandoff: true,
-      clientId: c.id,
+      clientId: mapKey,
       clientName: c.name,
       clientEmail: c.email,
       service: "handoff",
@@ -194,12 +195,12 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
   });
 
   // Pending meet & greet appointments assigned to this walker
-  const myHandoffs = Object.values(clients)
-    .filter(c => !c.handoffConfirmed && c.handoffInfo?.handoffDate && c.handoffInfo?.handoffWalker === walker.name)
-    .map(c => ({
-      key: `__handoff__${c.id}`,
+  const myHandoffs = Object.entries(clients)
+    .filter(([, c]) => !c.handoffConfirmed && c.handoffInfo?.handoffDate && c.handoffInfo?.handoffWalker === walker.name)
+    .map(([mapKey, c]) => ({
+      key: `__handoff__${mapKey}`,
       isHandoff: true,
-      clientId: c.id,
+      clientId: mapKey,
       clientName: c.name,
       service: "handoff",
       day: new Date(c.handoffInfo.handoffDate).toLocaleDateString("en-US", { weekday: "long" }),
