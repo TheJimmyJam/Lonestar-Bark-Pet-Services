@@ -631,16 +631,58 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     // 24h+ before walk → 100% refund
     // 12–24h before walk → 50% refund
     // < 12h before walk → no refund
+    //
+    // Gate is lenient on purpose: any booking that has a stripeSessionId is
+    // a paid booking and should be refunded according to policy. We don't
+    // require paidAt because some historical bookings may be missing it,
+    // and we fall back to booking.date + slot.time when scheduledDateTime
+    // is absent.
     let refundPercent = 0;
     let refundAmount = 0;
-    if (booking?.stripeSessionId && booking?.paidAt && booking?.scheduledDateTime) {
-      const hoursUntilWalk = (new Date(booking.scheduledDateTime).getTime() - Date.now()) / 3600000;
-      if (hoursUntilWalk >= 24) refundPercent = 1.0;
-      else if (hoursUntilWalk >= 12) refundPercent = 0.5;
+    let hoursUntilWalk = null;
+    if (booking?.stripeSessionId) {
+      // Prefer stored scheduledDateTime; otherwise reconstruct from date + slot.time
+      let apptMs = null;
+      if (booking.scheduledDateTime) {
+        apptMs = new Date(booking.scheduledDateTime).getTime();
+      } else if (booking.date && booking.slot?.time) {
+        // booking.date is "YYYY-MM-DD"; slot.time is "9:00 AM" style
+        try {
+          const [y, m, d] = booking.date.split("-").map(Number);
+          const apptDate = new Date(y, (m || 1) - 1, d || 1);
+          const [timePart, meridiem] = String(booking.slot.time).split(" ");
+          let [hh, mm] = timePart.split(":").map(Number);
+          if (meridiem === "PM" && hh !== 12) hh += 12;
+          if (meridiem === "AM" && hh === 12) hh = 0;
+          apptDate.setHours(hh || 0, mm || 0, 0, 0);
+          apptMs = apptDate.getTime();
+        } catch {}
+      }
+      if (apptMs != null) {
+        hoursUntilWalk = (apptMs - Date.now()) / 3600000;
+        if (hoursUntilWalk >= 24) refundPercent = 1.0;
+        else if (hoursUntilWalk >= 12) refundPercent = 0.5;
+      } else {
+        // No timing info at all — default to full refund (benefit of the doubt)
+        refundPercent = 1.0;
+      }
       refundAmount = refundPercent > 0
         ? Math.round((booking.price || 0) * refundPercent * 100) / 100
         : 0;
     }
+    console.log("[handleCancel] refund decision:", {
+      bookingKey,
+      hasStripeSessionId: !!booking?.stripeSessionId,
+      stripeSessionId: booking?.stripeSessionId || null,
+      paidAt: booking?.paidAt || null,
+      scheduledDateTime: booking?.scheduledDateTime || null,
+      fallbackDate: booking?.date,
+      fallbackTime: booking?.slot?.time,
+      hoursUntilWalk,
+      price: booking?.price,
+      refundPercent,
+      refundAmount,
+    });
 
     // Mark booking cancelled immediately (optimistic update)
     const cancelledBooking = {
@@ -661,20 +703,27 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     let confirmedRefundAmount = 0;
     if (refundAmount > 0 && booking?.stripeSessionId) {
       try {
+        console.log("[handleCancel] calling createRefund", {
+          stripeSessionId: booking.stripeSessionId,
+          amount: refundPercent < 1 ? refundAmount : "FULL",
+        });
         const result = await createRefund({
           stripeSessionId: booking.stripeSessionId,
           amount: refundPercent < 1 ? refundAmount : undefined, // omit for full refund
           reason: "requested_by_customer",
         });
+        console.log("[handleCancel] createRefund result:", result);
         // Use Stripe's confirmed amount so the email always reflects what was actually refunded
-        confirmedRefundAmount = result?.amount ?? refundAmount;
+        // Coerce to number in case Stripe returned a string
+        const stripeAmt = Number(result?.amount);
+        confirmedRefundAmount = Number.isFinite(stripeAmt) && stripeAmt > 0 ? stripeAmt : refundAmount;
         // Persist refund ID + timestamp on booking
         if (result?.refundId) {
           const withRefundId = {
             ...updated,
             bookings: updated.bookings.map(b =>
               b.key === bookingKey
-                ? { ...b, refundId: result.refundId, refundedAt: new Date().toISOString() }
+                ? { ...b, refundId: result.refundId, refundedAt: new Date().toISOString(), refundAmount: confirmedRefundAmount, refundPercent }
                 : b
             ),
           };
@@ -683,9 +732,13 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           saveClients(clientsWithRefund);
         }
       } catch (e) {
-        console.error("Refund failed:", e);
+        console.error("[handleCancel] Refund failed:", e);
+        // Fall back to the computed amount so the client still sees what they're owed
+        confirmedRefundAmount = refundAmount;
         // Cancellation already saved — admin can issue refund manually
       }
+    } else if (booking?.stripeSessionId && refundAmount === 0) {
+      console.log("[handleCancel] paid booking cancelled within no-refund window — skipping refund");
     }
 
     // Notify assigned walker and client
