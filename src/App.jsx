@@ -471,8 +471,7 @@ export default function LonestarBark() {
 
     const updated = { ...clients, [pinKey]: newClient };
     setClients(updated);
-    // Send welcome email + notify admins (Supabase already handled verification)
-    sendWelcomeEmail(newClient.name, newClient.email);
+    // Notify admins of new client — welcome email fires later, after M&G is booked
     const pets = [...(newClient.dogs || []), ...(newClient.cats || [])].join(", ");
     notifyAdmin("new_client", { name: newClient.name, email: newClient.email, pets });
 
@@ -531,8 +530,19 @@ export default function LonestarBark() {
     };
     const updatedClients = { ...clients, [pinKey]: updated };
     setClients(updatedClients);
-    saveClients(updatedClients);
+    await saveClients(updatedClients);
     setActiveUser(updated);
+
+    // Send welcome email now that the M&G is booked — include appointment details
+    sendWelcomeEmail({
+      clientName: client.name || updated.name,
+      clientEmail: client.email || updated.email,
+      meetDate: handoffData.handoffDate
+        ? new Date(handoffData.handoffDate).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
+        : "",
+      meetSlot: handoffData.handoffSlot?.label || handoffData.handoffSlot?.time || "",
+      meetWalker: handoffData.handoffWalker || "",
+    });
 
     // If the client added a follow-on walk, redirect to Stripe immediately.
     // The booking is already saved as pending_payment — on success the webhook

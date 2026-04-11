@@ -736,13 +736,13 @@ async function sendInvoiceEmail(invoice, clientName, clientEmail, walkPhotos = [
   }
 }
 
-async function sendWelcomeEmail(clientName, clientEmail) {
+async function sendWelcomeEmail({ clientName, clientEmail, meetDate, meetSlot, meetWalker }) {
   if (!clientEmail) return;
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/send-welcome-email`, {
       method: "POST",
       headers: edgeHeaders,
-      body: JSON.stringify({ clientName, clientEmail }),
+      body: JSON.stringify({ clientName, clientEmail, meetDate, meetSlot, meetWalker }),
     });
     const body = await res.json();
     console.log(`[sendWelcomeEmail] ${clientEmail} → ${res.status}`, body);
@@ -781,13 +781,13 @@ async function sendWalkerCancellationNotification({ walkerName, walkerEmail, cli
   }
 }
 
-async function sendClientCancellationNotification({ clientName, clientEmail, pet, service, date, day, time, duration, walker, refundAmount, refundPercent, isStripeRefund, bookingPrice }) {
+async function sendClientCancellationNotification({ clientName, clientEmail, pet, service, date, day, time, duration, walker, refundAmount, refundPercent, isStripeRefund, refundId, bookingPrice }) {
   if (!clientEmail) return;
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/send-client-cancellation-notification`, {
       method: "POST",
       headers: edgeHeaders,
-      body: JSON.stringify({ clientName, clientEmail, pet, service, date, day, time, duration, walker, refundAmount, refundPercent, isStripeRefund, bookingPrice }),
+      body: JSON.stringify({ clientName, clientEmail, pet, service, date, day, time, duration, walker, refundAmount, refundPercent, isStripeRefund, refundId, bookingPrice }),
     });
     const body = await res.json();
     console.log(`[sendClientCancellationNotification] ${clientEmail} → ${res.status}`, body);

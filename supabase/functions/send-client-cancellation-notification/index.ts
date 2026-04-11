@@ -25,7 +25,7 @@ serve(async (req) => {
   try {
     const {
       clientName, clientEmail, pet, service, date, day, time, duration, walker,
-      refundAmount, refundPercent, isStripeRefund, bookingPrice,
+      refundAmount, refundPercent, isStripeRefund, refundId, bookingPrice,
     } = await req.json();
 
     if (!clientEmail) {
@@ -66,9 +66,17 @@ serve(async (req) => {
          </tr>`
       : "";
 
+    // Refund reference row — only shown when Stripe confirmed the refund
+    const refundIdRow = isStripeRefund && refundId
+      ? `<tr>
+           <td style="font-size:13px;color:#6b7280;padding:8px 0;border-bottom:1px solid #dcfce7;">Reference #</td>
+           <td style="font-size:12px;color:#374151;font-weight:500;padding:8px 0;border-bottom:1px solid #dcfce7;text-align:right;font-family:monospace;">${refundId}</td>
+         </tr>`
+      : "";
+
     // Refund block — shown for all paid bookings
     const refundBlock = hasRefund ? `
-        <!-- Refund Card -->
+        <!-- Refund Receipt Card -->
         <tr>
           <td style="padding:0 40px 28px;">
             <table width="100%" cellpadding="0" cellspacing="0"
@@ -76,7 +84,7 @@ serve(async (req) => {
               <tr>
                 <td style="padding:18px 24px 4px;" colspan="2">
                   <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#16a34a;">
-                    ${isStripeRefund ? "💰 Refund Issued" : "💰 Refund Owed"}
+                    ${isStripeRefund ? "✅ Refund Processed" : "💰 Refund Owed"}
                   </div>
                 </td>
               </tr>
@@ -85,12 +93,17 @@ serve(async (req) => {
                   <table width="100%" cellpadding="0" cellspacing="0">
                     <tr>
                       <td style="font-size:13px;color:#6b7280;padding:8px 0;border-bottom:1px solid #dcfce7;width:140px;">Refund Amount</td>
-                      <td style="font-size:18px;color:#15803d;font-weight:700;padding:8px 0;border-bottom:1px solid #dcfce7;text-align:right;">${refundLabel}</td>
+                      <td style="font-size:22px;color:#15803d;font-weight:700;padding:8px 0;border-bottom:1px solid #dcfce7;text-align:right;">${refundLabel}</td>
                     </tr>
                     <tr>
-                      <td style="font-size:13px;color:#6b7280;padding:8px 0;border-bottom:1px solid #dcfce7;">Refund Rate</td>
-                      <td style="font-size:14px;color:#111827;font-weight:600;padding:8px 0;border-bottom:1px solid #dcfce7;text-align:right;">${refundPct}% of booking total</td>
+                      <td style="font-size:13px;color:#6b7280;padding:8px 0;border-bottom:1px solid #dcfce7;">Cancellation Policy</td>
+                      <td style="font-size:14px;color:#111827;font-weight:600;padding:8px 0;border-bottom:1px solid #dcfce7;text-align:right;">${refundPct}% refund applied</td>
                     </tr>
+                    <tr>
+                      <td style="font-size:13px;color:#6b7280;padding:8px 0;border-bottom:1px solid #dcfce7;">Original Charge</td>
+                      <td style="font-size:14px;color:#111827;font-weight:600;padding:8px 0;border-bottom:1px solid #dcfce7;text-align:right;">$${Number(bookingPrice || 0).toFixed(2)}</td>
+                    </tr>
+                    ${refundIdRow}
                     <tr>
                       <td style="font-size:13px;color:#6b7280;padding:8px 0;">Processing Time</td>
                       <td style="font-size:14px;color:#111827;font-weight:600;padding:8px 0;text-align:right;">${isStripeRefund ? "5–10 business days" : "We'll be in touch shortly"}</td>
@@ -98,7 +111,7 @@ serve(async (req) => {
                   </table>
                   <p style="margin:12px 0 0;font-size:12px;color:#6b7280;line-height:1.6;">
                     ${isStripeRefund
-                      ? "The refund has been submitted to your original payment method. Processing time depends on your card issuer."
+                      ? "Your refund has been submitted to your original payment method. Processing time depends on your card issuer. Keep this email as your receipt."
                       : "Reply to this email and we'll arrange your refund right away. We're sorry for any inconvenience."}
                   </p>
                 </td>

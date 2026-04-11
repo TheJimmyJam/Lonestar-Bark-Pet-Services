@@ -266,6 +266,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const [submitError, setSubmitError] = useState("");
   const [expandedWalker, setExpandedWalker] = useState(null);
   const [cancelConfirm, setCancelConfirm] = useState(null);
+  const [cancelResult, setCancelResult] = useState(null); // { booking, refundAmount, refundPercent, hoursUntilWalk, bookingPrice }
   const [handoffEditOpen, setHandoffEditOpen] = useState(false);
   const [showCancelBanner, setShowCancelBanner] = useState(() => {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -746,8 +747,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     setClients(updatedClients);
     saveClients(updatedClients);
 
-    // Issue Stripe refund if owed — use confirmed amount from Stripe response for the email
+    // Issue Stripe refund if owed
+    // stripeRefundSucceeded tracks whether Stripe actually processed it (vs. admin handling manually)
+    let stripeRefundSucceeded = false;
     let confirmedRefundAmount = 0;
+    let stripeRefundId = null;
     if (refundAmount > 0 && booking?.stripeSessionId) {
       try {
         console.log("[handleCancel] calling createRefund", {
@@ -760,17 +764,18 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           reason: "requested_by_customer",
         });
         console.log("[handleCancel] createRefund result:", result);
-        // Use Stripe's confirmed amount so the email always reflects what was actually refunded
-        // Coerce to number in case Stripe returned a string
+        stripeRefundSucceeded = true;
+        stripeRefundId = result?.refundId || null;
+        // Use Stripe's confirmed amount; fall back to computed if Stripe returns 0
         const stripeAmt = Number(result?.amount);
         confirmedRefundAmount = Number.isFinite(stripeAmt) && stripeAmt > 0 ? stripeAmt : refundAmount;
         // Persist refund ID + timestamp on booking
-        if (result?.refundId) {
+        if (stripeRefundId) {
           const withRefundId = {
             ...updated,
             bookings: updated.bookings.map(b =>
               b.key === bookingKey
-                ? { ...b, refundId: result.refundId, refundedAt: new Date().toISOString(), refundAmount: confirmedRefundAmount, refundPercent }
+                ? { ...b, refundId: stripeRefundId, refundedAt: new Date().toISOString(), refundAmount: confirmedRefundAmount, refundPercent }
                 : b
             ),
           };
@@ -780,9 +785,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         }
       } catch (e) {
         console.error("[handleCancel] Refund failed:", e);
-        // Fall back to the computed amount so the client still sees what they're owed
-        confirmedRefundAmount = refundAmount;
-        // Cancellation already saved — admin can issue refund manually
+        // stripeRefundSucceeded stays false — admin will process manually
+        // Still show the owed amount in the email so the client knows what to expect
       }
     } else if (booking?.stripeSessionId && refundAmount === 0) {
       console.log("[handleCancel] paid booking cancelled within no-refund window — skipping refund");
@@ -806,10 +810,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         });
       }
       // Send cancellation + refund confirmation to the client.
-      // For Stripe bookings: use the confirmed Stripe amount.
-      // For non-Stripe bookings: use the policy-computed amount so the email
-      // still shows what the client is owed (admin will process manually).
-      const emailRefundAmount = confirmedRefundAmount > 0 ? confirmedRefundAmount : refundAmount;
+      // emailRefundAmount: Stripe-confirmed if processed, otherwise policy-computed (admin handles manually).
+      const emailRefundAmount = stripeRefundSucceeded ? confirmedRefundAmount : refundAmount;
       if (client.email) {
         sendClientCancellationNotification({
           clientName: client.name,
@@ -823,11 +825,24 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           walker: walkerName || "",
           refundAmount: emailRefundAmount,
           refundPercent: emailRefundAmount > 0 ? refundPercent : 0,
-          isStripeRefund: confirmedRefundAmount > 0,
+          isStripeRefund: stripeRefundSucceeded,
+          refundId: stripeRefundId,
           bookingPrice,
         });
       }
     }
+
+    // Show the cancellation result screen with refund details
+    const finalRefund = stripeRefundSucceeded ? confirmedRefundAmount : refundAmount;
+    setCancelResult({
+      booking,
+      refundAmount: finalRefund,
+      refundPercent,
+      hoursUntilWalk,
+      bookingPrice,
+      stripeRefundSucceeded,
+      stripeRefundId,
+    });
   };
 
   const geocodeAddress = async (address) => {
@@ -845,6 +860,160 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#f5f6f8" }}>
       <style>{GLOBAL_STYLES}</style>
+
+      {/* ── Cancellation Result Screen ── */}
+      {cancelResult && (() => {
+        const { booking: cb, refundAmount: ra, refundPercent: rp, hoursUntilWalk: hw, bookingPrice: bp } = cancelResult;
+        const wasPaid = bp > 0 && !!cb?.stripeSessionId;
+        const refundLabel = rp >= 1 ? "Full refund" : rp >= 0.5 ? "50% refund" : "No refund";
+        const windowLabel = hw == null
+          ? "Refund issued"
+          : hw >= 24
+          ? "Cancelled 24+ hours in advance"
+          : hw >= 12
+          ? "Cancelled 12–24 hours in advance"
+          : "Cancelled within 12 hours";
+        const refundColor = ra > 0 ? "#15803d" : "#dc2626";
+        const refundBg = ra > 0 ? "#f0fdf4" : "#fef2f2";
+        const refundBorder = ra > 0 ? "#bbf7d0" : "#fecaca";
+        return (
+          <div style={{
+            position: "fixed", inset: 0, zIndex: 9999,
+            background: "#0B1423",
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center",
+            padding: "24px",
+            fontFamily: "'DM Sans', sans-serif",
+          }}>
+            {/* Card */}
+            <div style={{
+              background: "#111827", borderRadius: "24px",
+              padding: "40px 32px", maxWidth: "440px", width: "100%",
+              border: "1.5px solid #1f2937",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+              display: "flex", flexDirection: "column", alignItems: "center", gap: "0",
+            }}>
+              {/* Icon */}
+              <div style={{ fontSize: "52px", marginBottom: "16px" }}>🚫</div>
+
+              <div style={{ fontWeight: 700, fontSize: "22px", color: "#fff", marginBottom: "6px", textAlign: "center" }}>
+                Appointment Cancelled
+              </div>
+              <div style={{ fontSize: "15px", color: "#9ca3af", marginBottom: "28px", textAlign: "center" }}>
+                {cb?.form?.pet ? `We'll miss ${cb.form.pet}!` : "Your walk has been cancelled."}
+              </div>
+
+              {/* Appointment details */}
+              <div style={{
+                width: "100%", background: "#1f2937", borderRadius: "14px",
+                padding: "20px", marginBottom: "16px",
+                border: "1px solid #374151",
+              }}>
+                <div style={{ fontWeight: 600, fontSize: "13px", color: "#6b7280",
+                  textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "14px" }}>
+                  Cancelled Appointment
+                </div>
+                {cb?.form?.pet && (
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
+                    <span style={{ color: "#9ca3af", fontSize: "15px" }}>Pet</span>
+                    <span style={{ color: "#fff", fontSize: "15px", fontWeight: 500 }}>{cb.form.pet}</span>
+                  </div>
+                )}
+                {cb?.date && (
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
+                    <span style={{ color: "#9ca3af", fontSize: "15px" }}>Date</span>
+                    <span style={{ color: "#fff", fontSize: "15px", fontWeight: 500 }}>
+                      {cb.day ? `${cb.day}, ` : ""}{cb.date}
+                    </span>
+                  </div>
+                )}
+                {cb?.slot?.time && (
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
+                    <span style={{ color: "#9ca3af", fontSize: "15px" }}>Time</span>
+                    <span style={{ color: "#fff", fontSize: "15px", fontWeight: 500 }}>{cb.slot.time}</span>
+                  </div>
+                )}
+                {cb?.slot?.duration && (
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
+                    <span style={{ color: "#9ca3af", fontSize: "15px" }}>Duration</span>
+                    <span style={{ color: "#fff", fontSize: "15px", fontWeight: 500 }}>{cb.slot.duration}</span>
+                  </div>
+                )}
+                {cb?.form?.walker && (
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "#9ca3af", fontSize: "15px" }}>Walker</span>
+                    <span style={{ color: "#fff", fontSize: "15px", fontWeight: 500 }}>{cb.form.walker}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Refund details */}
+              <div style={{
+                width: "100%", background: refundBg, borderRadius: "14px",
+                padding: "20px", marginBottom: "28px",
+                border: `1px solid ${refundBorder}`,
+              }}>
+                <div style={{ fontWeight: 600, fontSize: "13px", color: refundColor,
+                  textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "14px" }}>
+                  Refund Summary
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
+                  <span style={{ color: "#374151", fontSize: "15px" }}>Original charge</span>
+                  <span style={{ color: "#111827", fontSize: "15px", fontWeight: 500 }}>
+                    ${bp > 0 ? bp.toFixed(2) : "—"}
+                  </span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
+                  <span style={{ color: "#374151", fontSize: "15px" }}>Policy</span>
+                  <span style={{ color: "#374151", fontSize: "15px", fontWeight: 500 }}>{windowLabel}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+                  paddingTop: "12px", borderTop: `1px solid ${refundBorder}` }}>
+                  <span style={{ color: "#111827", fontSize: "16px", fontWeight: 700 }}>
+                    {refundLabel}
+                  </span>
+                  <span style={{ color: refundColor, fontSize: "22px", fontWeight: 700 }}>
+                    {ra > 0 ? `$${ra.toFixed(2)}` : "$0.00"}
+                  </span>
+                </div>
+                {ra > 0 && wasPaid && (
+                  <div style={{ marginTop: "10px", fontSize: "13px", color: "#15803d", textAlign: "center" }}>
+                    Your refund has been submitted to your original payment method.
+                    Allow 5–10 business days.
+                  </div>
+                )}
+                {ra > 0 && !wasPaid && (
+                  <div style={{ marginTop: "10px", fontSize: "13px", color: "#b45309", textAlign: "center" }}>
+                    A refund of ${ra.toFixed(2)} will be processed by our team.
+                  </div>
+                )}
+                {ra === 0 && bp > 0 && (
+                  <div style={{ marginTop: "10px", fontSize: "13px", color: "#dc2626", textAlign: "center" }}>
+                    No refund applies — cancellation was within 12 hours of the appointment.
+                  </div>
+                )}
+                {bp === 0 && (
+                  <div style={{ marginTop: "10px", fontSize: "13px", color: "#6b7280", textAlign: "center" }}>
+                    No charge was applied to this appointment.
+                  </div>
+                )}
+              </div>
+
+              {/* CTA */}
+              <button
+                onClick={() => { setCancelResult(null); setShowCancelBanner(false); }}
+                style={{
+                  width: "100%", padding: "15px", borderRadius: "14px", border: "none",
+                  background: "#C4541A", color: "#fff",
+                  fontSize: "16px", fontWeight: 600, cursor: "pointer",
+                  fontFamily: "'DM Sans', sans-serif",
+                }}>
+                Back to My Walks
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Cancel toast banner (fixed top) ── */}
       {showCancelBanner && (() => {

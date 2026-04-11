@@ -528,6 +528,7 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [], admin =
               { id: "paid", label: "Paid" },
               { id: "draft", label: "Draft" },
               { id: "stripe", label: `Stripe (${stripeReceiptsAll.length})` },
+              { id: "refunds", label: `Refunds (${allRefundedBookings.length})` },
             ].map(f => (
               <button key={f.id} onClick={() => setFilterStatus(f.id)} style={{
                 padding: "6px 14px", borderRadius: "20px", cursor: "pointer",
@@ -612,8 +613,139 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [], admin =
             )
           )}
 
-          {/* Admin invoice list (non-Stripe) */}
-          {filterStatus !== "stripe" && (filtered.length === 0 ? (
+          {/* Refunds list */}
+          {filterStatus === "refunds" && (() => {
+            // Enrich each refunded booking with its client info
+            const refundRows = Object.entries(clients).flatMap(([pin, c]) =>
+              (c.bookings || [])
+                .filter(b => b.refundAmount > 0)
+                .map(b => ({
+                  ...b,
+                  clientPin: pin,
+                  clientName: c.name || [c.firstName, c.lastName].filter(Boolean).join(" ") || "—",
+                  clientEmail: c.email || "—",
+                }))
+            ).sort((a, b) => new Date(b.refundedAt || b.cancelledAt || 0) - new Date(a.refundedAt || a.cancelledAt || 0));
+
+            if (refundRows.length === 0) return (
+              <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
+                borderRadius: "16px", padding: "40px", textAlign: "center" }}>
+                <div style={{ fontSize: "32px", marginBottom: "12px" }}>↩️</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                  fontWeight: 600, color: "#374151", marginBottom: "4px" }}>No refunds yet</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af" }}>
+                  Refunds issued on cancelled bookings will appear here.
+                </div>
+              </div>
+            );
+
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {refundRows.map(b => {
+                  const isExp = expandedInv === b.key + "_refund";
+                  const svcLabel = b.service === "dog" ? "Dog Walk" : b.service === "cat" ? "Cat Visit" : b.service === "overnight" ? "Overnight" : b.service || "Service";
+                  const refundPct = b.refundPercent != null ? Math.round(b.refundPercent * 100) : null;
+                  const refundDate = b.refundedAt || b.cancelledAt;
+                  const isStripe = !!b.refundId;
+                  return (
+                    <div key={b.key + "_refund"} style={{
+                      background: "#fff",
+                      border: isExp ? "2px solid #dc2626" : "1.5px solid #fecaca",
+                      borderRadius: "16px", overflow: "hidden", transition: "all 0.15s",
+                    }}>
+                      <button onClick={() => setExpandedInv(isExp ? null : b.key + "_refund")}
+                        style={{ width: "100%", background: "none", border: "none",
+                          cursor: "pointer", padding: "16px 18px", textAlign: "left" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginBottom: "4px" }}>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600, color: "#111827" }}>
+                                {b.clientName}
+                              </span>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 700,
+                                color: isStripe ? "#dc2626" : "#b45309",
+                                background: isStripe ? "#fef2f2" : "#fffbeb",
+                                border: `1px solid ${isStripe ? "#fecaca" : "#fde68a"}`,
+                                borderRadius: "5px", padding: "1px 7px" }}>
+                                {isStripe ? "STRIPE REFUND" : "MANUAL REFUND"}
+                              </span>
+                              {refundPct != null && (
+                                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                                  color: "#6b7280", background: "#f3f4f6",
+                                  borderRadius: "5px", padding: "1px 7px" }}>
+                                  {refundPct}%
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>
+                              {svcLabel} · {b.day ? `${b.day}, ` : ""}{b.date || "—"} · {b.slot?.time || "—"}
+                              {refundDate ? ` · Refunded ${new Date(refundDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}
+                            </div>
+                          </div>
+                          <div style={{ flexShrink: 0, textAlign: "right" }}>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "#dc2626" }}>
+                              −${(b.refundAmount || 0).toFixed(2)}
+                            </div>
+                            {b.price != null && (
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#9ca3af" }}>
+                                of ${(b.price || 0).toFixed(2)}
+                              </div>
+                            )}
+                            <div style={{ fontSize: "14px", color: isExp ? "#dc2626" : "#d1d5db",
+                              transform: isExp ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>⌄</div>
+                          </div>
+                        </div>
+                      </button>
+                      {isExp && (
+                        <div style={{ borderTop: "1px solid #fef2f2", padding: "14px 18px",
+                          display: "flex", flexDirection: "column", gap: "6px" }}>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280" }}>
+                            <strong style={{ color: "#374151" }}>Client:</strong> {b.clientName} · {b.clientEmail}
+                          </div>
+                          {b.form?.pet && (
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280" }}>
+                              <strong style={{ color: "#374151" }}>Pet:</strong> {b.form.pet}
+                            </div>
+                          )}
+                          {b.form?.walker && (
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280" }}>
+                              <strong style={{ color: "#374151" }}>Walker:</strong> {b.form.walker}
+                            </div>
+                          )}
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280" }}>
+                            <strong style={{ color: "#374151" }}>Original Charge:</strong> ${(b.price || 0).toFixed(2)}
+                            {refundPct != null ? ` · ${refundPct}% refund = ` : " → "}
+                            <strong style={{ color: "#dc2626" }}>${(b.refundAmount || 0).toFixed(2)} refunded</strong>
+                          </div>
+                          {b.cancelledAt && (
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280" }}>
+                              <strong style={{ color: "#374151" }}>Cancelled:</strong>{" "}
+                              {new Date(b.cancelledAt).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                            </div>
+                          )}
+                          {b.refundId && (
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>
+                              <strong style={{ color: "#374151" }}>Stripe Refund ID:</strong>{" "}
+                              <span style={{ fontFamily: "monospace" }}>{b.refundId}</span>
+                            </div>
+                          )}
+                          {b.stripeSessionId && (
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>
+                              <strong style={{ color: "#374151" }}>Session:</strong>{" "}
+                              <span style={{ fontFamily: "monospace" }}>{b.stripeSessionId}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+          {/* Admin invoice list (non-Stripe, non-Refunds) */}
+          {filterStatus !== "stripe" && filterStatus !== "refunds" && (filtered.length === 0 ? (
             <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
               borderRadius: "16px", padding: "40px", textAlign: "center" }}>
               <div style={{ fontSize: "32px", marginBottom: "12px" }}>🧾</div>
