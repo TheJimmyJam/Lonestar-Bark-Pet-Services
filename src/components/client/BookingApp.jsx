@@ -657,14 +657,17 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     setClients(updatedClients);
     saveClients(updatedClients);
 
-    // Issue Stripe refund if owed
-    if (refundAmount > 0) {
+    // Issue Stripe refund if owed — use confirmed amount from Stripe response for the email
+    let confirmedRefundAmount = 0;
+    if (refundAmount > 0 && booking?.stripeSessionId) {
       try {
         const result = await createRefund({
           stripeSessionId: booking.stripeSessionId,
           amount: refundPercent < 1 ? refundAmount : undefined, // omit for full refund
           reason: "requested_by_customer",
         });
+        // Use Stripe's confirmed amount so the email always reflects what was actually refunded
+        confirmedRefundAmount = result?.amount ?? refundAmount;
         // Persist refund ID + timestamp on booking
         if (result?.refundId) {
           const withRefundId = {
@@ -703,6 +706,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         });
       }
       // Send cancellation + refund confirmation to the client
+      // Use confirmedRefundAmount from Stripe so the email always reflects the actual refund
       if (client.email) {
         sendClientCancellationNotification({
           clientName: client.name,
@@ -714,8 +718,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           time: booking.slot?.time || "—",
           duration: booking.slot?.duration || "—",
           walker: walkerName || "",
-          refundAmount: refundAmount || 0,
-          refundPercent: refundPercent || 0,
+          refundAmount: confirmedRefundAmount,
+          refundPercent: confirmedRefundAmount > 0 ? refundPercent : 0,
         });
       }
     }
