@@ -71,13 +71,14 @@ async function sbFetch(path, options = {}, { retries = 1, retryDelay = 1200 } = 
 
 async function loadClients() {
   try {
-    const rows = await sbFetch("clients?select=pin,email,data");
+    const rows = await sbFetch("clients?select=pin,email,data,user_id");
     if (!rows || rows.length === 0) return {};
     const result = {};
     rows.forEach(row => {
       try {
         const parsed = JSON.parse(row.data);
-        result[row.pin] = parsed;
+        // Preserve user_id on the client object so saveClients can round-trip it
+        result[row.pin] = { ...parsed, pin: row.pin, user_id: row.user_id || parsed.user_id || null };
       } catch {}
     });
     return result;
@@ -92,7 +93,10 @@ async function saveClients(clients) {
     const rows = Object.entries(clients).map(([pin, clientData]) => {
       // invoices now live in their own table — strip from the blob to avoid duplication
       const { invoices: _inv, ...rest } = clientData;
-      return { pin, email: clientData.email || "", data: JSON.stringify(rest) };
+      const row = { pin, email: clientData.email || "", data: JSON.stringify(rest) };
+      // Preserve Supabase Auth linkage if the client has one
+      if (clientData.user_id) row.user_id = clientData.user_id;
+      return row;
     });
     if (rows.length === 0) return;
     // Send all rows at once as an array upsert

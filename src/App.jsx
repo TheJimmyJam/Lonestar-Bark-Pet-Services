@@ -484,7 +484,12 @@ export default function LonestarBark() {
   };
 
   const handleHandoffComplete = (handoffData) => {
-    const client = clients[activeUser.id] || activeUser;
+    // Resolve the PIN map key consistently — map is keyed by PIN, not by id
+    const pinKey = activeUser.pin
+      || Object.keys(clients).find(k => clients[k]?.id === activeUser.id)
+      || Object.keys(clients).find(k => clients[k]?.user_id === activeUser.user_id)
+      || activeUser.id;
+    const client = clients[pinKey] || activeUser;
     let bookings = client.bookings || [];
     if (handoffData.followOnWalk) {
       const fw = handoffData.followOnWalk;
@@ -512,13 +517,15 @@ export default function LonestarBark() {
     }
     const updated = {
       ...client, handoffDone: true, handoffConfirmed: false, handoffInfo: handoffData, bookings,
+      // Ensure the pin stays attached so the map key resolves on reload
+      pin: pinKey,
       phone: handoffData.handoffPhone || client.phone || "",
       address: handoffData.handoffAddress || client.address || "",
       addrObj: handoffData.handoffAddrObj || client.addrObj || addrFromString(handoffData.handoffAddress || client.address || ""),
       preferredWalker: handoffData.handoffWalker || client.preferredWalker || "",
       keyholder: handoffData.handoffWalker || client.keyholder || "",
     };
-    const updatedClients = { ...clients, [client.id]: updated };
+    const updatedClients = { ...clients, [pinKey]: updated };
     setClients(updatedClients);
     saveClients(updatedClients);
     setActiveUser(updated);
