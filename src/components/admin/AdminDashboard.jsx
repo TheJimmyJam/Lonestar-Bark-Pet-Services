@@ -718,12 +718,15 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 }));
               };
 
-              const clientList = Object.values(clients).map(c => {
-                const active = (c.bookings || []).filter(b => !b.cancelled && !b.adminCompleted).length;
-                const done = (c.bookings || []).filter(b => b.adminCompleted).length;
-                const spent = (c.bookings || []).filter(b => b.adminCompleted).reduce((s, b) => s + effectivePrice(b), 0);
-                return { ...c, active, done, spent };
-              }).sort((a, b) => b.spent - a.spent);
+              const clientList = Object.entries(clients)
+                .filter(([, c]) => !c.deleted)
+                .map(([pin, c]) => {
+                  const activeCount = (c.bookings || []).filter(b => !b.cancelled && !b.adminCompleted).length;
+                  const completedCount = (c.bookings || []).filter(b => b.adminCompleted).length;
+                  const totalSpend = (c.bookings || []).filter(b => b.adminCompleted).reduce((s, b) => s + effectivePrice(b), 0).toFixed(2);
+                  return { c, pin, activeCount, completedCount, totalSpend };
+                })
+                .sort((a, b) => parseFloat(b.totalSpend) - parseFloat(a.totalSpend));
 
               const kpis = [
                 { id: "weekRev",        label: "Week's Revenue",    value: fmt(weekRevenue, true),          icon: "📅", color: amber,     note: "completed" },
