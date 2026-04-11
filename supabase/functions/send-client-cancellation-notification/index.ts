@@ -25,7 +25,7 @@ serve(async (req) => {
   try {
     const {
       clientName, clientEmail, pet, service, date, day, time, duration, walker,
-      refundAmount, refundPercent,
+      refundAmount, refundPercent, isStripeRefund, bookingPrice,
     } = await req.json();
 
     if (!clientEmail) {
@@ -66,7 +66,7 @@ serve(async (req) => {
          </tr>`
       : "";
 
-    // Refund block — only shown when a refund is being issued
+    // Refund block — shown for all paid bookings
     const refundBlock = hasRefund ? `
         <!-- Refund Card -->
         <tr>
@@ -76,7 +76,7 @@ serve(async (req) => {
               <tr>
                 <td style="padding:18px 24px 4px;" colspan="2">
                   <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#16a34a;">
-                    💰 Refund Issued
+                    ${isStripeRefund ? "💰 Refund Issued" : "💰 Refund Owed"}
                   </div>
                 </td>
               </tr>
@@ -93,18 +93,20 @@ serve(async (req) => {
                     </tr>
                     <tr>
                       <td style="font-size:13px;color:#6b7280;padding:8px 0;">Processing Time</td>
-                      <td style="font-size:14px;color:#111827;font-weight:600;padding:8px 0;text-align:right;">5–10 business days</td>
+                      <td style="font-size:14px;color:#111827;font-weight:600;padding:8px 0;text-align:right;">${isStripeRefund ? "5–10 business days" : "We'll be in touch shortly"}</td>
                     </tr>
                   </table>
                   <p style="margin:12px 0 0;font-size:12px;color:#6b7280;line-height:1.6;">
-                    The refund has been submitted to your original payment method. Processing time depends on your card issuer.
+                    ${isStripeRefund
+                      ? "The refund has been submitted to your original payment method. Processing time depends on your card issuer."
+                      : "Reply to this email and we'll arrange your refund right away. We're sorry for any inconvenience."}
                   </p>
                 </td>
               </tr>
             </table>
           </td>
-        </tr>` : `
-        <!-- No Refund Note -->
+        </tr>` : bookingPrice > 0 ? `
+        <!-- No Refund Note (paid booking, cancelled too late) -->
         <tr>
           <td style="padding:0 40px 28px;">
             <table width="100%" cellpadding="0" cellspacing="0"
@@ -112,7 +114,7 @@ serve(async (req) => {
               <tr>
                 <td style="padding:16px 24px;">
                   <div style="font-size:13px;color:#92400e;line-height:1.6;">
-                    <strong>No refund applies</strong> to this cancellation based on our cancellation policy
+                    <strong>No refund applies</strong> to this cancellation per our cancellation policy
                     (cancellations within 12 hours of the scheduled walk are non-refundable).
                     If you have questions, reply to this email and we'll be happy to help.
                   </div>
@@ -120,7 +122,7 @@ serve(async (req) => {
               </tr>
             </table>
           </td>
-        </tr>`;
+        </tr>` : ``;
 
     const html = `<!DOCTYPE html>
 <html>
@@ -158,8 +160,10 @@ serve(async (req) => {
             <p style="margin:0;font-size:16px;color:#111827;font-weight:600;">Hi ${firstName},</p>
             <p style="margin:14px 0 0;font-size:15px;color:#4b5563;line-height:1.7;">
               We're confirming that your upcoming appointment with Lonestar Bark Co. has been successfully cancelled.
-              ${hasRefund
-                ? `A refund of <strong style="color:#15803d;">${refundLabel}</strong> has been submitted to your original payment method.`
+              ${hasRefund && isStripeRefund
+                ? ` A refund of <strong style="color:#15803d;">${refundLabel}</strong> has been submitted to your original payment method.`
+                : hasRefund
+                ? ` You are owed a refund of <strong style="color:#15803d;">${refundLabel}</strong> — please reply to this email and we'll take care of it right away.`
                 : ""}
             </p>
           </td>

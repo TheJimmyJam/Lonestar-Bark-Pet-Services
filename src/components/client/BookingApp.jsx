@@ -681,21 +681,19 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     // 12–24h before walk → 50% refund
     // < 12h before walk → no refund
     //
-    // Gate is lenient on purpose: any booking that has a stripeSessionId is
-    // a paid booking and should be refunded according to policy. We don't
-    // require paidAt because some historical bookings may be missing it,
-    // and we fall back to booking.date + slot.time when scheduledDateTime
-    // is absent.
+    // Compute for ALL paid bookings (price > 0), not just Stripe bookings.
+    // Stripe bookings get an automatic refund via the API; non-Stripe bookings
+    // will show the owed amount in the email so admin can process it manually.
     let refundPercent = 0;
     let refundAmount = 0;
     let hoursUntilWalk = null;
-    if (booking?.stripeSessionId) {
+    const bookingPrice = booking?.price || 0;
+    if (bookingPrice > 0) {
       // Prefer stored scheduledDateTime; otherwise reconstruct from date + slot.time
       let apptMs = null;
       if (booking.scheduledDateTime) {
         apptMs = new Date(booking.scheduledDateTime).getTime();
       } else if (booking.date && booking.slot?.time) {
-        // booking.date is "YYYY-MM-DD"; slot.time is "9:00 AM" style
         try {
           const [y, m, d] = booking.date.split("-").map(Number);
           const apptDate = new Date(y, (m || 1) - 1, d || 1);
@@ -712,11 +710,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         if (hoursUntilWalk >= 24) refundPercent = 1.0;
         else if (hoursUntilWalk >= 12) refundPercent = 0.5;
       } else {
-        // No timing info at all — default to full refund (benefit of the doubt)
+        // No timing info — default to full refund (benefit of the doubt)
         refundPercent = 1.0;
       }
       refundAmount = refundPercent > 0
-        ? Math.round((booking.price || 0) * refundPercent * 100) / 100
+        ? Math.round(bookingPrice * refundPercent * 100) / 100
         : 0;
     }
     console.log("[handleCancel] refund decision:", {
@@ -807,8 +805,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           duration: booking.slot?.duration || "—",
         });
       }
-      // Send cancellation + refund confirmation to the client
-      // Use confirmedRefundAmount from Stripe so the email always reflects the actual refund
+      // Send cancellation + refund confirmation to the client.
+      // For Stripe bookings: use the confirmed Stripe amount.
+      // For non-Stripe bookings: use the policy-computed amount so the email
+      // still shows what the client is owed (admin will process manually).
+      const emailRefundAmount = confirmedRefundAmount > 0 ? confirmedRefundAmount : refundAmount;
       if (client.email) {
         sendClientCancellationNotification({
           clientName: client.name,
@@ -820,8 +821,10 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           time: booking.slot?.time || "—",
           duration: booking.slot?.duration || "—",
           walker: walkerName || "",
-          refundAmount: confirmedRefundAmount,
-          refundPercent: confirmedRefundAmount > 0 ? refundPercent : 0,
+          refundAmount: emailRefundAmount,
+          refundPercent: emailRefundAmount > 0 ? refundPercent : 0,
+          isStripeRefund: confirmedRefundAmount > 0,
+          bookingPrice,
         });
       }
     }
