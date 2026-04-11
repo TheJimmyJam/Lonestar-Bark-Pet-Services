@@ -41,6 +41,11 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [], admin =
       .map(b => ({ ...b, clientPin: pin, clientName: c.name || [c.firstName, c.lastName].filter(Boolean).join(" "), clientEmail: c.email }))
   ).sort((a, b) => new Date(b.paidAt) - new Date(a.paidAt));
   const stripeTotal = stripeReceiptsAll.reduce((s, b) => s + (b.price || 0), 0);
+  const { monday: stripeWeekMon } = getCurrentWeekRange();
+  const stripeTotalWeek = stripeReceiptsAll
+    .filter(b => b.paidAt && new Date(b.paidAt) >= stripeWeekMon)
+    .reduce((s, b) => s + (b.price || 0), 0);
+  const stripeCountWeek = stripeReceiptsAll.filter(b => b.paidAt && new Date(b.paidAt) >= stripeWeekMon).length;
 
   const allInvoices = getAllInvoices(clients);
   const filtered = (filterStatus === "all" ? allInvoices : allInvoices.filter(inv => {
@@ -326,9 +331,9 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [], admin =
         gap: "12px", marginBottom: "20px", flexWrap: "wrap" }}>
         <div>
           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-            fontWeight: 600, color: "#111827", marginBottom: "4px" }}>Invoices</div>
+            fontWeight: 600, color: "#111827", marginBottom: "4px" }}>Financials</div>
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280" }}>
-            Create and send invoices to clients. Clients pay securely via Stripe.
+            Stripe collections, refunds, gratuities, and invoices.
           </p>
         </div>
         {view === "list" && (
@@ -481,14 +486,12 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [], admin =
               </div>
             );
             const kpis = [
-              { label: "Pending",    value: fmt(pendingTotal, true),           sub: `${pendingCount} invoice${pendingCount !== 1 ? "s" : ""}`,              color: amber,      bg: "#fffbeb", border: "#fde68a" },
-              { label: "Overdue",    value: `${overdueCount}`,                 sub: "unpaid past due",                                                      color: "#dc2626",  bg: "#fef2f2", border: "#fecaca" },
-              { label: "Collected",  value: fmt(paidTotal + stripeTotal, true), sub: `invoices + ${stripeReceiptsAll.length} Stripe booking${stripeReceiptsAll.length !== 1 ? "s" : ""}`, color: green, bg: "#FDF5EC", border: "#D4A843" },
-              { label: "Uninvoiced",             value: `${bulkWalkCount}`,                                          sub: `${bulkClientCount} client${bulkClientCount !== 1 ? "s" : ""}`, color: "#3D6B7A",  bg: "#EBF4F6", border: "#8ECAD4" },
-              { label: "Gratuities Owed",     value: gratuityOwed > 0 ? fmt(gratuityOwed, true) : "—",           sub: "unpaid to walkers",                                              color: "#059669",  bg: "#f0fdf4", border: "#a8d5bf" },
-              { label: "Gratuities Paid",     value: gratuitiesPaidLifetime > 0 ? fmt(gratuitiesPaidLifetime, true) : "—", sub: "lifetime disbursed",                               color: "#7A4D6E",  bg: "#F7F0F5", border: "#D8ABCF" },
-              { label: "Refunds This Week",   value: refundsThisWeek > 0 ? fmt(refundsThisWeek, true) : "—",       sub: `${refundCountWeek} refund${refundCountWeek !== 1 ? "s" : ""} issued`,  color: "#dc2626",  bg: "#fef2f2", border: "#fecaca" },
-              { label: "Refunds Lifetime",    value: refundsLifetime > 0 ? fmt(refundsLifetime, true) : "—",       sub: `${refundCountLifetime} total refund${refundCountLifetime !== 1 ? "s" : ""}`,  color: "#9ca3af",  bg: "#f9fafb", border: "#e4e7ec" },
+              { label: "Weekly Charges",   value: fmt(stripeTotalWeek, true),  sub: `${stripeCountWeek} Stripe payment${stripeCountWeek !== 1 ? "s" : ""} this week`,           color: green,      bg: "#FDF5EC", border: "#D4A843" },
+              { label: "Total Charges",    value: fmt(stripeTotal, true),       sub: `${stripeReceiptsAll.length} Stripe payment${stripeReceiptsAll.length !== 1 ? "s" : ""} lifetime`, color: "#059669",  bg: "#f0fdf4", border: "#a8d5bf" },
+              { label: "Gratuities Owed",  value: gratuityOwed > 0 ? fmt(gratuityOwed, true) : "—",           sub: "unpaid to walkers",     color: "#b45309",  bg: "#fffbeb", border: "#fde68a" },
+              { label: "Gratuities Paid",  value: gratuitiesPaidLifetime > 0 ? fmt(gratuitiesPaidLifetime, true) : "—", sub: "lifetime disbursed", color: "#7A4D6E",  bg: "#F7F0F5", border: "#D8ABCF" },
+              { label: "Refunds This Week", value: refundsThisWeek > 0 ? fmt(refundsThisWeek, true) : "—",     sub: `${refundCountWeek} refund${refundCountWeek !== 1 ? "s" : ""} issued`,             color: "#dc2626",  bg: "#fef2f2", border: "#fecaca" },
+              { label: "Refunds Lifetime", value: refundsLifetime > 0 ? fmt(refundsLifetime, true) : "—",      sub: `${refundCountLifetime} total refund${refundCountLifetime !== 1 ? "s" : ""}`,      color: "#9ca3af",  bg: "#f9fafb", border: "#e4e7ec" },
             ];
             return (
               <div style={{
