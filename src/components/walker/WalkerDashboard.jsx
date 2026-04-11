@@ -272,6 +272,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
       },
     };
     setClients(updated);
+    saveClients(updated);
   };
 
   const claimHandoff = (handoff) => {
