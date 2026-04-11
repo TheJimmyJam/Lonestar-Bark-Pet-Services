@@ -6,15 +6,41 @@ import AddressFields from "../shared/AddressFields.jsx";
 // ─── Walker Client Editor (keyholder clients) ─────────────────────────────────
 function WalkerClientEditor({ client, clients, setClients, accentBlue }) {
   const [expanded, setExpanded] = useState(false);
-  const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [draft, setDraft] = useState({
+  const buildDraft = () => ({
     phone: client.phone || "",
     addrObj: addrFromString(client.address || ""),
     dogs: (client.dogs || []).length > 0 ? [...client.dogs] : [""],
     cats: client.cats ? [...client.cats] : [],
     notes: client.notes || "",
   });
+  const [draft, setDraft] = useState(buildDraft);
+
+  // ── Dirty detection (any change from the original client values) ────────
+  const isDirty = (() => {
+    if ((draft.phone || "").trim() !== (client.phone || "").trim()) return true;
+    if (addrToString(draft.addrObj) !== (client.address || "")) return true;
+    const origDogs = (client.dogs || []).filter(Boolean);
+    const newDogs = draft.dogs.map(d => d.trim()).filter(Boolean);
+    if (origDogs.length !== newDogs.length || origDogs.some((d, i) => d !== newDogs[i])) return true;
+    const origCats = (client.cats || []).filter(Boolean);
+    const newCats = draft.cats.map(c => c.trim()).filter(Boolean);
+    if (origCats.length !== newCats.length || origCats.some((c, i) => c !== newCats[i])) return true;
+    if ((draft.notes || "").trim() !== (client.notes || "").trim()) return true;
+    return false;
+  })();
+
+  // Warn before closing/reloading the window if there are unsaved changes.
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
 
   const fieldStyle = {
     width: "100%", padding: "10px 13px", borderRadius: "9px",
@@ -22,7 +48,6 @@ function WalkerClientEditor({ client, clients, setClients, accentBlue }) {
     fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
     color: "#111827", outline: "none",
   };
-  const readStyle = { ...fieldStyle, background: "#f9fafb", color: "#6b7280", pointerEvents: "none" };
   const labelStyle = {
     display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
     fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
@@ -43,20 +68,25 @@ function WalkerClientEditor({ client, clients, setClients, accentBlue }) {
     };
     setClients({ ...clients, [client.id]: updated });
     saveClients({ ...clients, [client.id]: updated });
-    setEditing(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
 
-  const handleCancel = () => {
-    setEditing(false);
-    setDraft({
-      phone: client.phone || "",
-      addrObj: addrFromString(client.address || ""),
-      dogs: (client.dogs || []).length > 0 ? [...client.dogs] : [""],
-      cats: client.cats ? [...client.cats] : [],
-      notes: client.notes || "",
-    });
+  const handleDiscard = () => {
+    setDraft(buildDraft());
+  };
+
+  // Attempt to collapse; if dirty, confirm first.
+  const attemptCollapse = () => {
+    if (isDirty) {
+      const ok = window.confirm("You have unsaved changes. Save before closing?\n\nOK = Save changes\nCancel = Keep editing");
+      if (ok) {
+        handleSave();
+        setExpanded(false);
+      }
+      return;
+    }
+    setExpanded(e => !e);
   };
 
   const dogs = client.dogs || [];
@@ -73,7 +103,7 @@ function WalkerClientEditor({ client, clients, setClients, accentBlue }) {
 
       {/* ── Collapsed header (always visible, clickable to expand) ── */}
       <button
-        onClick={() => { setExpanded(e => !e); if (editing) { setEditing(false); handleCancel(); } }}
+        onClick={attemptCollapse}
         style={{ width: "100%", background: "none", border: "none", cursor: "pointer",
           padding: "14px 18px", textAlign: "left", display: "block" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
@@ -142,27 +172,24 @@ function WalkerClientEditor({ client, clients, setClients, accentBlue }) {
             justifyContent: "space-between", background: `${accentBlue}06` }}>
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
               color: "#9ca3af" }}>{client.email}</div>
-            {!editing ? (
-              <button onClick={() => setEditing(true)}
-                style={{ padding: "6px 16px", borderRadius: "8px",
-                  border: `1.5px solid ${accentBlue}44`, background: `${accentBlue}10`,
-                  color: accentBlue, fontFamily: "'DM Sans', sans-serif",
-                  fontSize: "16px", fontWeight: 600, cursor: "pointer" }}>
-                ✏️ Edit
-              </button>
-            ) : (
-              <div style={{ display: "flex", gap: "7px" }}>
+            {isDirty ? (
+              <div style={{ display: "flex", gap: "7px", alignItems: "center" }}>
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                  color: "#C4541A", fontWeight: 600 }}>● Unsaved</span>
                 <button onClick={handleSave}
                   style={{ padding: "6px 16px", borderRadius: "8px", border: "none",
                     background: accentBlue, color: "#fff",
                     fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                     fontWeight: 600, cursor: "pointer" }}>✓ Save</button>
-                <button onClick={handleCancel}
+                <button onClick={handleDiscard}
                   style={{ padding: "6px 12px", borderRadius: "8px",
                     border: "1.5px solid #e4e7ec", background: "#fff",
                     color: "#6b7280", fontFamily: "'DM Sans', sans-serif",
-                    fontSize: "16px", cursor: "pointer" }}>Cancel</button>
+                    fontSize: "16px", cursor: "pointer" }}>Discard</button>
               </div>
+            ) : (
+              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                color: "#9ca3af", fontStyle: "italic" }}>Editable — changes save when you click Save</span>
             )}
           </div>
 
@@ -182,25 +209,18 @@ function WalkerClientEditor({ client, clients, setClients, accentBlue }) {
                 onChange={e => setDraft(d => ({ ...d, phone: formatPhone(e.target.value) }))}
                 placeholder="214.555.0000"
                 maxLength={12}
-                style={editing ? fieldStyle : readStyle}
-                readOnly={!editing}
-                onFocus={e => { if (editing) e.target.style.borderColor = accentBlue; }}
+                style={fieldStyle}
+                onFocus={e => e.target.style.borderColor = accentBlue}
                 onBlur={e => e.target.style.borderColor = "#C8E4E8"} />
             </div>
 
             {/* Address */}
             <div style={{ marginBottom: "12px" }}>
               <label style={labelStyle}>Home Address</label>
-              {editing ? (
-                <AddressFields value={draft.addrObj}
-                  onChange={obj => setDraft(d => ({ ...d, addrObj: obj }))}
-                  inputBaseStyle={{ padding: "10px 13px", fontSize: "15px" }}
-                  labelBaseStyle={{ fontSize: "16px", color: "#9ca3af" }} />
-              ) : (
-                <div style={{ ...readStyle, padding: "10px 13px" }}>
-                  {addrToString(draft.addrObj) || "No address on file"}
-                </div>
-              )}
+              <AddressFields value={draft.addrObj}
+                onChange={obj => setDraft(d => ({ ...d, addrObj: obj }))}
+                inputBaseStyle={{ padding: "10px 13px", fontSize: "15px" }}
+                labelBaseStyle={{ fontSize: "16px", color: "#9ca3af" }} />
             </div>
 
             {/* Dogs */}
@@ -209,13 +229,12 @@ function WalkerClientEditor({ client, clients, setClients, accentBlue }) {
               {draft.dogs.map((dog, i) => (
                 <div key={i} style={{ display: "flex", gap: "7px", marginBottom: "7px", alignItems: "center" }}>
                   <input value={dog}
-                    onChange={e => editing && setDraft(d => ({ ...d, dogs: d.dogs.map((x, j) => j === i ? e.target.value : x) }))}
+                    onChange={e => setDraft(d => ({ ...d, dogs: d.dogs.map((x, j) => j === i ? e.target.value : x) }))}
                     placeholder={`Dog ${i + 1}`}
-                    style={editing ? { ...fieldStyle, flex: 1 } : { ...readStyle, flex: 1 }}
-                    readOnly={!editing}
-                    onFocus={e => { if (editing) e.target.style.borderColor = accentBlue; }}
+                    style={{ ...fieldStyle, flex: 1 }}
+                    onFocus={e => e.target.style.borderColor = accentBlue}
                     onBlur={e => e.target.style.borderColor = "#C8E4E8"} />
-                  {editing && draft.dogs.length > 1 && (
+                  {draft.dogs.length > 1 && (
                     <button onClick={() => setDraft(d => ({ ...d, dogs: d.dogs.filter((_, j) => j !== i) }))}
                       style={{ width: "32px", height: "32px", borderRadius: "7px",
                         border: "1.5px solid #fecaca", background: "#fef2f2",
@@ -223,64 +242,46 @@ function WalkerClientEditor({ client, clients, setClients, accentBlue }) {
                   )}
                 </div>
               ))}
-              {editing && (
-                <button onClick={() => setDraft(d => ({ ...d, dogs: [...d.dogs, ""] }))}
-                  style={{ marginTop: "2px", padding: "5px 12px", borderRadius: "7px",
-                    border: `1.5px solid ${accentBlue}44`, background: `${accentBlue}08`,
-                    color: accentBlue, fontFamily: "'DM Sans', sans-serif",
-                    fontSize: "15px", fontWeight: 500, cursor: "pointer" }}>+ Add Dog</button>
-              )}
+              <button onClick={() => setDraft(d => ({ ...d, dogs: [...d.dogs, ""] }))}
+                style={{ marginTop: "2px", padding: "5px 12px", borderRadius: "7px",
+                  border: `1.5px solid ${accentBlue}44`, background: `${accentBlue}08`,
+                  color: accentBlue, fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "15px", fontWeight: 500, cursor: "pointer" }}>+ Add Dog</button>
             </div>
 
             {/* Cats */}
             <div style={{ marginBottom: "12px" }}>
               <label style={labelStyle}>Cats 🐈</label>
-              {draft.cats.length === 0 && !editing && (
-                <div style={{ ...readStyle, padding: "10px 13px", fontStyle: "italic", color: "#d1d5db" }}>None on file</div>
-              )}
               {draft.cats.map((cat, i) => (
                 <div key={i} style={{ display: "flex", gap: "7px", marginBottom: "7px", alignItems: "center" }}>
                   <input value={cat}
-                    onChange={e => editing && setDraft(d => ({ ...d, cats: d.cats.map((x, j) => j === i ? e.target.value : x) }))}
+                    onChange={e => setDraft(d => ({ ...d, cats: d.cats.map((x, j) => j === i ? e.target.value : x) }))}
                     placeholder={`Cat ${i + 1}`}
-                    style={editing ? { ...fieldStyle, flex: 1 } : { ...readStyle, flex: 1 }}
-                    readOnly={!editing}
-                    onFocus={e => { if (editing) e.target.style.borderColor = accentBlue; }}
+                    style={{ ...fieldStyle, flex: 1 }}
+                    onFocus={e => e.target.style.borderColor = accentBlue}
                     onBlur={e => e.target.style.borderColor = "#C8E4E8"} />
-                  {editing && (
-                    <button onClick={() => setDraft(d => ({ ...d, cats: d.cats.filter((_, j) => j !== i) }))}
-                      style={{ width: "32px", height: "32px", borderRadius: "7px",
-                        border: "1.5px solid #fecaca", background: "#fef2f2",
-                        color: "#dc2626", cursor: "pointer", fontSize: "15px", flexShrink: 0 }}>✕</button>
-                  )}
+                  <button onClick={() => setDraft(d => ({ ...d, cats: d.cats.filter((_, j) => j !== i) }))}
+                    style={{ width: "32px", height: "32px", borderRadius: "7px",
+                      border: "1.5px solid #fecaca", background: "#fef2f2",
+                      color: "#dc2626", cursor: "pointer", fontSize: "15px", flexShrink: 0 }}>✕</button>
                 </div>
               ))}
-              {editing && (
-                <button onClick={() => setDraft(d => ({ ...d, cats: [...d.cats, ""] }))}
-                  style={{ marginTop: "2px", padding: "5px 12px", borderRadius: "7px",
-                    border: "1.5px solid #3D6B7A44", background: "#3D6B7A08",
-                    color: "#3D6B7A", fontFamily: "'DM Sans', sans-serif",
-                    fontSize: "15px", fontWeight: 500, cursor: "pointer" }}>+ Add Cat</button>
-              )}
+              <button onClick={() => setDraft(d => ({ ...d, cats: [...d.cats, ""] }))}
+                style={{ marginTop: "2px", padding: "5px 12px", borderRadius: "7px",
+                  border: "1.5px solid #3D6B7A44", background: "#3D6B7A08",
+                  color: "#3D6B7A", fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "15px", fontWeight: 500, cursor: "pointer" }}>+ Add Cat</button>
             </div>
 
             {/* Notes */}
             <div>
               <label style={labelStyle}>Special Instructions</label>
-              {editing ? (
-                <textarea value={draft.notes}
-                  onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))}
-                  rows={3} placeholder="Leash preferences, medications, entry codes, behavior notes…"
-                  style={{ ...fieldStyle, resize: "vertical", lineHeight: "1.6" }}
-                  onFocus={e => e.target.style.borderColor = accentBlue}
-                  onBlur={e => e.target.style.borderColor = "#C8E4E8"} />
-              ) : (
-                <div style={{ ...readStyle, padding: "10px 13px", lineHeight: "1.6",
-                  fontStyle: draft.notes ? "normal" : "italic",
-                  color: draft.notes ? "#374151" : "#d1d5db" }}>
-                  {draft.notes || "No special instructions"}
-                </div>
-              )}
+              <textarea value={draft.notes}
+                onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))}
+                rows={3} placeholder="Leash preferences, medications, entry codes, behavior notes…"
+                style={{ ...fieldStyle, resize: "vertical", lineHeight: "1.6" }}
+                onFocus={e => e.target.style.borderColor = accentBlue}
+                onBlur={e => e.target.style.borderColor = "#C8E4E8"} />
             </div>
           </div>
         </div>

@@ -1149,6 +1149,47 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               </div>
             </div>
 
+            {/* ── Recent cancellation banner ── */}
+            {(() => {
+              const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+              const recentCancels = (client.bookings || []).filter(b =>
+                b.cancelled && b.cancelledAt && new Date(b.cancelledAt) >= sevenDaysAgo
+              );
+              if (recentCancels.length === 0) return null;
+              const pet = recentCancels[0]?.form?.pet || recentCancels[0]?.pet || null;
+              return (
+                <div style={{
+                  background: "linear-gradient(135deg, #FDF5EC, #fff8f0)",
+                  border: "1.5px solid #D4A843",
+                  borderRadius: "16px",
+                  padding: "18px 20px",
+                  marginBottom: "20px",
+                  display: "flex", alignItems: "flex-start", gap: "14px",
+                }}>
+                  <span style={{ fontSize: "26px", flexShrink: 0, marginTop: "2px" }}>🐾</span>
+                  <div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
+                      fontSize: "16px", color: "#111827", marginBottom: "4px" }}>
+                      Sorry to see you cancel!
+                    </div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                      color: "#6b7280", lineHeight: "1.6" }}>
+                      {pet
+                        ? `We'll miss ${pet}! Whenever you're ready, we'd love to hit the trail again.`
+                        : "Whenever you're ready, we'd love to hit the trail again."}
+                      {" "}
+                      <button onClick={() => setPage("book")}
+                        style={{ background: "none", border: "none", cursor: "pointer",
+                          color: "#C4541A", fontFamily: "'DM Sans', sans-serif",
+                          fontSize: "14px", fontWeight: 700, padding: 0, textDecoration: "underline" }}>
+                        Book your next walk →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* KPI grid */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "24px" }}>
 

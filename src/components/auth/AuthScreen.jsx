@@ -280,6 +280,23 @@ function AuthScreen({ onRegister, onBack, onBackToLanding, pendingRegistration, 
               </button>
             </div>
 
+            <div style={{
+              marginTop: "14px", marginBottom: "10px", textAlign: "center",
+              fontFamily: "'DM Sans', sans-serif", color: "#ffffffcc",
+              fontSize: "15px", fontWeight: 500,
+            }}>
+              Don't have an account?{" "}
+              <button onClick={() => { setFormError(""); setNotice(""); setPassword(""); setStage("signup"); }}
+                style={{
+                  background: "none", border: "none", color: "#D4A843",
+                  fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                  fontWeight: 700, cursor: "pointer",
+                  textDecoration: "underline", padding: 0,
+                }}>
+                Sign up
+              </button>
+            </div>
+
             <div style={{ textAlign: "right", marginBottom: "14px" }}>
               <button onClick={() => { setFormError(""); setNotice(""); setStage("forgot"); }}
                 style={secondaryLink}>
@@ -313,17 +330,6 @@ function AuthScreen({ onRegister, onBack, onBackToLanding, pendingRegistration, 
             <button onClick={handleGoogle} disabled={submitting} style={googleBtn}>
               <GoogleG /> Continue with Google
             </button>
-
-            <div style={{
-              marginTop: "22px", textAlign: "center",
-              fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa", fontSize: "14px",
-            }}>
-              Don't have an account?{" "}
-              <button onClick={() => { setFormError(""); setNotice(""); setPassword(""); setStage("signup"); }}
-                style={secondaryLink}>
-                Sign up
-              </button>
-            </div>
           </>
         )}
 

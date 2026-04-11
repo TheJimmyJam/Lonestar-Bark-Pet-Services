@@ -20,7 +20,7 @@ import {
 import LogoBadge from "../shared/LogoBadge.jsx";
 import AddressFields from "../shared/AddressFields.jsx";
 import WalkerClientEditor from "./WalkerClientEditor.jsx";
-import { slotsToShifts, shiftsToSlots, ShiftSlider, DayAvailSliders, AVAIL_SLIDER_CSS } from "./AvailabilityComponents.jsx";
+import { TAB_SLOTS, slotsToShifts, shiftsToSlots, ShiftSlider, DayAvailSliders, AVAIL_SLIDER_CSS } from "./AvailabilityComponents.jsx";
 import { autoCreateWalkInvoice, generateInvoiceId, invoiceStatusMeta } from "../invoices/invoiceHelpers.js";
 import { spawnNextRecurringOccurrence } from "../recurring.js";
 import { GLOBAL_STYLES } from "../../styles.js";
@@ -107,6 +107,33 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
   });
   const [infoSaved, setInfoSaved] = useState(false);
   const [infoEditing, setInfoEditing] = useState(false);
+
+  // ── Profile completeness gate for new hires ────────────────────────────
+  // A walker must have first name, last name, phone, and a usable address
+  // before they can do anything else in the dashboard.
+  const isProfileComplete = (prof) => {
+    if (!prof) return false;
+    const hasName = (prof.firstName || "").trim() && (prof.lastName || "").trim();
+    const hasPhone = (prof.phone || "").trim().length >= 10;
+    const addrStr = prof.address || addrToString(prof.addrObj || emptyAddr());
+    const addrObj = prof.addrObj || addrFromString(prof.address || "");
+    const hasAddress = (addrStr || "").trim().length > 0
+      && (addrObj.street || "").trim()
+      && (addrObj.city || "").trim()
+      && (addrObj.state || "").trim()
+      && (addrObj.zip || "").trim();
+    return Boolean(hasName && hasPhone && hasAddress);
+  };
+  const profileIncomplete = !isProfileComplete(myProfile);
+
+  // Force first-login walkers straight into My Info, in edit mode.
+  useEffect(() => {
+    if (profileIncomplete) {
+      setTab("myinfo");
+      setInfoEditing(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileIncomplete]);
   // PIN change state (lifted from My Info tab to satisfy Rules of Hooks)
   const [pinStage, setPinStage]     = useState("idle");
   const [currentPin, setCurrentPin] = useState("");
@@ -400,8 +427,15 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
   const [savedAvailability, setSavedAvailability] = useState({});
   const [sameAsLastWeekFlash, setSameAsLastWeekFlash] = useState(false);
 
-  // Guarded tab navigation — prompts if leaving availability with unsaved changes
+  // Guarded tab navigation — prompts if leaving availability with unsaved changes,
+  // and blocks new hires from leaving My Info until their profile is complete.
   const changeTab = (newTab) => {
+    if (profileIncomplete && newTab !== "myinfo") {
+      window.alert("Please finish setting up your profile first.\n\nWe need your name, phone number, and home address before you can use the rest of the dashboard.");
+      setTab("myinfo");
+      setInfoEditing(true);
+      return;
+    }
     if (tab === "availability") {
       const allKeys = new Set([...Object.keys(availability), ...Object.keys(savedAvailability)]);
       const dirty = [...allKeys].some(dk =>
@@ -3875,6 +3909,22 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
 
           const handleSaveInfo = () => {
             if (!setWalkerProfiles) return;
+
+            // Required-field validation for new hires (and anyone missing data).
+            const missing = [];
+            if (!(infoForm.firstName || "").trim()) missing.push("First name");
+            if (!(infoForm.lastName || "").trim())  missing.push("Last name");
+            if ((infoForm.phone || "").trim().length < 10) missing.push("Phone number");
+            const a = infoForm.addrObj || emptyAddr();
+            if (!(a.street || "").trim() || !(a.city || "").trim()
+                || !(a.state || "").trim() || !(a.zip || "").trim()) {
+              missing.push("Home address (street, city, state, and ZIP)");
+            }
+            if (missing.length > 0) {
+              window.alert("Please fill in the following before saving:\n\n• " + missing.join("\n• "));
+              return;
+            }
+
             const updated = {
               ...(walkerProfiles || {}),
               [walker.id]: {
@@ -3915,6 +3965,27 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
 
           return (
             <div className="fade-up">
+              {/* New-hire welcome banner — only shows while profile is incomplete */}
+              {profileIncomplete && (
+                <div style={{
+                  background: "linear-gradient(135deg,#C4541A 0%,#A8441A 100%)",
+                  borderRadius: "14px", padding: "18px 22px", marginBottom: "20px",
+                  boxShadow: "0 4px 18px rgba(196,84,26,0.25)",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
+                    <span style={{ fontSize: "22px" }}>👋</span>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "17px",
+                      fontWeight: 700, color: "#fff" }}>
+                      Welcome to Lonestar Bark Co.!
+                    </div>
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                    color: "rgba(255,255,255,0.92)", lineHeight: "1.55" }}>
+                    Before you can start picking up walks, we need a few details so the office can reach you and so clients can find your area. Please fill in your <strong>name</strong>, <strong>phone number</strong>, and <strong>home address</strong> below, then hit Save.
+                  </div>
+                </div>
+              )}
+
               {/* Header */}
               <div style={{ display: "flex", alignItems: "flex-start",
                 justifyContent: "space-between", marginBottom: "20px", gap: "12px" }}>
@@ -3940,6 +4011,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                       background: "#059669", color: "#fff", cursor: "pointer",
                       fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600,
                     }}>✓ Save</button>
+                    {!profileIncomplete && (
                     <button onClick={() => { setInfoEditing(false); setInfoForm({
                       firstName: myProfile.firstName || (walker.name ? walker.name.split(" ")[0] : "") || "",
                       lastName: myProfile.lastName || (walker.name ? walker.name.split(" ").slice(1).join(" ") : "") || "",
@@ -3959,6 +4031,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                       color: "#6b7280", cursor: "pointer",
                       fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                     }}>Cancel</button>
+                    )}
                   </div>
                 )}
               </div>

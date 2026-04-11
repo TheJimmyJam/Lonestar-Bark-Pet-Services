@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from "react";
 import {
-  saveClients, saveInvoiceToDB, updateInvoiceInDB, deleteInvoiceFromDB, notifyAdmin, sendInvoiceEmail, sendInvoicePaidEmail,
+  saveClients, saveInvoiceToDB, updateInvoiceInDB, deleteInvoiceFromDB, notifyAdmin, sendInvoiceEmail, sendInvoicePaidEmail, logAuditEvent,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout, fmt, firstName,
@@ -11,7 +11,7 @@ import StripePaymentModal from "../invoices/StripePaymentModal.jsx";
 import Header from "../shared/Header.jsx";
 
 // ─── Admin Invoices Tab ────────────────────────────────────────────────────────
-function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
+function AdminInvoicesTab({ clients, setClients, completedPayrolls = [], admin = {} }) {
   const [view, setView] = useState("list"); // "list" | "create"
   const [filterStatus, setFilterStatus] = useState("all");
 
@@ -200,6 +200,10 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
       // Persist to dedicated invoices table
       saveInvoiceToDB(newInv, selectedClientId, selectedClient.name || "", selectedClient.email || "");
       sendInvoiceEmail(newInv, selectedClient.name || "", selectedClient.email || "");
+      logAuditEvent({ adminId: admin?.id, adminName: admin?.name,
+        action: "invoice_sent", entityType: "invoice", entityId: newInv.id,
+        details: { clientName: selectedClient.name, email: selectedClient.email,
+          amount: newInv.total, invoiceId: newInv.id } });
       setSending(false);
       setSentConfirm(newInv);
     }, 900);
@@ -220,6 +224,9 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
     saveClients(updatedClients);
     // Update in dedicated invoices table
     updateInvoiceInDB(invoiceId, { status: "paid", paidAt });
+    logAuditEvent({ adminId: admin?.id, adminName: admin?.name,
+      action: "invoice_paid", entityType: "invoice", entityId: invoiceId,
+      details: { clientName: c.name, invoiceId } });
     // Send invoice paid email
     const paid = (c.invoices || []).find(inv => inv.id === invoiceId);
     if (paid && c.email) {
@@ -299,6 +306,18 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
     });
     return total;
   })();
+
+  // Refunds — scan all bookings for refundAmount > 0
+  const { monday: refundWeekMon } = getCurrentWeekRange();
+  const allRefundedBookings = Object.values(clients).flatMap(c =>
+    (c.bookings || []).filter(b => b.refundAmount > 0)
+  );
+  const refundsLifetime = allRefundedBookings.reduce((s, b) => s + (b.refundAmount || 0), 0);
+  const refundsThisWeek = allRefundedBookings
+    .filter(b => b.refundedAt && new Date(b.refundedAt) >= refundWeekMon)
+    .reduce((s, b) => s + (b.refundAmount || 0), 0);
+  const refundCountLifetime = allRefundedBookings.length;
+  const refundCountWeek = allRefundedBookings.filter(b => b.refundedAt && new Date(b.refundedAt) >= refundWeekMon).length;
 
   return (
     <div className="fade-up">
@@ -443,39 +462,42 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [] }) {
       {/* ══ LIST VIEW ══ */}
       {view === "list" && (
         <>
-          {/* KPI rows — 3 top, 3 bottom */}
+          {/* KPI grid — auto-reflows from 3 cols on desktop to 2 on tablet to 1 on narrow phones */}
           {(() => {
             const kpiCard = (kpi) => (
               <div key={kpi.label} style={{ background: kpi.bg, border: `1.5px solid ${kpi.border}`,
-                borderRadius: "14px", padding: "16px 18px" }}>
+                borderRadius: "14px", padding: "16px 18px",
+                minWidth: 0, overflow: "hidden" }}>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
                   fontWeight: 700, color: kpi.color, textTransform: "uppercase",
-                  letterSpacing: "1px", marginBottom: "6px" }}>{kpi.label}</div>
+                  letterSpacing: "1px", marginBottom: "6px",
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.label}</div>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
-                  fontWeight: 700, color: "#111827", lineHeight: 1 }}>{kpi.value}</div>
+                  fontWeight: 700, color: "#111827", lineHeight: 1,
+                  overflowWrap: "anywhere" }}>{kpi.value}</div>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-                  color: "#6b7280", marginTop: "3px" }}>{kpi.sub}</div>
+                  color: "#6b7280", marginTop: "3px",
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.sub}</div>
               </div>
             );
-            const row1 = [
+            const kpis = [
               { label: "Pending",    value: fmt(pendingTotal, true),           sub: `${pendingCount} invoice${pendingCount !== 1 ? "s" : ""}`,              color: amber,      bg: "#fffbeb", border: "#fde68a" },
               { label: "Overdue",    value: `${overdueCount}`,                 sub: "unpaid past due",                                                      color: "#dc2626",  bg: "#fef2f2", border: "#fecaca" },
               { label: "Collected",  value: fmt(paidTotal + stripeTotal, true), sub: `invoices + ${stripeReceiptsAll.length} Stripe booking${stripeReceiptsAll.length !== 1 ? "s" : ""}`, color: green, bg: "#FDF5EC", border: "#D4A843" },
-            ];
-            const row2 = [
               { label: "Uninvoiced",             value: `${bulkWalkCount}`,                                          sub: `${bulkClientCount} client${bulkClientCount !== 1 ? "s" : ""}`, color: "#3D6B7A",  bg: "#EBF4F6", border: "#8ECAD4" },
               { label: "Gratuities Owed",     value: gratuityOwed > 0 ? fmt(gratuityOwed, true) : "—",           sub: "unpaid to walkers",                                              color: "#059669",  bg: "#f0fdf4", border: "#a8d5bf" },
               { label: "Gratuities Paid",     value: gratuitiesPaidLifetime > 0 ? fmt(gratuitiesPaidLifetime, true) : "—", sub: "lifetime disbursed",                               color: "#7A4D6E",  bg: "#F7F0F5", border: "#D8ABCF" },
+              { label: "Refunds This Week",   value: refundsThisWeek > 0 ? fmt(refundsThisWeek, true) : "—",       sub: `${refundCountWeek} refund${refundCountWeek !== 1 ? "s" : ""} issued`,  color: "#dc2626",  bg: "#fef2f2", border: "#fecaca" },
+              { label: "Refunds Lifetime",    value: refundsLifetime > 0 ? fmt(refundsLifetime, true) : "—",       sub: `${refundCountLifetime} total refund${refundCountLifetime !== 1 ? "s" : ""}`,  color: "#9ca3af",  bg: "#f9fafb", border: "#e4e7ec" },
             ];
             return (
-              <>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "10px", marginBottom: "10px" }}>
-                  {row1.map(kpiCard)}
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "10px", marginBottom: "20px" }}>
-                  {row2.map(kpiCard)}
-                </div>
-              </>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                gap: "10px", marginBottom: "20px",
+              }}>
+                {kpis.map(kpiCard)}
+              </div>
             );
           })()}
 

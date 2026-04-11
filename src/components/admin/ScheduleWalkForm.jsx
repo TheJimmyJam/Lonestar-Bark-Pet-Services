@@ -228,10 +228,13 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
   };
 
   const iStyle = (err) => ({
-    width: "100%", padding: "11px 14px", borderRadius: "10px",
+    width: "100%", maxWidth: "100%", minWidth: 0,
+    boxSizing: "border-box",
+    padding: "11px 14px", borderRadius: "10px",
     border: `1.5px solid ${err ? "#ef4444" : "#e4e7ec"}`,
     background: "#fff", fontFamily: "'DM Sans', sans-serif",
     fontSize: "15px", color: "#111827", outline: "none",
+    WebkitAppearance: "none", appearance: "none",
   });
   const labelStyle = {
     display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
@@ -338,13 +341,13 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
             }}
             style={{ ...iStyle(errors.client), color: form.clientId ? "#111827" : "#9ca3af" }}>
             <option value="">— Choose a client —</option>
-            {Object.values(clients)
-              .filter(c => !clientFilter || clientFilter(c))
-              .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
-              .map(c => {
+            {Object.entries(clients)
+              .filter(([, c]) => !clientFilter || clientFilter(c))
+              .sort(([, a], [, b]) => (a.name || "").localeCompare(b.name || ""))
+              .map(([key, c]) => {
                 const pets = [...(c.dogs || c.pets || []), ...(c.cats || [])];
                 return (
-                  <option key={c.id} value={c.id}>
+                  <option key={key} value={key}>
                     {c.name || c.email}{pets.length > 0 ? ` — ${pets.join(", ")}` : ""}
                   </option>
                 );
@@ -402,7 +405,7 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
       {/* Row 2: Date | Duration */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
         {/* Date */}
-        <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "14px", padding: "18px" }}>
+        <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "14px", padding: "18px", minWidth: 0, overflow: "hidden" }}>
           <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "13px",
             letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px" }}>
             Date *{isHistorical && <span style={{ color: "#b45309", fontWeight: 400, fontSize: "12px", textTransform: "none", letterSpacing: 0, marginLeft: "6px" }}>any past date</span>}
@@ -436,7 +439,7 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
         </div>
 
         {/* Duration */}
-        <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "14px", padding: "18px" }}>
+        <div style={{ background: "#fff", border: "1.5px solid #e4e7ec", borderRadius: "14px", padding: "18px", minWidth: 0, overflow: "hidden" }}>
           <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "13px",
             letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "10px" }}>Duration</div>
           {form.service !== "overnight" ? (

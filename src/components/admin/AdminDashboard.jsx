@@ -125,6 +125,9 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
   const [earlyAckKey, setEarlyAckKey] = useState(null);
   const [editingBookingKey, setEditingBookingKey] = useState(null);
   const [editDraft, setEditDraft] = useState(null); // { date, timeSlot, walker }
+  const [editingHandoffKey, setEditingHandoffKey] = useState(null);
+  const [editHandoffDraft, setEditHandoffDraft] = useState(null); // { date, time, walker }
+  const [deletingHandoffKey, setDeletingHandoffKey] = useState(null);
   const [expandedClient, setExpandedClient] = useState(null);
   const [selectedClientId, setSelectedClientId] = useState(null);
   const [selectedWalkerId, setSelectedWalkerId] = useState(null);
@@ -2023,29 +2026,164 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                   const isUnassigned = !isCompleted && !b.form?.walker;
 
                   // ── Meet & Greet card ──
-                  if (b.isHandoff) return (
-                    <div key={b.key} style={{ background: "#F5EFF3", border: "1.5px solid #C4A0B8",
-                      borderRadius: "14px", marginBottom: "10px", padding: "14px 18px" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "3px" }}>
-                            <span style={{ fontSize: "18px" }}>🤝</span>
-                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                              fontSize: "16px", color: "#7A4D6E" }}>Meet & Greet · 15 min</div>
-                          </div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280", marginBottom: "2px" }}>
-                            📅 {b.day}, {b.date} · {b.slot?.time}
-                          </div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
-                            👤 {b.clientName} &nbsp;·&nbsp;
-                            🦺 {b.form?.walker || <span style={{ color: "#dc2626", fontWeight: 600 }}>Unassigned</span>}
+                  if (b.isHandoff) {
+                    const isHEdit = editingHandoffKey === b.key;
+                    const isHDel  = deletingHandoffKey === b.key;
+                    const hDraft  = editHandoffDraft;
+
+                    const MG_TIME_SLOTS = [];
+                    for (let h = 7; h <= 19; h++) for (const m of [0, 30]) {
+                      if (h === 19 && m === 30) break;
+                      const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
+                      const ampm = h < 12 ? "AM" : "PM";
+                      MG_TIME_SLOTS.push(`${h12}:${m === 0 ? "00" : "30"} ${ampm}`);
+                    }
+
+                    const saveHandoffEdit = () => {
+                      const c = clients[b.clientId];
+                      if (!c || !hDraft) return;
+                      const [yr, mo, dy] = hDraft.date.split("-").map(Number);
+                      const newDate = new Date(yr, mo - 1, dy, 0, 0, 0);
+                      const updated = {
+                        ...clients,
+                        [b.clientId]: {
+                          ...c,
+                          handoffInfo: {
+                            ...(c.handoffInfo || {}),
+                            handoffDate: newDate.toISOString(),
+                            handoffSlot: { time: hDraft.time },
+                            handoffWalker: hDraft.walker,
+                          },
+                        },
+                      };
+                      setClients(updated);
+                      saveClients(updated);
+                      setEditingHandoffKey(null);
+                      setEditHandoffDraft(null);
+                    };
+
+                    const deleteHandoff = () => {
+                      const c = clients[b.clientId];
+                      if (!c) return;
+                      const updated = {
+                        ...clients,
+                        [b.clientId]: { ...c, handoffInfo: null, handoffDone: false },
+                      };
+                      setClients(updated);
+                      saveClients(updated);
+                      setDeletingHandoffKey(null);
+                    };
+
+                    const hBtnStyle = (variant) => ({
+                      padding: "6px 14px", borderRadius: "7px", cursor: "pointer",
+                      fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600,
+                      border: "none",
+                      ...(variant === "save"   ? { background: "#7A4D6E", color: "#fff" } :
+                          variant === "cancel" ? { background: "#f3f4f6", color: "#6b7280" } :
+                          variant === "delete" ? { background: "#dc2626", color: "#fff" } :
+                          variant === "edit"   ? { background: "#F5EFF3", color: "#7A4D6E", border: "1.5px solid #C4A0B8" } :
+                                                 { background: "#fef2f2", color: "#dc2626", border: "1.5px solid #fecaca" }),
+                    });
+
+                    return (
+                      <div key={b.key} style={{ background: "#F5EFF3", border: `1.5px solid ${isHEdit ? "#7A4D6E" : "#C4A0B8"}`,
+                        borderRadius: "14px", marginBottom: "10px", overflow: "hidden" }}>
+                        {/* Header row */}
+                        <div style={{ padding: "14px 18px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "3px" }}>
+                                <span style={{ fontSize: "18px" }}>🤝</span>
+                                <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                                  fontSize: "16px", color: "#7A4D6E" }}>Meet & Greet · 15 min</div>
+                              </div>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280", marginBottom: "2px" }}>
+                                📅 {b.day}, {b.date} · {b.slot?.time}
+                              </div>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
+                                👤 {b.clientName} &nbsp;·&nbsp;
+                                🦺 {b.form?.walker || <span style={{ color: "#dc2626", fontWeight: 600 }}>Unassigned</span>}
+                              </div>
+                            </div>
+                            {!isHEdit && !isHDel && (
+                              <div style={{ display: "flex", gap: "6px", flexShrink: 0, marginLeft: "10px" }}>
+                                <button style={hBtnStyle("edit")} onClick={() => {
+                                  const hi = clients[b.clientId]?.handoffInfo || {};
+                                  const d = hi.handoffDate ? new Date(hi.handoffDate).toISOString().slice(0, 10) : "";
+                                  setEditingHandoffKey(b.key);
+                                  setDeletingHandoffKey(null);
+                                  setEditHandoffDraft({ date: d, time: hi.handoffSlot?.time || "", walker: hi.handoffWalker || "" });
+                                }}>✏️ Edit</button>
+                                <button style={hBtnStyle("trash")} onClick={() => {
+                                  setDeletingHandoffKey(b.key);
+                                  setEditingHandoffKey(null);
+                                  setEditHandoffDraft(null);
+                                }}>🗑</button>
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-                          color: "#9ca3af", fontStyle: "italic", flexShrink: 0, marginLeft: "12px" }}>Free</div>
+
+                        {/* Edit form */}
+                        {isHEdit && hDraft && (
+                          <div style={{ borderTop: "1px solid #C4A0B844", padding: "14px 18px", background: "#fff" }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
+                              <div>
+                                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", fontWeight: 700,
+                                  letterSpacing: "1.2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "5px" }}>Date</div>
+                                <input type="date" value={hDraft.date}
+                                  onChange={e => setEditHandoffDraft(p => ({ ...p, date: e.target.value }))}
+                                  style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1.5px solid #e4e7ec",
+                                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px", boxSizing: "border-box", outline: "none" }} />
+                              </div>
+                              <div>
+                                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", fontWeight: 700,
+                                  letterSpacing: "1.2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "5px" }}>Time</div>
+                                <select value={hDraft.time}
+                                  onChange={e => setEditHandoffDraft(p => ({ ...p, time: e.target.value }))}
+                                  style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1.5px solid #e4e7ec",
+                                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px", boxSizing: "border-box", outline: "none" }}>
+                                  <option value="">— Select time —</option>
+                                  {MG_TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                              </div>
+                            </div>
+                            <div style={{ marginBottom: "12px" }}>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", fontWeight: 700,
+                                letterSpacing: "1.2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "5px" }}>Walker</div>
+                              <select value={hDraft.walker}
+                                onChange={e => setEditHandoffDraft(p => ({ ...p, walker: e.target.value }))}
+                                style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1.5px solid #e4e7ec",
+                                  fontFamily: "'DM Sans', sans-serif", fontSize: "15px", boxSizing: "border-box", outline: "none" }}>
+                                <option value="">— Unassigned —</option>
+                                {getAllWalkers(walkerProfiles).map(w => (
+                                  <option key={w.id} value={w.name}>{w.avatar} {w.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div style={{ display: "flex", gap: "8px" }}>
+                              <button style={hBtnStyle("save")} onClick={saveHandoffEdit}>✓ Save</button>
+                              <button style={hBtnStyle("cancel")} onClick={() => { setEditingHandoffKey(null); setEditHandoffDraft(null); }}>Cancel</button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Delete confirmation */}
+                        {isHDel && (
+                          <div style={{ borderTop: "1px solid #fecaca", padding: "12px 18px", background: "#fef2f2" }}>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#dc2626",
+                              fontWeight: 600, marginBottom: "10px" }}>
+                              Remove this Meet & Greet appointment for {b.clientName}?
+                            </div>
+                            <div style={{ display: "flex", gap: "8px" }}>
+                              <button style={hBtnStyle("delete")} onClick={deleteHandoff}>Yes, remove it</button>
+                              <button style={hBtnStyle("cancel")} onClick={() => setDeletingHandoffKey(null)}>Keep it</button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  );
+                    );
+                  }
 
                   const borderColor = isEditing
                     ? "2px solid #b45309"
@@ -4777,48 +4915,37 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                             );
                           })()}
                           {hasPhone && (
-                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
                               color: "#059669", background: "#FDF5EC", border: "1px solid #EDD5A8",
                               borderRadius: "4px", padding: "1px 6px" }}>📞 on file</span>
                           )}
                           {hasAddress && (
-                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
                               color: "#3D6B7A", background: "#EBF4F6", border: "1px solid #8ECAD4",
                               borderRadius: "4px", padding: "1px 6px" }}>📍 on file</span>
                           )}
                           {prof.pendingBio && prof.pendingBio !== prof.bio && (
-                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
                               color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a",
                               borderRadius: "4px", padding: "1px 6px" }}>⏳ bio pending</span>
                           )}
                           {!hasPhone && !hasAddress && !prof.pendingBio && (
-                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
                               color: "#d97706", background: "#fffbeb", border: "1px solid #fde68a",
                               borderRadius: "4px", padding: "1px 6px" }}>⚠️ profile incomplete</span>
                           )}
                         </div>
                       </div>
-                      <div style={{ flexShrink: 0, textAlign: "right" }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr",
-                          gap: "8px", marginBottom: "6px" }}>
-                          <div style={{ textAlign: "center" }}>
-                            <div style={{ fontFamily: "'DM Sans', sans-serif",
-                              fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600, color: w.color }}>
-                              {walkerUpcoming.length}
-                            </div>
-                            <div style={{ fontFamily: "'DM Sans', sans-serif",
-                              fontSize: "16px", color: "#9ca3af" }}>upcoming</div>
-                          </div>
-                          <div style={{ textAlign: "center" }}>
-                            <div style={{ fontFamily: "'DM Sans', sans-serif",
-                              fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600, color: "#059669" }}>
-                              {walkerCompleted.length}
-                            </div>
-                            <div style={{ fontFamily: "'DM Sans', sans-serif",
-                              fontSize: "16px", color: "#9ca3af" }}>done</div>
-                          </div>
+                      <div style={{ flexShrink: 0, textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 700,
+                          color: w.color, whiteSpace: "nowrap" }}>
+                          {walkerUpcoming.length} up
                         </div>
-                        <div style={{ fontSize: "16px", color: "#d1d5db" }}>›</div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 700,
+                          color: "#059669", whiteSpace: "nowrap" }}>
+                          {walkerCompleted.length} done
+                        </div>
+                        <div style={{ fontSize: "14px", color: "#d1d5db" }}>›</div>
                       </div>
                     </div>
                   </button>
