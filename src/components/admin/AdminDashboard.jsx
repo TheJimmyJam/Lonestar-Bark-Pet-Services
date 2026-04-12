@@ -17,7 +17,7 @@ import {
   getBookingWeekKey, getWeekBookingCountForOffset,
   getPriceTier, getSessionPrice, getCancellationPolicy,
   repriceWeekBookings, applySameDayDiscount,
-  awardWalkSavings, revokeWalkSavings, fulfillFreeWalkClaim,
+  revokeWalkSavings, fulfillFreeWalkClaim,
   getWeekDates, firstName, parseDateLocal, dateStrFromDate,
   fmt, formatPhone, addrToString, addrFromString, emptyAddr,
 } from "../../helpers.js";
@@ -288,11 +288,8 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
       }
     }
 
-    // Award savings credits for this walk based on the client's weekly booking count
-    const completedBooking = { ...booking, adminCompleted: true, completedAt };
-    const updatedClientWithSavings = awardWalkSavings({ ...c, bookings: updatedBookings }, completedBooking);
-
-    const updatedClients = { ...clients, [clientId]: updatedClientWithSavings };
+    // Bark Bucks are awarded at payment time (Stripe return), not on walk completion.
+    const updatedClients = { ...clients, [clientId]: { ...c, bookings: updatedBookings } };
     setClients(updatedClients);
     saveClients(updatedClients);
     notifyAdmin("walk_completed", {
@@ -321,9 +318,9 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
         ? { ...b, adminCompleted: false, completedAt: undefined, walkerMarkedComplete: false }
         : b
     );
-    // Revoke any savings credit awarded for this walk
-    const updatedClientWithSavings = revokeWalkSavings({ ...c, bookings: updatedBookings }, booking.key);
-    const updatedClients = { ...clients, [clientId]: updatedClientWithSavings };
+    // Bark Bucks are NOT revoked on undo-complete — they were earned at payment time.
+    // Bark Bucks are only revoked if the booking is cancelled.
+    const updatedClients = { ...clients, [clientId]: { ...c, bookings: updatedBookings } };
     setClients(updatedClients);
     saveClients(updatedClients);
     logAuditEvent({ adminId: admin.id, adminName: admin.name, action: "walk_uncompleted",
@@ -2094,15 +2091,28 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       if (!c || !hDraft) return;
                       const [yr, mo, dy] = hDraft.date.split("-").map(Number);
                       const newDate = new Date(yr, mo - 1, dy, 0, 0, 0);
+                      const assignedWalker = hDraft.walker || "";
+                      // When a walker is assigned to the meet & greet, make them the keyholder
+                      // so the client appears in their "My Clients" tab and all unassigned
+                      // bookings are auto-assigned to them.
+                      const updatedBookings = assignedWalker
+                        ? (c.bookings || []).map(bk => {
+                            if (bk.cancelled || bk.adminCompleted) return bk;
+                            if (bk.form?.walker && bk.form.walker !== "") return bk;
+                            return { ...bk, form: { ...bk.form, walker: assignedWalker } };
+                          })
+                        : (c.bookings || []);
                       const updated = {
                         ...clients,
                         [b.clientId]: {
                           ...c,
+                          ...(assignedWalker ? { keyholder: assignedWalker, preferredWalker: assignedWalker } : {}),
+                          bookings: updatedBookings,
                           handoffInfo: {
                             ...(c.handoffInfo || {}),
                             handoffDate: newDate.toISOString(),
                             handoffSlot: { time: hDraft.time },
-                            handoffWalker: hDraft.walker,
+                            handoffWalker: assignedWalker,
                           },
                         },
                       };
@@ -3479,19 +3489,23 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                     <div style={{ display: "flex", gap: "8px" }}>
                       <button onClick={() => {
                         const bookingsToCancel = (c.bookings || []).filter(b => !b.adminCompleted && !b.cancelled);
+                        // Build the deleted client record with all non-completed bookings cancelled
+                        let deletedClientRecord = {
+                          ...c,
+                          deleted: true,
+                          deletedAt: new Date().toISOString(),
+                          bookings: (c.bookings || []).map(b =>
+                            b.adminCompleted ? b : { ...b, cancelled: true, cancelledAt: new Date().toISOString() }
+                          ),
+                          recurringSchedules: [],
+                        };
+                        // Revoke Bark Bucks for every booking being cancelled now
+                        for (const b of bookingsToCancel) {
+                          deletedClientRecord = revokeWalkSavings(deletedClientRecord, b.key);
+                        }
                         const updatedClients = {
                           ...clients,
-                          [selectedClientId]: {
-                            ...c,
-                            deleted: true,
-                            deletedAt: new Date().toISOString(),
-                            // Cancel all upcoming (non-completed) bookings
-                            bookings: (c.bookings || []).map(b =>
-                              b.adminCompleted ? b : { ...b, cancelled: true, cancelledAt: new Date().toISOString() }
-                            ),
-                            // Clear recurring schedules so nothing new generates
-                            recurringSchedules: [],
-                          },
+                          [selectedClientId]: deletedClientRecord,
                         };
                         setClients(updatedClients);
                         saveClients(updatedClients);

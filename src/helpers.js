@@ -246,9 +246,14 @@ function applySameDayDiscount(bookings) {
 
 // ─── Savings Credit Helpers ───────────────────────────────────────────────────
 
-// Award savings credits when admin marks a walk complete.
+// Award savings credits when a booking is paid (Stripe payment confirmed).
 // Looks at the walk's week count to determine credit tier, adds to client balance.
+// Guards against double-awarding: if this booking key is already in savingsHistory, returns client unchanged.
 function awardWalkSavings(client, completedBooking) {
+  // Guard: don't double-award if this booking was already credited
+  const alreadyCredited = (client.savingsHistory || []).some(e => e.bookingKey === completedBooking.key);
+  if (alreadyCredited) return client;
+
   const bookingWeekKey = getBookingWeekKey(completedBooking);
   const weeklyCount = (client.bookings || []).filter(b => {
     if (b.cancelled) return false;

@@ -21,7 +21,7 @@ import AdminDashboard from "./components/admin/AdminDashboard.jsx";
 import CustomerErrorBoundary from "./components/ErrorBoundary.jsx";
 import { generateRecurringBookings, extendRecurringBookings } from "./components/recurring.js";
 import HandoffFlow from "./components/HandoffFlow.jsx";
-import { addrFromString, applySameDayDiscount, dateStrFromDate, getSessionPrice, repriceWeekBookings } from "./helpers.js";
+import { addrFromString, applySameDayDiscount, awardWalkSavings, dateStrFromDate, getSessionPrice, repriceWeekBookings } from "./helpers.js";
 import { SUPABASE_URL, notifyAdmin, updateInvoiceInDB, sendWelcomeEmail, sendInvoicePaidEmail, sendPinResetCode, createRefund, sendBookingConfirmation, sendWalkerBookingNotification, createBookingCheckout, authOnChange, authGetSession, authSignOut, loadClientByUserId, synthPinFromUserId } from "./supabase.js";
 import PasswordResetScreen from "./components/auth/PasswordResetScreen.jsx";
 import OfflineBanner from "./components/shared/OfflineBanner.jsx";
@@ -135,8 +135,15 @@ export default function LonestarBark() {
 
           // Stripe-paid receipts live on the booking itself (stripeSessionId + paidAt).
           // No separate invoice DB record needed — ClientInvoicesPage reads from bookings directly.
-          const confirmedClient = returningClient; // already has paidAt + stripeSessionId
-          const updatedClients = { ...withInvoices };
+
+          // Award Bark Bucks for each confirmed (paid) booking — guarded against double-award.
+          let clientWithSavings = returningClient;
+          for (const b of confirmedNew) {
+            clientWithSavings = awardWalkSavings(clientWithSavings, b);
+          }
+
+          const confirmedClient = clientWithSavings;
+          const updatedClients = { ...withInvoices, [pinKey]: clientWithSavings };
           setClients(updatedClients);
           try { await saveClients(updatedClients); } catch (e) { console.error("Failed to confirm booking:", e); }
 

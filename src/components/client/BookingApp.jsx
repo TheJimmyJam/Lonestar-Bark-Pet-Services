@@ -30,7 +30,7 @@ import { spawnNextRecurringOccurrence } from "../recurring.js";
 import { GLOBAL_STYLES } from "../../styles.js";
 import { getAllWalkers } from "../auth/WalkerAuthScreen.jsx";
 import AddressFields from "../shared/AddressFields.jsx";
-import { PRICE_TIERS, addrFromString } from "../../helpers.js";
+import { PRICE_TIERS, addrFromString, revokeWalkSavings } from "../../helpers.js";
 import { loadInvoicesFromDB } from "../../supabase.js";
 
 // ─── Scroll Picker ────────────────────────────────────────────────────────────
@@ -836,7 +836,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       );
     }
 
-    const updated = { ...client, bookings: updatedBookings, recurringSchedules: updatedRecurringSchedules };
+    // Revoke any Bark Bucks earned for this booking (awarded at payment time)
+    const cancelledClientData = { ...client, bookings: updatedBookings, recurringSchedules: updatedRecurringSchedules };
+    const updated = revokeWalkSavings(cancelledClientData, cancelKey);
     const updatedClients = { ...clients, [clientPinKey]: updated };
     setClients(updatedClients);
     await saveClients(updatedClients);
@@ -1696,7 +1698,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                           if (!window.confirm("Claim a free 30-min walk? This will deduct $30 from your Bark Bucks.")) return;
                           const updated = claimFreeWalk(client, "30 min");
                           if (!updated) return;
-                          const updatedClients = { ...clients, [myPin]: updated };
+                          const updatedClients = { ...clients, [clientPinKey]: updated };
                           setClients(updatedClients);
                           saveClients(updatedClients);
                           notifyAdmin("free_walk_claimed", { clientName: client.name || client.email, walkType: "30 min", newBalance: updated.savingsBalance });
@@ -1713,7 +1715,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                           if (!window.confirm("Claim a free 60-min walk? This will deduct $45 from your Bark Bucks.")) return;
                           const updated = claimFreeWalk(client, "60 min");
                           if (!updated) return;
-                          const updatedClients = { ...clients, [myPin]: updated };
+                          const updatedClients = { ...clients, [clientPinKey]: updated };
                           setClients(updatedClients);
                           saveClients(updatedClients);
                           notifyAdmin("free_walk_claimed", { clientName: client.name || client.email, walkType: "60 min", newBalance: updated.savingsBalance });
@@ -1822,21 +1824,21 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   {tier.description}
                 </div>
                 {/* Flat pricing row */}
-                <div style={{ display: "flex", gap: "8px", marginTop: "auto" }}>
+                <div style={{ display: "flex", gap: "6px", marginTop: "auto" }}>
                   {[["30 min", 30], ["60 min", 45]].map(([dur, price]) => (
                     <div key={dur} style={{ flex: 1, background: "#f5f6f8", borderRadius: "10px",
-                      padding: "8px 12px", textAlign: "center" }}>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af", marginBottom: "2px" }}>{dur}</div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", textTransform: "uppercase", letterSpacing: "1px",
+                      padding: "8px 6px", textAlign: "center" }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", color: "#9ca3af", marginBottom: "2px" }}>{dur}</div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "0.5px",
                         fontWeight: 600, color: "#111827" }}>${price.toFixed(2)}</div>
                     </div>
                   ))}
                   {/* Credits per walk chip */}
                   <div style={{ flex: 1, background: tier.creditPer30 > 0 ? "#FDF5EC" : "#f5f6f8",
-                    borderRadius: "10px", padding: "8px 12px", textAlign: "center",
+                    borderRadius: "10px", padding: "8px 6px", textAlign: "center",
                     border: tier.creditPer30 > 0 ? "1.5px solid #D4A843" : "none" }}>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af", marginBottom: "2px" }}>Bark Bucks/walk</div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", color: "#9ca3af", marginBottom: "2px" }}>Bark Bucks</div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                       fontWeight: 700, color: tier.creditPer30 > 0 ? "#C4541A" : "#d1d5db" }}>
                       {tier.creditPer30 > 0 ? `+$${tier.creditPer30.toFixed(2)}` : "—"}
                     </div>

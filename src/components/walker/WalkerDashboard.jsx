@@ -286,7 +286,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     saveClients(updated);
   };
 
-  const claimHandoff = (handoff) => {
+  const claimHandoff = async (handoff) => {
     if (!setClients) return;
     const cid = handoff.clientId;
     if (!cid || !clients[cid]) return;
@@ -312,7 +312,12 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
       },
     };
     setClients(updated);
-    saveClients(updated);
+    try {
+      await saveClients(updated);
+    } catch (e) {
+      console.error("claimHandoff: failed to save client record:", e);
+      alert("Claim saved locally but could not be written to the database. Please refresh and try again.");
+    }
   };
 
   const markWalkCompleted = (targetBooking) => {
