@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { ADD_ONS, ALL_HANDOFF_SLOTS, DAYS, FULL_DAYS, PRICING_TIERS, SERVICES, SERVICE_SLOTS, WALKER_SERVICES } from "../../constants.js";
 import {
+  loadClients,
   saveClients, notifyAdmin, sendBookingConfirmation, sendWalkerBookingNotification, sendWalkerCancellationNotification, sendClientCancellationNotification, createBookingCheckout, createRefund,
   loadChatMessages, saveChatMessage, formatChatTime,
   loadClientMessages, saveClientMessage,
@@ -308,6 +309,17 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const [walkerAvailability, setWalkerAvailability] = useState({});
   const preferredWalkerRef = useRef(null);
   const [cancelling, setCancelling] = useState(false); // prevents double-fire during cancel flow
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const fresh = await loadClients();
+      if (fresh) setClients(fresh);
+    } finally {
+      setRefreshing(false);
+    }
+  };
   useEffect(() => {
     // Load availability for the visible 12-week window
     const start = toDateKey(getWeekDates(0)[0]);
@@ -1117,7 +1129,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
 
       <div style={{ flex: 1, overflowY: "scroll", WebkitOverflowScrolling: "touch" }}>
       <Header client={client} onLogout={onLogout} />
-      <ClientNav client={client} onLogout={onLogout} page={page} setPage={setPage} notifCounts={clientNotifCountsFull} sticky />
+      <ClientNav client={client} onLogout={onLogout} page={page} setPage={setPage} notifCounts={clientNotifCountsFull} onRefresh={handleRefresh} refreshing={refreshing} sticky />
 
       {/* ── Meet & Greet Cancel Confirm ── */}
       {handoffCancelConfirm && (

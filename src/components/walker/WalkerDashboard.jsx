@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { SERVICES, SERVICE_SLOTS, DAYS, FULL_DAYS, WALKER_SERVICES, ALL_HANDOFF_SLOTS } from "../../constants.js";
 import {
+  loadClients, loadWalkerProfiles,
   saveClients, saveWalkerProfiles, notifyAdmin, saveTrades,
   loadChatMessages, saveChatMessage, formatChatTime,
   loadDirectMessages, saveDirectMessage,
@@ -35,6 +36,18 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
   const [tab, setTab] = useState("dashboard");
   const [pendingNavTab, setPendingNavTab] = useState(null);
   const [walkerMenuOpen, setWalkerMenuOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const [freshClients, freshWalkers] = await Promise.all([loadClients(), loadWalkerProfiles()]);
+      if (freshClients) setClients(freshClients);
+      if (freshWalkers) setWalkerProfiles(freshWalkers);
+    } finally {
+      setRefreshing(false);
+    }
+  };
   const [invFilter, setInvFilter] = useState("all");
   const [walkerWalksSearch, setWalkerWalksSearch] = useState("");
   const [walkerTradesSearch, setWalkerTradesSearch] = useState("");
@@ -857,14 +870,30 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               {walker.avatar} {walker.name} · {TABS.find(t => t.id === tab)?.label || ""}
             </div>
           </div>
-          <button onClick={() => setWalkerMenuOpen(true)} style={{ background: "transparent",
-            border: "1px solid rgba(255,255,255,0.35)", color: "rgba(255,255,255,0.65)", padding: "8px 12px",
-            borderRadius: "8px", cursor: "pointer", fontSize: "18px", lineHeight: 1,
-            display: "flex", flexDirection: "column", gap: "4px", alignItems: "center" }}>
-            <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
-            <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
-            <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              title="Refresh data"
+              style={{
+                background: "transparent", border: "1px solid rgba(255,255,255,0.35)",
+                color: refreshing ? "rgba(255,255,255,0.25)" : "#4E7A8C",
+                padding: "8px 12px", borderRadius: "8px",
+                cursor: refreshing ? "default" : "pointer",
+                fontSize: "18px", lineHeight: 1,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                animation: refreshing ? "spin 0.8s linear infinite" : "none",
+                transition: "color 0.15s",
+              }}>↻</button>
+            <button onClick={() => setWalkerMenuOpen(true)} style={{ background: "transparent",
+              border: "1px solid rgba(255,255,255,0.35)", color: "rgba(255,255,255,0.65)", padding: "8px 12px",
+              borderRadius: "8px", cursor: "pointer", fontSize: "18px", lineHeight: 1,
+              display: "flex", flexDirection: "column", gap: "4px", alignItems: "center" }}>
+              <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
+              <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
+              <span style={{ display: "block", width: "18px", height: "2px", background: "#4E7A8C", borderRadius: "2px" }} />
+            </button>
+          </div>
         </div>
       </header>
       {/* Sliding Tab Nav — sticky inside scroll pane */}

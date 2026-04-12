@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import LogoBadge from "./LogoBadge.jsx";
 
 // ─── Client Nav ───────────────────────────────────────────────────────────────
-function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky = false }) {
+function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, onRefresh, refreshing = false, sticky = false }) {
   if (!client) return null;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
@@ -34,9 +34,23 @@ function ClientNav({ client, onLogout, page, setPage, notifCounts = {}, sticky =
       ...(sticky ? { position: "sticky", top: 0, zIndex: 50 } : { flexShrink: 0 }) }}
       className={`nav-tabs${sticky ? " sticky-nav" : ""}`}>
 
-      {/* ── Row 1: hamburger on the right ── */}
+      {/* ── Row 1: refresh + hamburger on the right ── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end",
         borderBottom: "1px solid #8A754566" }}>
+        {onRefresh && (
+          <button
+            onClick={onRefresh}
+            disabled={refreshing}
+            title="Refresh data"
+            style={{
+              padding: "8px 14px", border: "none", background: "transparent",
+              color: refreshing ? "#ffffff33" : "#ffffff66",
+              fontSize: "18px", lineHeight: 1, cursor: refreshing ? "default" : "pointer",
+              display: "flex", alignItems: "center",
+              animation: refreshing ? "spin 0.8s linear infinite" : "none",
+              transition: "color 0.15s",
+            }}>↻</button>
+        )}
         <div ref={menuRef} style={{ position: "relative" }}>
           <button onClick={() => setMenuOpen(o => !o)} style={{
             padding: "8px 18px", border: "none", background: "transparent",
