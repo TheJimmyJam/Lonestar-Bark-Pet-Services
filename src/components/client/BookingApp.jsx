@@ -665,10 +665,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     }
   };
 
-  const handleCancel = async (bookingKey) => {
+  const handleCancel = async (cancelKey) => {
     if (cancelling) return; // already in-flight — block double-fire
     setCancelling(true);
-    const booking = (client.bookings || []).find(b => b.key === bookingKey);
+    try {
+    const booking = (client.bookings || []).find(b => b.key === cancelKey);
     if (!booking || booking.cancelled) { setCancelling(false); return; } // already cancelled
     const cancelledAt = new Date().toISOString();
 
@@ -736,7 +737,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       ...(refundAmount > 0 ? { refundAmount, refundPercent } : {}),
     };
     const updatedBookings = applySameDayDiscount(repriceWeekBookings(
-      client.bookings.map(b => b.key === bookingKey ? cancelledBooking : b)
+      client.bookings.map(b => b.key === cancelKey ? cancelledBooking : b)
     ));
 
     // If this was a stored recurring booking, also mark its week as cancelled
@@ -759,7 +760,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     const updated = { ...client, bookings: updatedBookings, recurringSchedules: updatedRecurringSchedules };
     const updatedClients = { ...clients, [clientPinKey]: updated };
     setClients(updatedClients);
-    saveClients(updatedClients);
+    await saveClients(updatedClients);
 
     // Issue Stripe refund if owed
     // stripeRefundSucceeded tracks whether Stripe actually processed it (vs. admin handling manually)
@@ -790,14 +791,14 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           const withRefundId = {
             ...updated,
             bookings: updated.bookings.map(b =>
-              b.key === bookingKey
+              b.key === cancelKey
                 ? { ...b, refundId: stripeRefundId, refundedAt: new Date().toISOString(), refundAmount: confirmedRefundAmount, refundPercent }
                 : b
             ),
           };
           const clientsWithRefund = { ...updatedClients, [clientPinKey]: withRefundId };
           setClients(clientsWithRefund);
-          saveClients(clientsWithRefund);
+          await saveClients(clientsWithRefund);
         }
       } catch (e) {
         console.error("[handleCancel] Refund failed:", e);
@@ -818,7 +819,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           walkerEmail: walkerObj.email,
           clientName: client.name,
           pet: booking.form?.pet || "",
-          service: booking.form?.service || "",
+          service: booking.service || booking.form?.service || "",
           date: booking.date || "",
           day: booking.day || "",
           time: booking.slot?.time || "—",
@@ -833,7 +834,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           clientName: client.name,
           clientEmail: client.email,
           pet: booking.form?.pet || "",
-          service: booking.form?.service || "",
+          service: booking.service || booking.form?.service || "",
           date: booking.date || "",
           day: booking.day || "",
           time: booking.slot?.time || "—",
@@ -862,7 +863,13 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       stripeRefundSucceeded,
       stripeRefundId,
     });
-    setCancelling(false);
+    } catch (err) {
+      // Catch-all: ensure the cancel button never stays permanently stuck
+      console.error("[handleCancel] unexpected error:", err);
+      setSubmitError("Something went wrong cancelling this booking. Please try again.");
+    } finally {
+      setCancelling(false);
+    }
   };
 
 

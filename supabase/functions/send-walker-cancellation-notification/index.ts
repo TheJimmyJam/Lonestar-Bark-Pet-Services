@@ -6,6 +6,9 @@ const corsHeaders = {
 };
 
 const SERVICE_MAP: Record<string, { label: string; emoji: string }> = {
+  "dog":            { label: "Dog Walk",           emoji: "🐕" },
+  "cat":            { label: "Cat Visit",          emoji: "🐈" },
+  "overnight":      { label: "Overnight Stay",    emoji: "🌙" },
   "30-min-walk":    { label: "30-Minute Walk",    emoji: "🐾" },
   "60-min-walk":    { label: "60-Minute Walk",    emoji: "🐾" },
   "drop-in":        { label: "Drop-In Visit",     emoji: "🏠" },
