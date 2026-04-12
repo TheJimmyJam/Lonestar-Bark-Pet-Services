@@ -643,6 +643,13 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     }
   };
 
+  // Shared date formatter used by My Walks list AND the booking detail sheet
+  const fmtBookingDate = (dt) => {
+    if (!dt) return "";
+    const [y, m, d] = dt.slice(0, 10).split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "long", day: "numeric" });
+  };
+
   const handleReset = () => {
     setStep("pick"); setSelectedSlot(null);
     const pets = service === "dog" ? savedDogs : savedCats;
@@ -1972,12 +1979,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       {page === "mywalks" && (() => {
         const now = new Date();
         const { monday, sunday } = getCurrentWeekRange();
-        // Format "April 18" from scheduledDateTime, falling back to b.date
-        const fmtBookingDate = (dt) => {
-          if (!dt) return "";
-          const [y, m, d] = dt.slice(0, 10).split("-").map(Number);
-          return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "long", day: "numeric" });
-        };
         const walksQ = walksSearch.toLowerCase();
         const allActive = myBookings.filter(b => {
           if (b.cancelled) return false;
