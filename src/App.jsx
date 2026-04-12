@@ -104,12 +104,21 @@ export default function LonestarBark() {
 
         const returningClient = withInvoices[bookingClientId] || withInvoices[returnClientId];
         if (returningClient) {
-          // Mark matching bookings as confirmed and store stripeSessionId
+          // Mark matching bookings as confirmed and store stripeSessionId.
+          // Only stamp paidAt when sessionId is present — if Stripe somehow
+          // returns without a session_id in the URL, don't record a paidAt we
+          // can't link to Stripe (which would cause ghost refund emails on cancel).
           const keysToConfirm = pendingKeys.length > 0 ? pendingKeys : [bookingKey];
           const confirmedNew = (returningClient.bookings || []).filter(b => keysToConfirm.includes(b.key));
           const confirmedBookings = (returningClient.bookings || []).map(b =>
             keysToConfirm.includes(b.key)
-              ? { ...b, status: "confirmed", paidAt: now, stripeSessionId: sessionId || null }
+              ? {
+                  ...b,
+                  status: "confirmed",
+                  ...(sessionId
+                    ? { paidAt: now, stripeSessionId: sessionId }
+                    : {}), // no sessionId → don't mark as paid; admin can resolve manually
+                }
               : b
           );
 

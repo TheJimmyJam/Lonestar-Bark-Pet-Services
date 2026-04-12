@@ -697,7 +697,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     let refundAmount = 0;
     let hoursUntilWalk = null;
     const bookingPrice = booking?.price || 0;
-    const wasActuallyPaid = !!(booking?.paidAt);
+    // Require BOTH paidAt AND stripeSessionId — a booking stamped with paidAt
+    // but no stripeSessionId means the Stripe session ID was lost in transit.
+    // Without a session ID we can't issue a Stripe refund, so we don't treat
+    // it as "paid" for refund-email purposes either.
+    const wasActuallyPaid = !!(booking?.paidAt && booking?.stripeSessionId);
     if (bookingPrice > 0 && wasActuallyPaid) {
       // Prefer stored scheduledDateTime; otherwise reconstruct from date + slot.time
       let apptMs = null;
