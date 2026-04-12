@@ -123,7 +123,7 @@ function AddressFields({ value, onChange, errors = {}, inputBaseStyle = {}, labe
       </div>
 
       {/* Street */}
-      <div>
+      <div style={{ marginBottom: "10px" }}>
         <label style={baseLabel}>Street Address</label>
         <input
           value={addr.street}
@@ -133,6 +133,20 @@ function AddressFields({ value, onChange, errors = {}, inputBaseStyle = {}, labe
         />
         {errors.street && <div style={{ color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
           fontSize: "15px", marginTop: "3px" }}>{errors.street}</div>}
+      </div>
+
+      {/* Unit / Apt (optional) */}
+      <div>
+        <label style={baseLabel}>
+          Unit / Apt <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0,
+            fontSize: "13px", color: "#b0b7c3" }}>— optional</span>
+        </label>
+        <input
+          value={addr.unit || ""}
+          onChange={e => update("unit", e.target.value.replace(/[^a-zA-Z0-9#\- ]/g, "").slice(0, 10))}
+          placeholder="e.g. 4B or 204"
+          style={{ ...baseInput, border: fieldBorder(false) }}
+        />
       </div>
     </div>
   );

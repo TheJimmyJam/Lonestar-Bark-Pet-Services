@@ -677,6 +677,57 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     }
   };
 
+  // ── Pay for an upcoming recurring walk (materializes it as a real pending booking) ──
+  const handlePayRecurringInstance = async (instance) => {
+    const bookingId = `rec_pay_${instance.recurringId}_${instance.recurringWeekKey}`;
+    // Materialize as a real stored booking so Stripe return can stamp paidAt on it
+    const newBooking = {
+      key: bookingId,
+      service: instance.service,
+      day: instance.day,
+      date: new Date(instance.scheduledDateTime).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      slot: instance.slot,
+      form: instance.form,
+      bookedAt: new Date().toISOString(),
+      scheduledDateTime: instance.scheduledDateTime,
+      price: instance.price,
+      additionalDogCount: instance.additionalDogCount || 0,
+      additionalDogCharge: (instance.additionalDogCount || 0) * 10,
+      status: "pending_payment",
+      isRecurringPending: true,
+      recurringId: instance.recurringId,
+      recurringWeekKey: instance.recurringWeekKey,
+    };
+    const allBookings = [...(client.bookings || []).filter(b => b.key !== bookingId), newBooking];
+    const updated = { ...client, bookings: allBookings };
+    const updatedClients = { ...clients, [clientPinKey]: updated };
+    setClients(updatedClients);
+    await saveClients(updatedClients);
+    try {
+      localStorage.setItem("dwi_stripe_return_clientId", clientPinKey);
+      localStorage.setItem("dwi_pending_booking_keys", JSON.stringify([bookingId]));
+    } catch {}
+    try {
+      const { url } = await createBookingCheckout({
+        clientId: clientPinKey,
+        clientName: client.name,
+        clientEmail: client.email,
+        bookingKey: bookingId,
+        service: instance.service || "dog",
+        date: new Date(instance.scheduledDateTime).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        day: instance.day || "",
+        time: instance.slot?.time || "—",
+        duration: instance.slot?.duration || "—",
+        walker: instance.form?.walker || "",
+        pet: instance.form?.pet || "",
+        amount: instance.price || 0,
+      });
+      window.location.href = url;
+    } catch {
+      alert("Unable to open payment page. Please try again or contact us.");
+    }
+  };
+
   const handleCancel = async (cancelKey) => {
     if (cancelling) return; // already in-flight — block double-fire
     setCancelling(true);
@@ -2348,6 +2399,12 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                                         borderRadius: "4px", padding: "1px 5px",
                                         fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>💳 unpaid</span>
                                     )}
+                                    {b.isRecurringPending && b.status === "pending_payment" && !b.paidAt && (
+                                      <span style={{ fontSize: "16px", background: "#fef2f2",
+                                        color: "#dc2626", border: "1px solid #fca5a5",
+                                        borderRadius: "4px", padding: "1px 5px",
+                                        fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>💳 unpaid</span>
+                                    )}
                                   </div>
                                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280" }}>
                                     {b.day} {fmtBookingDate(b.scheduledDateTime)} at {b.slot?.time} · {b.slot?.duration}
@@ -2378,24 +2435,49 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                                       );
                                     })()}
                                   </div>
-                                  {b.isRecurringInstance && (
-                                    <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
-                                      <button onClick={() => setRecurringCancelConfirm({ type: "week", recurringId: b.recurringId, weekKey: b.recurringWeekKey, label: `${b.day} at ${b.slot?.time}` })}
-                                        style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                                          color: "#b45309", background: "none", border: "none",
-                                          padding: 0, cursor: "pointer", textDecoration: "underline" }}>
-                                        Skip this week
-                                      </button>
-                                      <span style={{ color: "#d1d5db", fontSize: "16px" }}>·</span>
-                                      <button onClick={() => setRecurringCancelConfirm({ type: "series", recurringId: b.recurringId, label: `${FULL_DAYS[b.dayOfWeek] || b.day} at ${b.slot?.time}` })}
-                                        style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                                          color: "#dc2626", background: "none", border: "none",
-                                          padding: 0, cursor: "pointer", textDecoration: "underline" }}>
-                                        Cancel series
-                                      </button>
-                                    </div>
-                                  )}
+                                  {b.isRecurringInstance && (() => {
+                                    const daysUntil = (new Date(b.scheduledDateTime) - Date.now()) / (1000 * 60 * 60 * 24);
+                                    const showPay = daysUntil <= 7;
+                                    return (
+                                      <>
+                                        {showPay && (
+                                          <button onClick={() => handlePayRecurringInstance(b)}
+                                            style={{ display: "inline-flex", alignItems: "center", gap: "6px",
+                                              marginTop: "6px", padding: "7px 14px", borderRadius: "8px",
+                                              border: "none", background: "#C4541A", color: "#fff",
+                                              fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                                              fontWeight: 700, cursor: "pointer" }}>
+                                            💳 Pay ${b.price} to confirm →
+                                          </button>
+                                        )}
+                                        <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                                          <button onClick={() => setRecurringCancelConfirm({ type: "week", recurringId: b.recurringId, weekKey: b.recurringWeekKey, label: `${b.day} at ${b.slot?.time}` })}
+                                            style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                                              color: "#b45309", background: "none", border: "none",
+                                              padding: 0, cursor: "pointer", textDecoration: "underline" }}>
+                                            Skip this week
+                                          </button>
+                                          <span style={{ color: "#d1d5db", fontSize: "16px" }}>·</span>
+                                          <button onClick={() => setRecurringCancelConfirm({ type: "series", recurringId: b.recurringId, label: `${FULL_DAYS[b.dayOfWeek] || b.day} at ${b.slot?.time}` })}
+                                            style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                                              color: "#dc2626", background: "none", border: "none",
+                                              padding: 0, cursor: "pointer", textDecoration: "underline" }}>
+                                            Cancel series
+                                          </button>
+                                        </div>
+                                      </>
+                                    );
+                                  })()}
                                   {b.isFirstWalk && b.status === "pending_payment" && !b.paidAt && (
+                                    <button onClick={() => handlePayFirstWalk(b)}
+                                      style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                                        fontWeight: 700, color: "#fff", background: "#C4541A",
+                                        border: "none", borderRadius: "8px",
+                                        padding: "6px 14px", cursor: "pointer", marginTop: "6px" }}>
+                                      💳 Pay ${b.price} to confirm →
+                                    </button>
+                                  )}
+                                  {b.isRecurringPending && b.status === "pending_payment" && !b.paidAt && (
                                     <button onClick={() => handlePayFirstWalk(b)}
                                       style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
                                         fontWeight: 700, color: "#fff", background: "#C4541A",
@@ -2907,8 +2989,10 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
 
       {/* ── BOOK PAGE ── */}
       {page === "book" && (() => {
-        // Clients must complete a meet & greet before booking any other service.
-        const needsMeetAndGreet = !client.handoffConfirmed;
+        // Block booking only if no M&G is scheduled at all.
+        // If M&G is scheduled but not yet confirmed, allow booking — the date picker
+        // already enforces that walks can only be selected on/after the M&G date.
+        const needsMeetAndGreet = !client.handoffConfirmed && !client.handoffInfo?.handoffDate;
 
         if (needsMeetAndGreet) {
           const hasPending = !!(client.handoffInfo?.handoffDate && client.handoffInfo?.handoffSlot);
@@ -3024,6 +3108,23 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               .svc-tab { font-size: 14px !important; padding: 12px 4px !important; }
             }
           `}</style>
+
+          {/* ── Meet & Greet pending notice ── */}
+          {!client.handoffConfirmed && client.handoffInfo?.handoffDate && (() => {
+            const mgLabel = new Date(client.handoffInfo.handoffDate).toLocaleDateString("en-US",
+              { weekday: "long", month: "long", day: "numeric" });
+            return (
+              <div style={{ background: "#F5EFF3", borderBottom: "1px solid #C4A0B8",
+                padding: "10px 18px", display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "18px", flexShrink: 0 }}>🤝</span>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                  color: "#7A4D6E", lineHeight: "1.4" }}>
+                  <strong>Meet & Greet on {mgLabel}</strong> — walks available from that date onward.
+                </div>
+              </div>
+            );
+          })()}
+
           <div style={{ background: "#fff", borderBottom: "1px solid #e4e7ec",
             display: "grid", gridTemplateColumns: "1fr 1fr 1fr", width: "100%" }}>
             {Object.values(SERVICES).map(s => {
@@ -3292,7 +3393,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                           Any available
                         </div>
                       </button>
-                      {getAllWalkers(walkerProfiles).map(w => {
+                      {getAllWalkers(walkerProfiles).filter(w =>
+                        Object.values(walkerAvailability[w.id] || {}).some(slots => slots.length > 0)
+                      ).map(w => {
                         const isPreferred = w.name === client.preferredWalker;
                         const isSelected = overnightWalker === w.name;
                         return (
@@ -3413,7 +3516,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   </div>
                   <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "4px" }}>
                     {(() => {
-                      const all = getAllWalkers(walkerProfiles);
+                      const all = getAllWalkers(walkerProfiles).filter(w =>
+                        Object.values(walkerAvailability[w.id] || {}).some(slots => slots.length > 0)
+                      );
                       const preferred = client.preferredWalker;
                       return [
                         ...all.filter(w => w.name === preferred),

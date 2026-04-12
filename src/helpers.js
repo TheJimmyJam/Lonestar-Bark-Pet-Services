@@ -258,23 +258,24 @@ function generateCode() {
 // string for display and geocoding.
 function addrToString(a) {
   if (!a || typeof a === "string") return a || "";
-  const parts = [a.street, a.city, a.state, a.zip].filter(Boolean);
+  const parts = [a.street, a.unit ? `Unit ${a.unit}` : null, a.city, a.state, a.zip].filter(Boolean);
   return parts.join(", ");
 }
 function addrFromString(s) {
   // Best-effort parse of "123 Main St, Dallas, TX 75201"
-  if (!s) return { street: "", city: "", state: "", zip: "" };
-  if (typeof s === "object") return { street: s.street || "", city: s.city || "", state: s.state || "", zip: s.zip || "" };
-  if (typeof s !== "string") return { street: "", city: "", state: "", zip: "" };
+  if (!s) return { street: "", unit: "", city: "", state: "", zip: "" };
+  if (typeof s === "object") return { street: s.street || "", unit: s.unit || "", city: s.city || "", state: s.state || "", zip: s.zip || "" };
+  if (typeof s !== "string") return { street: "", unit: "", city: "", state: "", zip: "" };
   const parts = s.split(",").map(p => p.trim());
   return {
     street: parts[0] || "",
+    unit:   "",   // legacy strings don't have a parseable unit field
     city:   parts[1] || "",
     state:  parts[2] ? parts[2].replace(/\s+\d{5}.*/, "").trim() : "",
     zip:    parts[2] ? (parts[2].match(/\d{5}/) || [""])[0] : (parts[3] || ""),
   };
 }
-function emptyAddr() { return { street: "", city: "", state: "", zip: "" }; }
+function emptyAddr() { return { street: "", unit: "", city: "", state: "", zip: "" }; }
 
 const US_STATES = new Set([
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA",
