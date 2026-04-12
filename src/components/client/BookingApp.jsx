@@ -1995,13 +1995,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           }
         });
 
-        // Merge real future bookings + recurring instances, dedupe by scheduledDateTime
-        const allFuture = [...futureWalks, ...recurringInstances, ...(handoffAppt ? [handoffAppt] : [])]
-          .sort((a, b) => {
-            if (a.isHandoff) return -1;
-            if (b.isHandoff) return 1;
-            return new Date(a.scheduledDateTime) - new Date(b.scheduledDateTime);
-          });
+        // Merge real future bookings + recurring instances (handoffAppt rendered separately at top)
+        const allFuture = [...futureWalks, ...recurringInstances]
+          .sort((a, b) => new Date(a.scheduledDateTime) - new Date(b.scheduledDateTime));
 
         // Group all future by week
         const weekGroups = {};
@@ -2198,6 +2194,61 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               </div>
             </div>
 
+            {/* ── MEET & GREET (pinned, always at top) ── */}
+            {handoffAppt && (
+              <div style={{ marginBottom: "28px" }}>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600,
+                  letterSpacing: "2px", textTransform: "uppercase", color: "#7A4D6E",
+                  marginBottom: "14px", display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span>Meet &amp; Greet</span>
+                  <div style={{ flex: 1, height: "1px", background: "#E8D5E4" }} />
+                </div>
+                <div style={{ background: "#F5EFF3", borderRadius: "14px", padding: "16px 18px",
+                  border: "1.5px solid #C4A0B8", boxShadow: "0 2px 10px rgba(122,77,110,0.08)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "14px", marginBottom: "14px" }}>
+                    <div style={{ width: "44px", height: "44px", borderRadius: "12px",
+                      background: "#EAD9E6", display: "flex", alignItems: "center",
+                      justifyContent: "center", fontSize: "22px", flexShrink: 0 }}>🤝</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                        fontWeight: 700, color: "#7A4D6E", marginBottom: "3px" }}>Meet &amp; Greet Appointment</div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9B7A94" }}>
+                        {handoffAppt.day}, {fmtBookingDate(handoffAppt.scheduledDateTime)} · {handoffAppt.slot?.time} · 15 min
+                      </div>
+                      {handoffAppt.form?.walker && (
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9B7A94", marginTop: "1px" }}>
+                          with {handoffAppt.form.walker}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                      color: "#9B7A94", fontStyle: "italic", flexShrink: 0 }}>Free</div>
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                    color: "#9B7A94", lineHeight: "1.5", marginBottom: "14px",
+                    padding: "10px 12px", background: "rgba(255,255,255,0.6)", borderRadius: "8px" }}>
+                    This appointment is required before booking any walks. We'll use it to meet your pup and go over everything together.
+                  </div>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <button onClick={() => setHandoffEditOpen(true)}
+                      style={{ flex: 1, padding: "10px", borderRadius: "10px", cursor: "pointer",
+                        border: "1.5px solid #C4A0B8", background: "#fff",
+                        color: "#7A4D6E", fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "15px", fontWeight: 600 }}>
+                      ✏️ Reschedule
+                    </button>
+                    <button onClick={() => setHandoffCancelConfirm(true)}
+                      style={{ flex: 1, padding: "10px", borderRadius: "10px", cursor: "pointer",
+                        border: "1.5px solid #fecaca", background: "#fef2f2",
+                        color: "#dc2626", fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "15px", fontWeight: 600 }}>
+                      ✕ Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* ── UPCOMING ── */}
             {(Object.keys(weekGroups).length > 0 || recurringSchedules.length > 0) && (
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600,
@@ -2270,44 +2321,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                           </div>
                         </div>
                         <div style={{ padding: "10px 18px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                          {group.bookings.sort((a, b) => {
-                            if (a.isHandoff) return -1;
-                            if (b.isHandoff) return 1;
-                            return new Date(a.scheduledDateTime) - new Date(b.scheduledDateTime);
-                          }).map((b, i) => {
-                            if (b.isHandoff) return (
-                              <div key={i} style={{ background: "#F5EFF3", borderRadius: "10px", padding: "10px 12px",
-                                border: "1.5px solid #C4A0B8" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                                  <span style={{ fontSize: "16px" }}>🤝</span>
-                                  <div style={{ flex: 1 }}>
-                                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                                      fontWeight: 600, color: "#7A4D6E" }}>Meet & Greet Appointment</div>
-                                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
-                                      {b.day} {fmtBookingDate(b.scheduledDateTime)} · {b.slot?.time} · 15 min
-                                    </div>
-                                  </div>
-                                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                                    color: "#9ca3af", fontStyle: "italic", flexShrink: 0 }}>Free</div>
-                                </div>
-                                <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
-                                  <button onClick={() => setHandoffEditOpen(true)}
-                                    style={{ flex: 1, padding: "8px", borderRadius: "8px", cursor: "pointer",
-                                      border: "1.5px solid #C4A0B8", background: "#fff",
-                                      color: "#7A4D6E", fontFamily: "'DM Sans', sans-serif",
-                                      fontSize: "14px", fontWeight: 600 }}>
-                                    ✏️ Reschedule
-                                  </button>
-                                  <button onClick={() => setHandoffCancelConfirm(true)}
-                                    style={{ flex: 1, padding: "8px", borderRadius: "8px", cursor: "pointer",
-                                      border: "1.5px solid #fecaca", background: "#fef2f2",
-                                      color: "#dc2626", fontFamily: "'DM Sans', sans-serif",
-                                      fontSize: "14px", fontWeight: 600 }}>
-                                    ✕ Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            );
+                          {group.bookings.sort((a, b) => new Date(a.scheduledDateTime) - new Date(b.scheduledDateTime)).map((b, i) => {
                             const s = SERVICES[b.service] || SERVICES["dog"];
                             return (
                               <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "4px 0" }}>
