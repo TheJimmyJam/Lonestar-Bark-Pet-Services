@@ -1123,11 +1123,13 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               color: "#111827", marginBottom: "8px" }}>Cancel Meet & Greet?</div>
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
               lineHeight: "1.6", marginBottom: "24px" }}>
-              Your meet & greet appointment will be removed. You can reschedule at any time from My Walks.
+              Your meet & greet appointment will be removed. You can schedule a new one from the Book page.
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <button onClick={() => {
-                const updated = { ...client, handoffDone: false, handoffInfo: null };
+                // Keep handoffDone: true so the client stays in BookingApp.
+                // Just clear handoffInfo — they'll re-book a meet & greet from the Book page.
+                const updated = { ...client, handoffInfo: null };
                 const updatedClients = { ...clients, [clientPinKey]: updated };
                 setClients(updatedClients);
                 saveClients(updatedClients);
@@ -1149,11 +1151,12 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         </div>
       )}
 
-      {/* ── Meet & Greet Reschedule Modal ── */}
+      {/* ── Meet & Greet Schedule / Reschedule Modal ── */}
       {handoffEditOpen && (() => {
         const purple = "#7A4D6E";
         const wDates = getWeekDates(handoffReschedWeek);
         const canSave = handoffReschedDay !== null && handoffReschedWindow !== null;
+        const isNewBooking = !client.handoffInfo?.handoffDate;
         return (
           <div style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(0,0,0,0.5)",
             display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
@@ -1162,7 +1165,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               padding: "28px 20px 40px", boxShadow: "0 -8px 40px rgba(0,0,0,0.2)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase",
-                  letterSpacing: "1.5px", fontWeight: 700, color: "#111827" }}>Reschedule Meet & Greet</div>
+                  letterSpacing: "1.5px", fontWeight: 700, color: "#111827" }}>
+                  {isNewBooking ? "Schedule Meet & Greet" : "Reschedule Meet & Greet"}
+                </div>
                 <button onClick={() => setHandoffEditOpen(false)} style={{ background: "none", border: "none",
                   color: "#9ca3af", fontSize: "22px", cursor: "pointer" }}>✕</button>
               </div>
@@ -1284,6 +1289,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     handoffDay: handoffReschedDay,
                     handoffSlot: handoffReschedWindow,
                     handoffDate: newDate.toISOString(),
+                    // Preserve or default the walker when creating a new booking after cancellation
+                    handoffWalker: client.handoffInfo?.handoffWalker || client.preferredWalker || "",
                     ...(updatedFollowOn !== undefined ? { followOnWalk: updatedFollowOn } : {}),
                   },
                 };
@@ -1299,7 +1306,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 color: canSave ? "#fff" : "#9ca3af",
                 fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600,
                 cursor: canSave ? "pointer" : "default", transition: "all 0.15s" }}>
-                {canSave ? "Confirm Reschedule" : "Select a day and window"}
+                {canSave ? (isNewBooking ? "Confirm Appointment" : "Confirm Reschedule") : "Select a day and window"}
               </button>
             </div>
           </div>
@@ -2862,7 +2869,115 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       )}
 
       {/* ── BOOK PAGE ── */}
-      {page === "book" && (
+      {page === "book" && (() => {
+        // Clients must complete a meet & greet before booking any other service.
+        const needsMeetAndGreet = !client.handoffConfirmed;
+
+        if (needsMeetAndGreet) {
+          const hasPending = !!(client.handoffInfo?.handoffDate && client.handoffInfo?.handoffSlot);
+          const pendingDateLabel = hasPending
+            ? new Date(client.handoffInfo.handoffDate).toLocaleDateString("en-US",
+                { weekday: "long", month: "long", day: "numeric" })
+            : null;
+          const pendingTimeLabel = hasPending ? client.handoffInfo.handoffSlot?.time : null;
+          const purple = "#7A4D6E";
+          return (
+            <>
+              {/* Single "Meet & Greet" tab bar (locked) */}
+              <div style={{ background: "#fff", borderBottom: "1px solid #e4e7ec",
+                display: "flex", width: "100%" }}>
+                <div style={{ flex: 1, padding: "14px 8px", textAlign: "center",
+                  borderBottom: `3px solid ${purple}`,
+                  background: "#F7F0F5",
+                  color: purple,
+                  fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600 }}>
+                  🤝 Meet & Greet
+                </div>
+              </div>
+
+              <div className="app-container">
+                {/* Info banner */}
+                <div style={{ background: "#FDF5EC", border: "1.5px solid #D4A87A",
+                  borderRadius: "12px", padding: "14px 18px", marginBottom: "20px",
+                  display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                  <span style={{ fontSize: "20px", flexShrink: 0 }}>🔒</span>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                    color: "#92400e", lineHeight: "1.5" }}>
+                    <strong>Meet & Greet required</strong> — a quick 15-minute intro with your walker unlocks
+                    all booking services. Once your appointment is complete, you're all set!
+                  </div>
+                </div>
+
+                {hasPending ? (
+                  /* ── Pending appointment card ── */
+                  <div style={{ background: "#F5EFF3", border: `1.5px solid #C4A0B8`,
+                    borderRadius: "16px", padding: "20px", marginBottom: "20px" }}>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                      textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 700,
+                      color: purple, marginBottom: "12px" }}>Your Scheduled Appointment</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px",
+                      marginBottom: "16px" }}>
+                      <span style={{ fontSize: "32px" }}>🤝</span>
+                      <div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                          fontWeight: 700, color: "#111827" }}>{pendingDateLabel}</div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                          color: "#6b7280" }}>{pendingTimeLabel} · 15 min</div>
+                        {client.handoffInfo?.handoffWalker && (
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                            color: "#9ca3af", marginTop: "2px" }}>
+                            with {client.handoffInfo.handoffWalker}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      <button onClick={() => setHandoffEditOpen(true)}
+                        style={{ flex: 1, padding: "11px", borderRadius: "10px",
+                          border: `1.5px solid ${purple}`, background: "#fff",
+                          color: purple, fontFamily: "'DM Sans', sans-serif",
+                          fontSize: "14px", fontWeight: 600, cursor: "pointer" }}>
+                        Reschedule
+                      </button>
+                      <button onClick={() => setHandoffCancelConfirm(true)}
+                        style={{ flex: 1, padding: "11px", borderRadius: "10px",
+                          border: "1.5px solid #fca5a5", background: "#fff",
+                          color: "#dc2626", fontFamily: "'DM Sans', sans-serif",
+                          fontSize: "14px", fontWeight: 600, cursor: "pointer" }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* ── No appointment — prompt to schedule ── */
+                  <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
+                    borderRadius: "16px", padding: "28px 20px", textAlign: "center",
+                    marginBottom: "20px" }}>
+                    <div style={{ fontSize: "48px", marginBottom: "12px" }}>🤝</div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "17px",
+                      fontWeight: 700, color: "#111827", marginBottom: "8px" }}>
+                      Schedule Your Meet & Greet
+                    </div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                      color: "#6b7280", lineHeight: "1.6", marginBottom: "20px" }}>
+                      A free 15-minute appointment to get acquainted with your walker
+                      before your first walk.
+                    </div>
+                    <button onClick={() => setHandoffEditOpen(true)}
+                      style={{ padding: "14px 32px", borderRadius: "12px", border: "none",
+                        background: purple, color: "#fff",
+                        fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                        fontWeight: 600, cursor: "pointer" }}>
+                      Pick a Time →
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          );
+        }
+
+        return (
         <>
           <style>{`
             .svc-tab { display: flex; align-items: center; justify-content: center; gap: 8px; }
@@ -4055,7 +4170,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
             )}
           </div>
         </>
-      )}
+        );   // close return() for normal booking path
+      })()}  {/* close IIFE for page === "book" */}
       </div>{/* end scrollable content */}
     </div>
   );
