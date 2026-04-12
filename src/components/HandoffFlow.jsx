@@ -144,7 +144,7 @@ function HandoffFlow({ client, onComplete, onLogout, walkerProfiles = {} }) {
             <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginBottom: "28px",
               padding: "4px 4px" }}>
               {[
-                { icon: "👋", title: "Meet your walker", desc: "30-minute in-person introduction at your home." },
+                { icon: "👋", title: "Meet your walker", desc: "15-minute in-person introduction at your home." },
                 { icon: "🔑", title: "Hand over a key", desc: "So your walker can access your home for future visits." },
                 { icon: "📋", title: "Share your pet's routine", desc: "Walk preferences, feeding schedule, any quirks." },
               ].map((item, i) => (

@@ -520,6 +520,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           additionalDogCount: additionalDogs.length,
           additionalDogCharge: additionalDogs.length * 10,
           price: 0, priceTier: "",
+          // Stamp recurringId so the My Walks dedup check suppresses the synthesized
+          // instance for this week and avoids showing the same walk twice.
+          ...(isRecurring ? { recurringId: `rec_${service}_${activeDay}_${slot.id}` } : {}),
         });
       }
 
@@ -2654,13 +2657,13 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 border: "1.5px solid #e4e7ec", borderRadius: "14px",
                 overflow: "hidden", marginBottom: "20px" }}>
                 {[
-                  ["Pet", b.form.pet],
-                  ["Owner", b.form.name],
-                  ["Email", b.form.email],
-                  b.form.phone && ["Phone", b.form.phone],
-                  b.form.address && ["Address", b.form.address],
-                  b.form.walker && ["Walker", firstName(b.form.walker)],
-                  b.form.notes && ["Notes", b.form.notes],
+                  b.form?.pet    && ["Pet",     b.form.pet],
+                  b.form?.name   && ["Owner",   b.form.name],
+                  b.form?.email  && ["Email",   b.form.email],
+                  b.form?.phone  && ["Phone",   b.form.phone],
+                  b.form?.address && ["Address", b.form.address],
+                  b.form?.walker && ["Walker",  firstName(b.form.walker)],
+                  b.form?.notes  && ["Notes",   b.form.notes],
                   b.price > 0 && ["Session Price", b.sameDayDiscount
                     ? `${fmt(b.price, true)} (${b.priceTier} rate · 20% same-day discount — was ${fmt(b.priceBeforeSameDayDiscount, true)})`
                     : `${fmt(b.price, true)} (${b.priceTier} rate)`],
@@ -3595,7 +3598,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       // Meet & Greet and follow-on blocking only applies on the same calendar date
                       if (selectedDateStr !== handoffDateStr) return false;
 
-                      // Meet & Greet itself is 30 min — block slots that start before meet & greet ends
+                      // Meet & Greet itself is 15 min — block slots that start before meet & greet ends
                       const handoffStartMins = handoffInfo.handoffSlot.hour * 60 + handoffInfo.handoffSlot.minute;
                       const handoffEndMins   = handoffStartMins + 15;
                       const slotStartMins    = slot.hour * 60 + slot.minute;
