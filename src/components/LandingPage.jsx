@@ -468,25 +468,26 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
 
           {/* Pricing cards */}
           {(() => {
+            // All tiers charge flat $30/$45. Tiers now earn walk credits per completed session.
             const tiers = [
               { label: "Easy Rider", freq: "1× per week", badge: null, badgeColor: null,
-                price30: 30, price60: 45, save30: null, save60: null,
+                price30: 30, price60: 45, credit30: null, credit60: null,
                 bannerBg: "#f5f6f8", bannerFg: "#9ca3af",
                 cardBorder: "#e4e7ec", cardBg: "#fff",
                 nameFg: "#6b7280", lineFg: "#f3f4f6",
-                durationFg: "#9ca3af", priceFg: "#111827", saveFg: null },
+                durationFg: "#9ca3af", priceFg: "#111827", creditFg: null },
               { label: "Steady Stroll", freq: "3× per week", badge: "POPULAR", badgeColor: "#C4541A",
-                price30: 27.50, price60: 42.50, save30: "save $2.50", save60: "save $2.50",
+                price30: 30, price60: 45, credit30: "+$2.50 Bark Bucks", credit60: "+$2.50 Bark Bucks",
                 bannerBg: "#C4541A", bannerFg: "#fff",
                 cardBorder: "#1A1A1A", cardBg: "#1A1A1A",
                 nameFg: "rgba(255,255,255,0.5)", lineFg: "rgba(255,255,255,0.1)",
-                durationFg: "rgba(255,255,255,0.35)", priceFg: "#fff", saveFg: "#C4541A" },
+                durationFg: "rgba(255,255,255,0.35)", priceFg: "#fff", creditFg: "#C4541A" },
               { label: "Full Gallop", freq: "5× per week", badge: "BEST VALUE", badgeColor: "#3D6B7A",
-                price30: 25, price60: 40, save30: "save $5", save60: "save $5",
+                price30: 30, price60: 45, credit30: "+$5.00 Bark Bucks", credit60: "+$5.00 Bark Bucks",
                 bannerBg: "#3D6B7A", bannerFg: "#fff",
                 cardBorder: "#3D6B7A", cardBg: "#fff",
                 nameFg: "#6b7280", lineFg: "#f3f4f6",
-                durationFg: "#9ca3af", priceFg: "#111827", saveFg: "#3D6B7A" },
+                durationFg: "#9ca3af", priceFg: "#111827", creditFg: "#3D6B7A" },
             ];
 
             const renderCardBody = (tier) => (
@@ -502,8 +503,8 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                   <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
                     <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
                       fontWeight: 500, color: tier.priceFg }}>${tier.price30.toFixed(2)}</span>
-                    {tier.save30 && <span style={{ fontFamily: "'DM Sans', sans-serif",
-                      fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save30}</span>}
+                    {tier.credit30 && <span style={{ fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "11px", fontWeight: 600, color: tier.creditFg }}>{tier.credit30}</span>}
                   </div>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between",
@@ -513,8 +514,8 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                   <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
                     <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
                       fontWeight: 500, color: tier.priceFg }}>${tier.price60.toFixed(2)}</span>
-                    {tier.save60 && <span style={{ fontFamily: "'DM Sans', sans-serif",
-                      fontSize: "11px", fontWeight: 600, color: tier.saveFg }}>{tier.save60}</span>}
+                    {tier.credit60 && <span style={{ fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "11px", fontWeight: 600, color: tier.creditFg }}>{tier.credit60}</span>}
                   </div>
                 </div>
               </div>

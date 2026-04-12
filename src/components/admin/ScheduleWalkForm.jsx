@@ -72,6 +72,8 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
   const calcPrice = () => {
     if (form.service === "overnight") return { price: 150, tier: "Overnight Stay", extraDogCharge: 0 };
     if (!selectedClient || !form.date) return { price: 30, tier: "Easy Rider", extraDogCharge: 0 };
+    // Flat pricing — all walks charge $30 (30 min) or $45 (60 min) regardless of frequency.
+    // Tier label is still tracked (for savings credits) but doesn't change the price.
     const apptDate = parseDateLocal(form.date);
     const dayOfWeek = apptDate.getDay();
     const offset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -89,7 +91,8 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
     const totalCount = existingCount + 1;
     const priceTier = getPriceTier(totalCount);
     const extraDogCharge = form.additionalDogs.length * 10;
-    return { price: (priceTier.prices[form.duration] || priceTier.prices["30 min"]) + extraDogCharge, tier: priceTier.label, extraDogCharge };
+    const flatBase = getSessionPrice(form.duration);
+    return { price: flatBase + extraDogCharge, tier: priceTier.label, extraDogCharge };
   };
 
   const { price, tier, extraDogCharge } = calcPrice();
@@ -655,15 +658,20 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
               fontSize: "15px", color: "#374151", marginBottom: "3px" }}>Pricing Preview</div>
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#9ca3af" }}>
-              {selectedClient?.name}'s walk frequency this week · {form.duration}
+              {selectedClient?.name} · {form.duration} · flat rate
               {extraDogCharge > 0 && <span style={{ color: amber }}> · +${extraDogCharge} extra dog{form.additionalDogs.length !== 1 ? "s" : ""}</span>}
             </div>
+            {tier && tier !== "Easy Rider" && tier !== "Overnight Stay" && (
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#C4541A", marginTop: "2px" }}>
+                {tier} — client earns Bark Bucks when completed
+              </div>
+            )}
           </div>
           <div style={{ textAlign: "right", flexShrink: 0 }}>
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
               fontWeight: 600, color: amber }}>${price}</div>
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-              color: "#9ca3af" }}>{tier}</div>
+              color: "#9ca3af" }}>flat rate</div>
           </div>
         </div>
       )}

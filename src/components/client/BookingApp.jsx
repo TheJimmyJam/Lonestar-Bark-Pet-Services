@@ -10,10 +10,12 @@ import {
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout,
+  FREE_WALK_THRESHOLDS,
   getCurrentWeekRange, getWeekRangeForOffset,
   getBookingWeekKey, getWeekBookingCountForOffset,
   getPriceTier, getSessionPrice, getCancellationPolicy,
   repriceWeekBookings, applySameDayDiscount,
+  claimFreeWalk,
   getWeekDates, firstName, parseDateLocal, dateStrFromDate,
   fmt, formatPhone, addrToString, toDateKey,
 } from "../../helpers.js";
@@ -1507,10 +1509,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           .sort((a, b) => new Date(a.scheduledDateTime) - new Date(b.scheduledDateTime));
         const nextWalk = upcomingWalks[0];
 
-        const completedWalks = myBookings.filter(b => !b.cancelled && b.scheduledDateTime && new Date(b.scheduledDateTime) <= now).length;
-        const walksInCycle = completedWalks % 11;
-        const readyForFree = walksInCycle >= 10;
-        const punchesLeft = 10 - Math.min(walksInCycle, 10);
+        const savingsBalance = client.savingsBalance || 0;
+        const pendingClaims = (client.freeWalkClaims || []).filter(c => !c.fulfilled);
+        const canClaim30 = savingsBalance >= FREE_WALK_THRESHOLDS["30 min"];
+        const canClaim60 = savingsBalance >= FREE_WALK_THRESHOLDS["60 min"];
+        const creditPerWalk = currentTier.creditPer30 || 0;
 
         const openInvoices = (client.invoices || []).filter(inv => {
           const { effectiveStatus } = invoiceStatusMeta(inv.status, inv.dueDate);
@@ -1618,9 +1621,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               })}
 
               {renderKpiCard({
-                label: "Current Tier",
-                value: currentTier.label,
-                sub: `$${currentTier.prices["30 min"].toFixed(2)}/30 min · $${currentTier.prices["60 min"].toFixed(2)}/60 min`,
+                label: "Bark Bucks",
+                value: `$${savingsBalance.toFixed(2)}`,
+                sub: creditPerWalk > 0
+                  ? `Earning $${creditPerWalk.toFixed(2)}/walk in Bark Bucks`
+                  : "Book 3x/wk to earn Bark Bucks",
                 accent: tierColor[currentTier.label],
                 onClick: () => setPage("pricing"),
               })}
@@ -1633,43 +1638,107 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               })}
             </div>
 
-            {/* Punch card KPI — full width */}
-            <div onClick={() => setPage("pricing")} style={{
-              background: readyForFree ? "linear-gradient(135deg,#3D8B5F,#0B1423)" : "#fff",
-              borderRadius: "16px", padding: "20px",
-              border: readyForFree ? "none" : "1.5px solid #f0ede8",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-              cursor: "pointer",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
-                <div>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600,
-                    textTransform: "uppercase", letterSpacing: "1px",
-                    color: readyForFree ? "#C4A07A" : "#9ca3af" }}>Loyalty Punch Card</div>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px", fontWeight: 700,
-                    color: readyForFree ? "#fff" : "#111827", marginTop: "4px" }}>
-                    {readyForFree ? "🎉 Free Walk Ready!" : `${walksInCycle} / 10 walks`}
+            {/* Bark Bucks balance — full width */}
+            {(() => {
+              const hasBalance = savingsBalance > 0;
+              const progress30 = Math.min(savingsBalance / FREE_WALK_THRESHOLDS["30 min"], 1);
+              return (
+                <div style={{
+                  background: (canClaim30 || canClaim60) ? "linear-gradient(135deg,#3D8B5F,#0B1423)" : "#fff",
+                  borderRadius: "16px", padding: "20px",
+                  border: (canClaim30 || canClaim60) ? "none" : "1.5px solid #f0ede8",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
+                    <div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600,
+                        textTransform: "uppercase", letterSpacing: "1px",
+                        color: (canClaim30 || canClaim60) ? "#C4A07A" : "#9ca3af" }}>Bark Bucks</div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "28px", fontWeight: 700,
+                        color: (canClaim30 || canClaim60) ? "#fff" : "#111827", marginTop: "4px" }}>
+                        ${savingsBalance.toFixed(2)}
+                      </div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                        color: (canClaim30 || canClaim60) ? "rgba(255,255,255,0.75)" : "#6b7280", marginTop: "2px" }}>
+                        {canClaim60 ? "You can claim a free 30-min or 60-min walk!"
+                          : canClaim30 ? "You can claim a free 30-min walk!"
+                          : hasBalance
+                            ? `$${(FREE_WALK_THRESHOLDS["30 min"] - savingsBalance).toFixed(2)} more in Bark Bucks for a free 30-min walk`
+                            : creditPerWalk > 0
+                              ? `Earning $${creditPerWalk.toFixed(2)} in Bark Bucks per completed walk`
+                              : "Book 3x or 5x per week to earn Bark Bucks"}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: "32px" }}>{(canClaim30 || canClaim60) ? "🏆" : "🐾"}</span>
                   </div>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-                    color: readyForFree ? "rgba(255,255,255,0.75)" : "#6b7280", marginTop: "2px" }}>
-                    {readyForFree ? "Contact us to redeem your free session" : `${punchesLeft} more walk${punchesLeft !== 1 ? "s" : ""} until your free session`}
-                  </div>
+
+                  {/* Progress bar toward free 30-min walk */}
+                  {!canClaim30 && (
+                    <div style={{ marginBottom: "14px" }}>
+                      <div style={{ background: "#f0ede8", borderRadius: "8px", height: "8px", overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${progress30 * 100}%`,
+                          background: "linear-gradient(90deg, #C4541A, #D4A843)",
+                          borderRadius: "8px", transition: "width 0.4s ease" }} />
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between",
+                        fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#9ca3af", marginTop: "4px" }}>
+                        <span>$0</span>
+                        <span>$30 free walk</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Claim buttons */}
+                  {(canClaim30 || canClaim60) && (
+                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                      {canClaim30 && (
+                        <button onClick={() => {
+                          if (!window.confirm("Claim a free 30-min walk? This will deduct $30 from your Bark Bucks.")) return;
+                          const updated = claimFreeWalk(client, "30 min");
+                          if (!updated) return;
+                          const updatedClients = { ...clients, [myPin]: updated };
+                          setClients(updatedClients);
+                          saveClients(updatedClients);
+                          notifyAdmin("free_walk_claimed", { clientName: client.name || client.email, walkType: "30 min", newBalance: updated.savingsBalance });
+                        }} style={{
+                          padding: "10px 18px", borderRadius: "10px", border: "1.5px solid rgba(255,255,255,0.4)",
+                          background: "rgba(255,255,255,0.15)", color: "#fff",
+                          fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 700, cursor: "pointer",
+                        }}>
+                          Claim Free 30-min Walk ($30)
+                        </button>
+                      )}
+                      {canClaim60 && (
+                        <button onClick={() => {
+                          if (!window.confirm("Claim a free 60-min walk? This will deduct $45 from your Bark Bucks.")) return;
+                          const updated = claimFreeWalk(client, "60 min");
+                          if (!updated) return;
+                          const updatedClients = { ...clients, [myPin]: updated };
+                          setClients(updatedClients);
+                          saveClients(updatedClients);
+                          notifyAdmin("free_walk_claimed", { clientName: client.name || client.email, walkType: "60 min", newBalance: updated.savingsBalance });
+                        }} style={{
+                          padding: "10px 18px", borderRadius: "10px", border: "1.5px solid rgba(255,255,255,0.4)",
+                          background: "rgba(255,255,255,0.15)", color: "#fff",
+                          fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 700, cursor: "pointer",
+                        }}>
+                          Claim Free 60-min Walk ($45)
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Pending unfulfilled claims */}
+                  {pendingClaims.length > 0 && (
+                    <div style={{ marginTop: "12px", padding: "10px 14px", borderRadius: "10px",
+                      background: "rgba(255,255,255,0.12)", fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "13px", color: (canClaim30 || canClaim60) ? "rgba(255,255,255,0.85)" : "#6b7280" }}>
+                      ⏳ {pendingClaims.length} free walk claim{pendingClaims.length > 1 ? "s" : ""} pending — we'll reach out to schedule it.
+                    </div>
+                  )}
                 </div>
-                <span style={{ fontSize: "32px" }}>{readyForFree ? "🏆" : "🐾"}</span>
-              </div>
-              {/* Progress dots */}
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <div key={i} style={{
-                    width: "28px", height: "28px", borderRadius: "50%",
-                    background: i < walksInCycle ? "#C4541A" : readyForFree ? "rgba(255,255,255,0.15)" : "#FDF5EC",
-                    border: `2px solid ${i < walksInCycle ? "#C4541A" : readyForFree ? "rgba(255,255,255,0.3)" : "#D4A843"}`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: "13px",
-                  }}>{i < walksInCycle ? "🐾" : ""}</div>
-                ))}
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Quick action */}
             <button onClick={() => setPage("book")} style={{
@@ -1708,19 +1777,21 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 </div>
                 {bookingsUntilNextTier > 0 && (
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#6b7280" }}>
-                    {bookingsUntilNextTier} more walk{bookingsUntilNextTier !== 1 ? "s" : ""} to unlock <strong>{nextTier.label}</strong> pricing
+                    {bookingsUntilNextTier} more walk{bookingsUntilNextTier !== 1 ? "s" : ""} to unlock <strong>{nextTier.label}</strong> Bark Bucks
                   </div>
                 )}
                 {weekBookingCount >= 5 && (
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#3D6B7A" }}>
-                    Best rate active — saving vs. Easy Rider 🎉
+                    Max Bark Bucks active — earning $5.00/walk 🎉
                   </div>
                 )}
               </div>
               <div style={{ textAlign: "right", flexShrink: 0 }}>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                  fontWeight: 600, color: "#111827" }}>${currentTier.prices["30 min"].toFixed(2)}</div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>30 min</div>
+                  fontWeight: 600, color: "#C4541A" }}>
+                  {currentTier.creditPer30 > 0 ? `+$${currentTier.creditPer30.toFixed(2)}/walk` : "No Bark Bucks"}
+                </div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>Bark Bucks</div>
               </div>
             </div>
           </div>
@@ -1750,8 +1821,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af", marginBottom: "14px", flex: 1 }}>
                   {tier.description}
                 </div>
+                {/* Flat pricing row */}
                 <div style={{ display: "flex", gap: "8px", marginTop: "auto" }}>
-                  {Object.entries(tier.prices).map(([dur, price]) => (
+                  {[["30 min", 30], ["60 min", 45]].map(([dur, price]) => (
                     <div key={dur} style={{ flex: 1, background: "#f5f6f8", borderRadius: "10px",
                       padding: "8px 12px", textAlign: "center" }}>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af", marginBottom: "2px" }}>{dur}</div>
@@ -1759,6 +1831,16 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                         fontWeight: 600, color: "#111827" }}>${price.toFixed(2)}</div>
                     </div>
                   ))}
+                  {/* Credits per walk chip */}
+                  <div style={{ flex: 1, background: tier.creditPer30 > 0 ? "#FDF5EC" : "#f5f6f8",
+                    borderRadius: "10px", padding: "8px 12px", textAlign: "center",
+                    border: tier.creditPer30 > 0 ? "1.5px solid #D4A843" : "none" }}>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af", marginBottom: "2px" }}>Bark Bucks/walk</div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                      fontWeight: 700, color: tier.creditPer30 > 0 ? "#C4541A" : "#d1d5db" }}>
+                      {tier.creditPer30 > 0 ? `+$${tier.creditPer30.toFixed(2)}` : "—"}
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -1844,69 +1926,47 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
             </div>
           </div>
 
-          {/* Loyalty punch card */}
+          {/* Bark Bucks summary on pricing page */}
           {(() => {
-            const completedWalks = myBookings.filter(b => !b.cancelled && b.scheduledDateTime && new Date(b.scheduledDateTime) <= new Date()).length;
-            const walksInCycle = completedWalks % 11;
-            const freeEarned = Math.floor(completedWalks / 11);
-            const punchesLeft = 10 - Math.min(walksInCycle, 10);
-            const readyForFree = walksInCycle >= 10;
+            const bal = client.savingsBalance || 0;
+            const canClaim = bal >= FREE_WALK_THRESHOLDS["30 min"];
+            const progress = Math.min(bal / FREE_WALK_THRESHOLDS["30 min"], 1);
             return (
-              <div style={{ background: readyForFree ? "#0B1423" : "#fff",
-                border: readyForFree ? "none" : "2px solid #8B5E3C",
-                borderRadius: "16px", padding: "20px", marginBottom: "28px",
-                position: "relative", overflow: "hidden" }}>
-                {readyForFree && <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,#3D8B5F,#0B1423)", zIndex: 0 }} />}
-                <div style={{ position: "relative", zIndex: 1 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
-                    <div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                        fontWeight: 600, color: readyForFree ? "#fff" : "#111827", marginBottom: "2px" }}>
-                        🎁 Loyalty Reward
-                      </div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                        color: readyForFree ? "#C4A07A" : "#6b7280" }}>
-                        Buy 10 walks, get 1 free (equal or lesser time)
-                      </div>
+              <div style={{ background: canClaim ? "#0B1423" : "#fff",
+                border: canClaim ? "none" : "2px solid #8B5E3C",
+                borderRadius: "16px", padding: "20px", marginBottom: "28px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
+                  <div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
+                      fontWeight: 600, color: canClaim ? "#fff" : "#111827", marginBottom: "2px" }}>
+                      🐾 Bark Bucks
                     </div>
-                    {freeEarned > 0 && (
-                      <div style={{ background: "#C4541A", color: "#fff", borderRadius: "20px",
-                        padding: "4px 10px", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600 }}>
-                        {freeEarned} earned
-                      </div>
-                    )}
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "28px", fontWeight: 700,
+                      color: canClaim ? "#fff" : "#111827" }}>
+                      ${bal.toFixed(2)}
+                    </div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                      color: canClaim ? "rgba(255,255,255,0.75)" : "#6b7280", marginTop: "2px" }}>
+                      {canClaim ? "You can claim a free walk! Go to your Overview to redeem."
+                        : bal > 0
+                          ? `$${(FREE_WALK_THRESHOLDS["30 min"] - bal).toFixed(2)} more in Bark Bucks for a free 30-min walk`
+                          : "Book 3× or 5× per week to start earning Bark Bucks"}
+                    </div>
                   </div>
-                  {readyForFree ? (
-                    <div style={{ textAlign: "center", padding: "8px 0" }}>
-                      <div style={{ fontSize: "36px", marginBottom: "8px" }}>🎉</div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                        fontSize: "15px", color: "#fff", marginBottom: "4px" }}>
-                        Your free walk is ready!
-                      </div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#C4A07A" }}>
-                        Your next booking will be applied at $0. Book now to redeem.
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "10px" }}>
-                        {Array.from({ length: 10 }).map((_, i) => (
-                          <div key={i} style={{ width: "26px", height: "26px", borderRadius: "50%",
-                            background: i < walksInCycle ? "#C4541A" : "#FDF5EC",
-                            border: `2px solid ${i < walksInCycle ? "#C4541A" : "#D4A843"}`,
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: "15px" }}>
-                            {i < walksInCycle ? "🐾" : ""}
-                          </div>
-                        ))}
-                      </div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#6b7280" }}>
-                        {punchesLeft === 0 ? "Almost there!" : `${punchesLeft} more walk${punchesLeft !== 1 ? "s" : ""} until your free session`}
-                        {completedWalks > 0 && <span style={{ color: "#9ca3af" }}> · {completedWalks} total completed</span>}
-                      </div>
-                    </>
-                  )}
+                  <span style={{ fontSize: "32px" }}>{canClaim ? "🏆" : "🐾"}</span>
                 </div>
+                {!canClaim && bal > 0 && (
+                  <div>
+                    <div style={{ background: "#FDF5EC", borderRadius: "8px", height: "8px", overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${progress * 100}%`,
+                        background: "linear-gradient(90deg, #C4541A, #D4A843)", borderRadius: "8px" }} />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#9ca3af", marginTop: "4px" }}>
+                      <span>$0</span><span>$30 free walk</span>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -2190,7 +2250,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
                     fontSize: "15px", color: "#111827", marginBottom: "2px" }}>
-                    {currentTier.label} rate this week
+                    {currentTier.label} credits this week
                   </div>
                   <div style={{ marginBottom: "12px" }}>
                     <span style={{ marginRight: "8px", fontSize: "15px", fontWeight: 600,
@@ -2202,52 +2262,71 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   </div>
                   {bookingsUntilNextTier > 0 && (
                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#6b7280" }}>
-                      {bookingsUntilNextTier} more walk{bookingsUntilNextTier !== 1 ? "s" : ""} to unlock <strong>{nextTier.label}</strong> pricing
+                      {bookingsUntilNextTier} more walk{bookingsUntilNextTier !== 1 ? "s" : ""} to unlock <strong>{nextTier.label}</strong> Bark Bucks
                     </div>
                   )}
                   {weekBookingCount >= 5 && (
                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#3D6B7A" }}>
-                      Best rate active — saving vs. Easy Rider 🎉
+                      Max Bark Bucks active — earning $5.00/walk 🎉
                     </div>
                   )}
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                    fontWeight: 600, color: "#111827" }}>${currentTier.prices["30 min"].toFixed(2)}</div>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>30 min</div>
+                    fontWeight: 600, color: "#C4541A" }}>
+                    {currentTier.creditPer30 > 0 ? `+$${currentTier.creditPer30.toFixed(2)}/walk` : "No Bark Bucks"}
+                  </div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>Bark Bucks</div>
                 </div>
               </div>
             </div>
 
-            {/* Loyalty status card */}
-            <div style={{ background: readyForFree ? "#0B1423" : "#FDF5EC",
-              border: readyForFree ? "none" : "1.5px solid #D4A87A",
-              borderRadius: "16px", padding: "18px 20px", marginBottom: "28px",
-              display: "flex", alignItems: "center", gap: "16px" }}>
-              <div style={{ fontSize: "32px" }}>{readyForFree ? "🎉" : "🐾"}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                  fontSize: "16px", color: readyForFree ? "#fff" : "#C4541A", marginBottom: "4px" }}>
-                  {readyForFree ? "Free walk ready to redeem!" : `${walksInCycle}/10 walks toward your free session`}
-                </div>
-                <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-                  {Array.from({ length: 10 }).map((_, i) => (
-                    <div key={i} style={{ width: "20px", height: "20px", borderRadius: "50%",
-                      background: i < walksInCycle ? "#C4541A" : readyForFree ? "#ffffff22" : "#FDEBD4",
-                      border: `1.5px solid ${i < walksInCycle ? "#C4541A" : "#D4A843"}`,
-                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}>
-                      {i < walksInCycle ? "✓" : ""}
+            {/* Bark Bucks card */}
+            {(() => {
+              const bal = client.savingsBalance || 0;
+              const canClaim = bal >= FREE_WALK_THRESHOLDS["30 min"];
+              const prog = Math.min(bal / FREE_WALK_THRESHOLDS["30 min"], 1);
+              return (
+                <div style={{ background: canClaim ? "#0B1423" : "#FDF5EC",
+                  border: canClaim ? "none" : "1.5px solid #D4A87A",
+                  borderRadius: "16px", padding: "18px 20px", marginBottom: "28px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "10px" }}>
+                    <div style={{ fontSize: "32px" }}>{canClaim ? "🏆" : "🐾"}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
+                        fontSize: "20px", color: canClaim ? "#fff" : "#111827" }}>
+                        ${bal.toFixed(2)} in Bark Bucks
+                      </div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                        color: canClaim ? "rgba(255,255,255,0.75)" : "#6b7280", marginTop: "2px" }}>
+                        {canClaim ? "Tap below to claim your free walk" : `$${(FREE_WALK_THRESHOLDS["30 min"] - bal).toFixed(2)} in Bark Bucks away from a free 30-min walk`}
+                      </div>
                     </div>
-                  ))}
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
+                        color: canClaim ? "#C4A07A" : "#C4541A" }}>{completedCount}</div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                        color: canClaim ? "rgba(255,255,255,0.6)" : "#6b7280" }}>total walks</div>
+                    </div>
+                  </div>
+                  {!canClaim && (
+                    <div style={{ background: "#FDEBD4", borderRadius: "8px", height: "6px", overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${prog * 100}%`,
+                        background: "linear-gradient(90deg, #C4541A, #D4A843)", borderRadius: "8px" }} />
+                    </div>
+                  )}
+                  {canClaim && (
+                    <button onClick={() => setPage("overview")}
+                      style={{ marginTop: "8px", padding: "10px 18px", borderRadius: "10px",
+                        border: "1.5px solid rgba(255,255,255,0.35)",
+                        background: "rgba(255,255,255,0.15)", color: "#fff",
+                        fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 700, cursor: "pointer" }}>
+                      Claim free walk →
+                    </button>
+                  )}
                 </div>
-              </div>
-              <div style={{ textAlign: "right", flexShrink: 0 }}>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                  fontWeight: 600, color: readyForFree ? "#fff" : "#C4541A" }}>{completedCount}</div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                  color: readyForFree ? "#C4A07A" : "#6b7280" }}>total walks</div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* ── MEET & GREET (pinned, always at top) ── */}
             {handoffAppt && (
@@ -2325,21 +2404,13 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     const weekEnd = new Date(group.monday);
                     weekEnd.setDate(group.monday.getDate() + 6);
                     const isCurrentWeek = group.monday >= monday && group.monday <= sunday;
-                    // Savings = tier discount vs Easy Rider baseline + any same-day discounts
-                    const baselineTier = PRICE_TIERS[2]; // Easy Rider — always the most expensive
+                    // Savings = same-day discounts only (tier savings now go to credits balance)
                     const weekSavings = group.bookings.reduce((sum, b) => {
                       if (b.cancelled || b.isRecurringInstance) return sum;
-                      // Tier savings: baseline Easy Rider price vs actual tier price (pre same-day discount)
-                      const baselinePrice = baselineTier.prices[b.slot?.duration] || baselineTier.prices["30 min"];
-                      const priceBeforeAnyDiscount = b.sameDayDiscount && b.priceBeforeSameDayDiscount != null
-                        ? b.priceBeforeSameDayDiscount - (b.additionalDogCharge || 0)
-                        : (b.price || 0) - (b.additionalDogCharge || 0);
-                      const tierSaving = Math.max(0, baselinePrice - priceBeforeAnyDiscount);
-                      // Same-day discount savings
                       const sameDaySaving = b.sameDayDiscount && b.priceBeforeSameDayDiscount != null
                         ? b.priceBeforeSameDayDiscount - (b.price || 0)
                         : 0;
-                      return sum + tierSaving + sameDaySaving;
+                      return sum + sameDaySaving;
                     }, 0);
                     return (
                       <div key={key} style={{ background: "#fff", border: isCurrentWeek ? "2px solid #8B5E3C" : "1.5px solid #e4e7ec",
@@ -2353,16 +2424,16 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                               {isCurrentWeek ? "This week" : `Week of ${group.monday.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
                             </div>
                             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280" }}>
-                              {weekCount} walk{weekCount !== 1 ? "s" : ""} · {tier.label} rate
+                              {weekCount} walk{weekCount !== 1 ? "s" : ""} · {tier.label}
                             </div>
                             {weekSavings > 0 && (
                               <div style={{ display: "inline-flex", alignItems: "center", gap: "4px",
-                                marginTop: "4px", background: "#FDF5EC", border: "1px solid #D4A87A",
+                                marginTop: "4px", background: "#fffbeb", border: "1px solid #fcd34d",
                                 borderRadius: "6px", padding: "2px 8px" }}>
                                 <span style={{ fontSize: "15px" }}>🎉</span>
                                 <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                                  fontWeight: 600, color: "#C4541A" }}>
-                                  Saving ${weekSavings} this week
+                                  fontWeight: 600, color: "#b45309" }}>
+                                  Saved ${weekSavings} same-day discount
                                 </span>
                               </div>
                             )}
@@ -2418,23 +2489,17 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                                         borderRadius: "4px", padding: "1px 5px",
                                         fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>20% off same day</span>
                                     )}
-                                    {(() => {
-                                      if (!b.priceTier || b.priceTier === "Easy Rider" || b.isRecurringInstance) return null;
-                                      const baseline = PRICE_TIERS.find(t => t.label === "Easy Rider");
-                                      const baselinePrice = baseline?.prices[b.slot?.duration] || 30;
-                                      // Use pre-discount price for accurate tier comparison
-                                      const tierPrice = b.sameDayDiscount && b.priceBeforeSameDayDiscount
-                                        ? b.priceBeforeSameDayDiscount - (b.additionalDogCharge || 0)
-                                        : (b.price || 0) - (b.additionalDogCharge || 0);
-                                      const saved = baselinePrice - tierPrice;
-                                      if (saved <= 0) return null;
+                                    {b.priceTier && b.priceTier !== "Easy Rider" && !b.isRecurringInstance && (() => {
+                                      const tier = PRICE_TIERS.find(t => t.label === b.priceTier);
+                                      const credit = tier?.creditPer30 || 0;
+                                      if (credit <= 0) return null;
                                       return (
                                         <span style={{ marginLeft: "6px", fontSize: "16px",
                                           background: "#FDF5EC", color: "#C4541A",
                                           border: "1px solid #D4A87A", borderRadius: "4px",
                                           padding: "1px 5px", fontFamily: "'DM Sans', sans-serif",
                                           fontWeight: 600 }}>
-                                          ${saved} off
+                                          +${credit.toFixed(2)} Bark Bucks
                                         </span>
                                       );
                                     })()}
@@ -2666,8 +2731,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   b.form?.walker && ["Walker",  firstName(b.form.walker)],
                   b.form?.notes  && ["Notes",   b.form.notes],
                   b.price > 0 && ["Session Price", b.sameDayDiscount
-                    ? `${fmt(b.price, true)} (${b.priceTier} rate · 20% same-day discount — was ${fmt(b.priceBeforeSameDayDiscount, true)})`
-                    : `${fmt(b.price, true)} (${b.priceTier} rate)`],
+                    ? `${fmt(b.price, true)} (20% same-day discount — was ${fmt(b.priceBeforeSameDayDiscount, true)})`
+                    : `${fmt(b.price, true)}`],
                 ].filter(Boolean).map(([label, val], i, arr) => (
                   <div key={label} style={{ padding: "12px 16px",
                     borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none",
@@ -3880,7 +3945,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                               {b.price > 0 && (
                                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                                   color: "#C4541A", fontWeight: 500, marginTop: "2px" }}>
-                                  ${Number(b.price).toFixed(2)} · {b.priceTier} rate
+                                  ${Number(b.price).toFixed(2)}{b.sameDayDiscount ? " · 20% same-day discount" : ""}
                                 </div>
                               )}
                               {policy && (

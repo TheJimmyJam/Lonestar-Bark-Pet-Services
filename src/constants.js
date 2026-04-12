@@ -30,20 +30,29 @@ const SERVICES = {
 
 // All walkers are managed through the admin portal — no hardcoded walkers.
 
-// NOTE: Prices here must stay in sync with PRICE_TIERS (line ~550) which drives actual pricing logic.
+// All tiers charge the same flat rate ($30/30 min, $45/60 min).
+// The tier you hit each week determines how many savings credits you earn per
+// completed walk — redeemable for a free walk at $30 (30-min) or $45 (60-min).
 const PRICING_TIERS = [
   { label: "Easy Rider", freq: "1x per week", badge: null,
-    prices: { "30 min": 30, "60 min": 45 }, description: "One walk a week — perfect for a laid-back pup who likes to take it easy." },
+    prices: { "30 min": 30, "60 min": 45 },
+    creditPer30: 0, creditPer60: 0,
+    description: "One walk a week — perfect for a laid-back pup who likes to take it easy." },
   { label: "Steady Stroll", freq: "3x per week", badge: "Popular",
-    prices: { "30 min": 27.50, "60 min": 42.50 }, description: "Three walks a week — a great rhythm that keeps your dog active and happy." },
+    prices: { "30 min": 30, "60 min": 45 },
+    creditPer30: 2.50, creditPer60: 2.50,
+    description: "Three walks a week — earn $2.50 in Bark Bucks per completed session." },
   { label: "Full Gallop", freq: "5x per week", badge: "Best Value",
-    prices: { "30 min": 25, "60 min": 40 }, description: "Five walks a week — for the high-energy dog who lives for the leash." },
+    prices: { "30 min": 30, "60 min": 45 },
+    creditPer30: 5.00, creditPer60: 5.00,
+    description: "Five walks a week — earn $5.00 in Bark Bucks per completed session." },
 ];
 
 const ADD_ONS = [
   { icon: "🐶", label: "Additional Dog", price: "+$10/dog/session", note: "Applies to any session length or frequency." },
   { icon: "🌙", label: "Overnight Stay", price: "$150/night", note: "A walker stays at your home overnight." },
   { icon: "📅", label: "Same-Day Multi-Booking", price: "20% off", note: "Book 2+ services on the same day." },
+  { icon: "🐾", label: "Bark Bucks", price: "Earn per walk", note: "Book 3x or 5x a week to earn Bark Bucks toward a free walk." },
   { icon: "👥", label: "Refer a Friend", price: "$100 credit", note: "Earn a $100 credit after their first booking." },
 ];
 

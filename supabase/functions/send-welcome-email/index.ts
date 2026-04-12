@@ -119,7 +119,7 @@ serve(async (req) => {
               <strong style="color:#374151;">You're in control.</strong>
               Log in any time to book walks, check your schedule, or update your info.
             </p>
-            <p style="margin:0 28px 0;color:#4b5563;font-size:15px;line-height:1.8;">
+            <p style="margin:0 0 10px;color:#4b5563;font-size:15px;line-height:1.8;">
               <strong style="color:#374151;">Questions?</strong>
               Reply to this email. We read every one.
             </p>

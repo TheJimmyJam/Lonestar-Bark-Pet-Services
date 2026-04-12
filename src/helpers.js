@@ -29,11 +29,23 @@ function toDateKey(date) {
 }
 
 // ─── Pricing Helpers ──────────────────────────────────────────────────────────
-const PRICE_TIERS = [
-  { minBookings: 5, label: "Full Gallop", prices: { "30 min": 25, "60 min": 40 } },
-  { minBookings: 3, label: "Steady Stroll", prices: { "30 min": 27.50, "60 min": 42.50 } },
-  { minBookings: 1, label: "Easy Rider", prices: { "30 min": 30, "60 min": 45 } },
+// Flat base prices — every walk charges the same rate regardless of weekly frequency.
+// Tiers now determine savings CREDITS earned per completed walk, not live price.
+const BASE_PRICES = { "30 min": 30, "60 min": 45 };
+
+// FREE WALK thresholds: $30 saved → free 30-min walk, $45 saved → free 60-min walk
+const FREE_WALK_THRESHOLDS = { "30 min": 30, "60 min": 45 };
+
+// Savings credits earned per completed walk, based on weekly booking frequency.
+// Credits accumulate on the client account and can be redeemed for free walks.
+const SAVINGS_TIERS = [
+  { minBookings: 5, label: "Full Gallop",   creditPer30: 5.00, creditPer60: 5.00 },
+  { minBookings: 3, label: "Steady Stroll", creditPer30: 2.50, creditPer60: 2.50 },
+  { minBookings: 1, label: "Easy Rider",    creditPer30: 0,    creditPer60: 0    },
 ];
+
+// PRICE_TIERS kept for backward compatibility — prices are now flat for all tiers.
+const PRICE_TIERS = SAVINGS_TIERS.map(t => ({ ...t, prices: { ...BASE_PRICES } }));
 
 function getCurrentWeekRange() {
   const today = new Date();
@@ -85,9 +97,21 @@ function getPriceTier(weekCount) {
   return PRICE_TIERS.find(t => weekCount >= t.minBookings) || PRICE_TIERS[2];
 }
 
-function getSessionPrice(duration, weekCount) {
-  const tier = getPriceTier(weekCount);
-  return tier.prices[duration] || tier.prices["30 min"];
+// Returns the savings tier (for credit calculation) based on weekly walk count
+function getSavingsTier(weekCount) {
+  return SAVINGS_TIERS.find(t => weekCount >= t.minBookings) || SAVINGS_TIERS[2];
+}
+
+// How much savings credit a completed walk earns, given its week's total walk count
+function getWalkSavingsCredit(booking, weeklyWalkCount) {
+  const tier = getSavingsTier(weeklyWalkCount);
+  const is60 = (booking.slot?.duration || "30 min") === "60 min";
+  return is60 ? tier.creditPer60 : tier.creditPer30;
+}
+
+function getSessionPrice(duration) {
+  // All walks now charge flat rate — frequency no longer affects live price
+  return BASE_PRICES[duration] || BASE_PRICES["30 min"];
 }
 
 function getCancellationPolicy(scheduledDateTime) {
@@ -100,15 +124,13 @@ function getCancellationPolicy(scheduledDateTime) {
   return { penalty: 1.0, label: "Appointment passed", color: "#9ca3af", canCancel: false };
 }
 
+// repriceWeekBookings — groups bookings by week and sets the savings tier label on each.
+// Prices are now FLAT ($30/$45) regardless of tier — the tier label is preserved only
+// so we know how many credits to award when a walk is completed.
 function repriceWeekBookings(bookings) {
-  // Group bookings by the week they are SCHEDULED (Mon–Sun).
-  // Each scheduled week is priced independently based on how many active
-  // walks fall within that week — NOT by when the booking was created.
   const byWeek = {};
   bookings.forEach((b, i) => {
     if (b.cancelled) return;
-    // Use scheduledDateTime to determine which week the walk happens in.
-    // Fall back to bookedAt for legacy records that lack scheduledDateTime.
     const d = new Date(b.scheduledDateTime || b.bookedAt);
     if (isNaN(d)) return;
     const dow = d.getDay();
@@ -124,13 +146,15 @@ function repriceWeekBookings(bookings) {
   const updated = [...bookings];
   Object.values(byWeek).forEach(idxs => {
     const count = idxs.length;
-    const tier = getPriceTier(count);
+    const savingsTier = getSavingsTier(count);
     idxs.forEach(i => {
       // Never reprice completed or Stripe-paid bookings — price is locked at what was charged
       if (updated[i].adminCompleted || updated[i].stripeSessionId) return;
-      const basePrice = tier.prices[updated[i].slot?.duration] || tier.prices["30 min"];
+      const duration = updated[i].slot?.duration || "30 min";
+      const basePrice = BASE_PRICES[duration] || BASE_PRICES["30 min"];
       const dogCharge = (updated[i].additionalDogCount || 0) * 10;
-      updated[i] = { ...updated[i], price: basePrice + dogCharge, priceTier: tier.label, sameDayDiscount: false };
+      // Price is flat — only priceTier label updates (used for savings credit calculation)
+      updated[i] = { ...updated[i], price: basePrice + dogCharge, priceTier: savingsTier.label, sameDayDiscount: false };
     });
   });
   return updated;
@@ -220,6 +244,81 @@ function applySameDayDiscount(bookings) {
   return updated;
 }
 
+// ─── Savings Credit Helpers ───────────────────────────────────────────────────
+
+// Award savings credits when admin marks a walk complete.
+// Looks at the walk's week count to determine credit tier, adds to client balance.
+function awardWalkSavings(client, completedBooking) {
+  const bookingWeekKey = getBookingWeekKey(completedBooking);
+  const weeklyCount = (client.bookings || []).filter(b => {
+    if (b.cancelled) return false;
+    return getBookingWeekKey(b) === bookingWeekKey;
+  }).length;
+
+  const credit = getWalkSavingsCredit(completedBooking, weeklyCount);
+  if (credit <= 0) return client; // Easy Rider earns no credits
+
+  const currentBalance = client.savingsBalance || 0;
+  const newBalance = Math.round((currentBalance + credit) * 100) / 100;
+  const entry = {
+    bookingKey: completedBooking.key,
+    date: completedBooking.scheduledDateTime?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+    credit,
+    tier: completedBooking.priceTier || "Easy Rider",
+    balance: newBalance,
+  };
+
+  return {
+    ...client,
+    savingsBalance: newBalance,
+    savingsHistory: [...(client.savingsHistory || []), entry],
+  };
+}
+
+// Reverse a savings credit when admin undoes a walk completion.
+function revokeWalkSavings(client, bookingKey) {
+  const history = client.savingsHistory || [];
+  const entry = history.find(e => e.bookingKey === bookingKey);
+  if (!entry) return client;
+  const newBalance = Math.max(0, Math.round(((client.savingsBalance || 0) - entry.credit) * 100) / 100);
+  return {
+    ...client,
+    savingsBalance: newBalance,
+    savingsHistory: history.filter(e => e.bookingKey !== bookingKey),
+  };
+}
+
+// Client claims a free walk. Deducts from balance and logs the pending claim.
+// walkType: "30 min" | "60 min"
+function claimFreeWalk(client, walkType) {
+  const cost = FREE_WALK_THRESHOLDS[walkType] || 30;
+  const currentBalance = client.savingsBalance || 0;
+  if (currentBalance < cost) return null; // insufficient balance — caller should guard
+  const newBalance = Math.round((currentBalance - cost) * 100) / 100;
+  const claim = {
+    id: `claim_${Date.now()}`,
+    claimedAt: new Date().toISOString(),
+    walkType,
+    amount: cost,
+    fulfilled: false,
+  };
+  return {
+    ...client,
+    savingsBalance: newBalance,
+    freeWalkClaims: [...(client.freeWalkClaims || []), claim],
+  };
+}
+
+// Admin marks a pending free walk claim as fulfilled.
+function fulfillFreeWalkClaim(client, claimId) {
+  return {
+    ...client,
+    freeWalkClaims: (client.freeWalkClaims || []).map(c =>
+      c.id === claimId ? { ...c, fulfilled: true, fulfilledAt: new Date().toISOString() } : c
+    ),
+  };
+}
+
 function getWeekDates(weekOffset = 0) {
   const today = new Date();
   const dow = today.getDay();
@@ -305,10 +404,13 @@ function formatPhone(raw) {
 
 export {
   effectivePrice, getWalkerPayout,
-  PRICE_TIERS, getCurrentWeekRange, getWeekRangeForOffset,
+  BASE_PRICES, FREE_WALK_THRESHOLDS, SAVINGS_TIERS, PRICE_TIERS,
+  getCurrentWeekRange, getWeekRangeForOffset,
   getBookingWeekKey, getWeekBookingCountForOffset,
-  getPriceTier, getSessionPrice, getCancellationPolicy,
+  getPriceTier, getSavingsTier, getWalkSavingsCredit, getSessionPrice,
+  getCancellationPolicy,
   repriceWeekBookings, applySameDayDiscount,
+  awardWalkSavings, revokeWalkSavings, claimFreeWalk, fulfillFreeWalkClaim,
   getWeekDates, firstName, parseDateLocal, dateStrFromDate,
   generateCode,
   addrToString, addrFromString, emptyAddr, US_STATES,

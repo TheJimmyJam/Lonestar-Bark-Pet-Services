@@ -17,6 +17,7 @@ import {
   getBookingWeekKey, getWeekBookingCountForOffset,
   getPriceTier, getSessionPrice, getCancellationPolicy,
   repriceWeekBookings, applySameDayDiscount,
+  awardWalkSavings, revokeWalkSavings, fulfillFreeWalkClaim,
   getWeekDates, firstName, parseDateLocal, dateStrFromDate,
   fmt, formatPhone, addrToString, addrFromString, emptyAddr,
 } from "../../helpers.js";
@@ -287,7 +288,11 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
       }
     }
 
-    const updatedClients = { ...clients, [clientId]: { ...c, bookings: updatedBookings } };
+    // Award savings credits for this walk based on the client's weekly booking count
+    const completedBooking = { ...booking, adminCompleted: true, completedAt };
+    const updatedClientWithSavings = awardWalkSavings({ ...c, bookings: updatedBookings }, completedBooking);
+
+    const updatedClients = { ...clients, [clientId]: updatedClientWithSavings };
     setClients(updatedClients);
     saveClients(updatedClients);
     notifyAdmin("walk_completed", {
@@ -310,17 +315,15 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
       (clients[cid].bookings || []).some(bk => bk.key === booking.key)
     );
     if (!clientId || !clients[clientId]) return;
-    const updatedClients = {
-      ...clients,
-      [clientId]: {
-        ...clients[clientId],
-        bookings: clients[clientId].bookings.map(b =>
-          b.key === booking.key
-            ? { ...b, adminCompleted: false, completedAt: undefined, walkerMarkedComplete: false }
-            : b
-        ),
-      },
-    };
+    const c = clients[clientId];
+    const updatedBookings = c.bookings.map(b =>
+      b.key === booking.key
+        ? { ...b, adminCompleted: false, completedAt: undefined, walkerMarkedComplete: false }
+        : b
+    );
+    // Revoke any savings credit awarded for this walk
+    const updatedClientWithSavings = revokeWalkSavings({ ...c, bookings: updatedBookings }, booking.key);
+    const updatedClients = { ...clients, [clientId]: updatedClientWithSavings };
     setClients(updatedClients);
     saveClients(updatedClients);
     logAuditEvent({ adminId: admin.id, adminName: admin.name, action: "walk_uncompleted",
@@ -749,10 +752,24 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                           <div style={{ fontSize: "15px", color: "#9ca3af", marginTop: "1px" }}>
                             {item.activeCount} active · {item.completedCount} completed
                           </div>
+                          {(item.c.freeWalkClaims || []).some(cl => !cl.fulfilled) && (
+                            <div style={{ display: "inline-block", marginTop: "3px",
+                              background: "#fef2f2", border: "1px solid #fca5a5",
+                              borderRadius: "4px", padding: "1px 6px",
+                              fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                              fontWeight: 600, color: "#dc2626" }}>
+                              🎉 Free walk claim pending
+                            </div>
+                          )}
                         </div>
                         <div style={{ textAlign: "right", flexShrink: 0 }}>
                           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                             fontWeight: 600, color: "#C4541A" }}>${item.totalSpend}</div>
+                          {(item.c.savingsBalance || 0) > 0 && (
+                            <div style={{ fontSize: "13px", color: "#b45309", fontWeight: 600 }}>
+                              ${(item.c.savingsBalance).toFixed(2)} Bark Bucks
+                            </div>
+                          )}
                           <div style={{ fontSize: "14px", color: "#C4541A" }}>→ account</div>
                         </div>
                       </div>
@@ -2938,6 +2955,72 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                     </div>
                   ))}
                 </div>
+
+                {/* Bark Bucks & Free Walk Claims */}
+                {(() => {
+                  const savingsBalance = c.savingsBalance || 0;
+                  const allClaims = c.freeWalkClaims || [];
+                  const pendingClaims = allClaims.filter(cl => !cl.fulfilled);
+                  const fulfilledClaims = allClaims.filter(cl => cl.fulfilled);
+                  if (savingsBalance === 0 && allClaims.length === 0) return null;
+                  return (
+                    <div style={{ background: pendingClaims.length > 0 ? "#fffbeb" : "#fff",
+                      border: pendingClaims.length > 0 ? "1.5px solid #fcd34d" : "1.5px solid #e4e7ec",
+                      borderRadius: "14px", padding: "18px 20px", marginBottom: "12px" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "15px",
+                          letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af" }}>Bark Bucks</div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "18px",
+                          color: savingsBalance > 0 ? "#C4541A" : "#9ca3af" }}>
+                          ${savingsBalance.toFixed(2)} Bark Bucks
+                        </div>
+                      </div>
+                      {pendingClaims.length > 0 && (
+                        <div>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                            fontWeight: 600, color: "#b45309", marginBottom: "8px" }}>
+                            ⏳ {pendingClaims.length} pending free walk claim{pendingClaims.length > 1 ? "s" : ""}
+                          </div>
+                          {pendingClaims.map(cl => (
+                            <div key={cl.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                              background: "#fff", border: "1px solid #fcd34d", borderRadius: "10px",
+                              padding: "10px 14px", marginBottom: "8px" }}>
+                              <div>
+                                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600, color: "#111827" }}>
+                                  Free {cl.walkType} walk (${cl.amount})
+                                </div>
+                                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>
+                                  Claimed {new Date(cl.claimedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                </div>
+                              </div>
+                              <button onClick={() => {
+                                const updated = fulfillFreeWalkClaim(c, cl.id);
+                                const updatedClients = { ...clients, [selectedClientId]: updated };
+                                setClients(updatedClients);
+                                saveClients(updatedClients);
+                                logAuditEvent({ adminId: admin.id, adminName: admin.name, action: "free_walk_fulfilled",
+                                  entityType: "client", entityId: selectedClientId,
+                                  details: { clientName: c.name, walkType: cl.walkType, claimId: cl.id } });
+                              }} style={{
+                                padding: "8px 16px", borderRadius: "8px", border: "none",
+                                background: "#059669", color: "#fff",
+                                fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                                fontWeight: 700, cursor: "pointer",
+                              }}>
+                                Mark Fulfilled ✓
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {fulfilledClaims.length > 0 && (
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af", marginTop: "4px" }}>
+                          {fulfilledClaims.length} free walk{fulfilledClaims.length > 1 ? "s" : ""} fulfilled
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Edit / Save / Cancel bar */}
                 <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
