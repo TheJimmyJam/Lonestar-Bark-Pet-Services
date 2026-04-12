@@ -3,7 +3,6 @@ import { SERVICES } from "../../constants.js";
 import { saveClients, notifyAdmin } from "../../supabase.js";
 import { formatPhone, addrToString, addrFromString, emptyAddr, firstName } from "../../helpers.js";
 import AddressFields from "../shared/AddressFields.jsx";
-import PinPad from "../shared/PinPad.jsx";
 
 // ─── Client My Info Page ──────────────────────────────────────────────────────
 function MyInfoSection({ title, children }) {
@@ -42,9 +41,6 @@ function ClientMyInfoPage({ client, clients, setClients }) {
   });
 
   const [draft, setDraft] = useState(defaultDraft);
-  const [pinSection, setPinSection] = useState("idle");
-  const [pinError, setPinError] = useState("");
-  const [newPinTemp, setNewPinTemp] = useState("");
 
   // Dirty check — compare draft to live client
   const isDirty = useMemo(() => {
@@ -119,23 +115,6 @@ function ClientMyInfoPage({ client, clients, setClients }) {
     setShowUnsavedModal(false);
   };
 
-  const handlePinOld = (pin) => {
-    if (pin === client.pin) { setPinSection("enter-new"); setPinError(""); }
-    else { setPinError("Incorrect PIN. Try again."); setTimeout(() => setPinError(""), 100); }
-  };
-  const handlePinNew = (pin) => { setNewPinTemp(pin); setPinSection("confirm-new"); };
-  const handlePinConfirm = (pin) => {
-    if (pin === newPinTemp) {
-      const updated = { ...client, pin };
-      setClients({ ...clients, [clientPinKey]: updated });
-      saveClients({ ...clients, [clientPinKey]: updated });
-      setPinSection("done"); setPinError("");
-    } else {
-      setPinError("PINs don't match. Start over.");
-      setTimeout(() => setPinError(""), 100);
-      setNewPinTemp(""); setPinSection("enter-new");
-    }
-  };
 
   return (
     <div className="app-container fade-up">
@@ -332,61 +311,6 @@ function ClientMyInfoPage({ client, clients, setClients }) {
           onFocus={e => e.target.style.borderColor = green}
           onBlur={e => e.target.style.borderColor = "#d1d5db"} />
       </MyInfoSection>
-      <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
-        borderRadius: "14px", padding: "20px", marginBottom: "32px" }}>
-        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
-          fontSize: "15px", letterSpacing: "1.5px", textTransform: "uppercase",
-          color: "#9ca3af", marginBottom: "16px" }}>Change PIN</div>
-        {pinSection === "idle" && (
-          <button onClick={() => setPinSection("confirm-old")}
-            style={{ padding: "10px 20px", borderRadius: "10px", border: "1.5px solid #e4e7ec",
-              background: "#f9fafb", color: "#374151", fontFamily: "'DM Sans', sans-serif",
-              fontSize: "15px", fontWeight: 500, cursor: "pointer" }}>🔒 Change my PIN</button>
-        )}
-        {pinSection === "confirm-old" && (
-          <div className="fade-up">
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280", marginBottom: "20px" }}>
-              Enter your current PIN to continue.
-            </p>
-            <PinPad label="Current PIN" onComplete={handlePinOld} error={pinError} color={green} />
-            <button onClick={() => { setPinSection("idle"); setPinError(""); }}
-              style={{ marginTop: "16px", background: "none", border: "none", color: "#9ca3af",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "16px", cursor: "pointer",
-                display: "block", width: "100%", textAlign: "center" }}>Cancel</button>
-          </div>
-        )}
-        {pinSection === "enter-new" && (
-          <div className="fade-up">
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280", marginBottom: "20px" }}>
-              Choose a new 6-digit PIN.
-            </p>
-            <PinPad label="New PIN" onComplete={handlePinNew} error={pinError} color={green} />
-          </div>
-        )}
-        {pinSection === "confirm-new" && (
-          <div className="fade-up">
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280", marginBottom: "20px" }}>
-              Enter your new PIN one more time to confirm.
-            </p>
-            <PinPad label="Confirm New PIN" onComplete={handlePinConfirm} error={pinError} color={green} />
-          </div>
-        )}
-        {pinSection === "done" && (
-          <div className="fade-up" style={{ display: "flex", alignItems: "center", gap: "10px",
-            background: "#FDF5EC", border: "1.5px solid #D4A87A", borderRadius: "10px", padding: "12px 16px" }}>
-            <span style={{ fontSize: "18px" }}>✓</span>
-            <div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-                fontSize: "15px", color: green }}>PIN updated successfully.</div>
-              <button onClick={() => setPinSection("idle")}
-                style={{ background: "none", border: "none", color: "#9ca3af",
-                  fontFamily: "'DM Sans', sans-serif", fontSize: "16px", cursor: "pointer", padding: 0, marginTop: "4px" }}>
-                Change again
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

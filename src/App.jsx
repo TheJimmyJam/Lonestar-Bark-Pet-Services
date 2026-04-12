@@ -94,23 +94,18 @@ export default function LonestarBark() {
 
       Promise.all([loadClients(), loadWalkerProfiles(), loadTrades(), loadInvoicesFromDB(), loadAdminList()]).then(async ([c, wp, tr, invRows, admins]) => {
         injectCustomWalkers(wp);
-        const extended = extendRecurringBookings(c);
-        if (extended !== c) saveClients(extended);
-        const withInvoices = mergeInvoicesIntoClients(extended, invRows);
-        setClients(withInvoices);
-        setWalkerProfiles(wp);
-        setTrades(tr);
-        setAdminList(admins);
 
-        const returningClient = withInvoices[bookingClientId] || withInvoices[returnClientId];
-        if (returningClient) {
-          // Mark matching bookings as confirmed and store stripeSessionId.
-          // Only stamp paidAt when sessionId is present — if Stripe somehow
-          // returns without a session_id in the URL, don't record a paidAt we
-          // can't link to Stripe (which would cause ghost refund emails on cancel).
-          const keysToConfirm = pendingKeys.length > 0 ? pendingKeys : [bookingKey];
-          const confirmedNew = (returningClient.bookings || []).filter(b => keysToConfirm.includes(b.key));
-          const confirmedBookings = (returningClient.bookings || []).map(b =>
+        // ── Stamp paidAt + stripeSessionId on raw DB data BEFORE extendRecurringBookings ──
+        // extendRecurringBookings calls applySameDayDiscount, which checks
+        // `alreadyPaid = !!(stripeSessionId && paidAt)` to decide whether to lock a
+        // booking's price. If we confirm AFTER that call, the discount gets stripped
+        // and the invoice shows the pre-discount price instead of what Stripe charged.
+        const keysToConfirm = pendingKeys.length > 0 ? pendingKeys : [bookingKey];
+        const pinKey = bookingClientId || returnClientId;
+        const rawReturningClient = c[bookingClientId] || c[returnClientId];
+        let cWithConfirmed = c;
+        if (rawReturningClient) {
+          const preConfirmedBookings = (rawReturningClient.bookings || []).map(b =>
             keysToConfirm.includes(b.key)
               ? {
                   ...b,
@@ -121,16 +116,27 @@ export default function LonestarBark() {
                 }
               : b
           );
+          cWithConfirmed = { ...c, [pinKey]: { ...rawReturningClient, bookings: preConfirmedBookings } };
+        }
+
+        const extended = extendRecurringBookings(cWithConfirmed);
+        if (extended !== cWithConfirmed) saveClients(extended);
+        const withInvoices = mergeInvoicesIntoClients(extended, invRows);
+        setClients(withInvoices);
+        setWalkerProfiles(wp);
+        setTrades(tr);
+        setAdminList(admins);
+
+        const returningClient = withInvoices[bookingClientId] || withInvoices[returnClientId];
+        if (returningClient) {
+          // Booking already confirmed in pre-confirmation step above.
+          // Build confirmedNew list for walker notifications.
+          const confirmedNew = (returningClient.bookings || []).filter(b => keysToConfirm.includes(b.key));
 
           // Stripe-paid receipts live on the booking itself (stripeSessionId + paidAt).
           // No separate invoice DB record needed — ClientInvoicesPage reads from bookings directly.
-          const confirmedClient = {
-            ...returningClient,
-            bookings: confirmedBookings,
-          };
-          // Use PIN as the map key — clients map is always keyed by PIN
-          const pinKey = bookingClientId || returnClientId;
-          const updatedClients = { ...withInvoices, [pinKey]: confirmedClient };
+          const confirmedClient = returningClient; // already has paidAt + stripeSessionId
+          const updatedClients = { ...withInvoices };
           setClients(updatedClients);
           try { await saveClients(updatedClients); } catch (e) { console.error("Failed to confirm booking:", e); }
 
