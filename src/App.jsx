@@ -426,6 +426,16 @@ export default function LonestarBark() {
         setActiveUser(existing);
         setPendingRegistration(null);
       } else {
+        // No client row found. Before showing the registration form, verify
+        // the auth user actually still exists server-side. A deleted user can
+        // still have a cached token in localStorage that passes getSession().
+        const { error: userErr } = await supabase.auth.getUser();
+        if (cancelled) return;
+        if (userErr) {
+          // Stale / invalid session — silently sign out and return to landing.
+          await supabase.auth.signOut();
+          return;
+        }
         // Fresh signup (usually Google OAuth) — show name/pets form.
         setSelectedRole("customer");
         setShowApp(true);
