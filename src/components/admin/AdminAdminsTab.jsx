@@ -36,7 +36,6 @@ function AdminAdminsTab({ admin, adminList, setAdminList, clients, setClients, w
       id: `admin-${Date.now()}`,
       name: "",
       email: e,
-      pin: "",
       status: "invited",
       invitedBy: admin.email,
       createdAt: new Date().toISOString(),
@@ -45,6 +44,19 @@ function AdminAdminsTab({ admin, adminList, setAdminList, clients, setClients, w
     try {
       await saveAdminList(updated);
       setAdminList(updated);
+      // Send Supabase invite email so they can set their password
+      try {
+        await fetch(`https://mvkmxmhsudqwxrsiifms.supabase.co/functions/v1/admin-invite`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12a214bWhzdWRxd3hyc2lpZm1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTEyMDIsImV4cCI6MjA5MTAyNzIwMn0.dP6PunUbTuuNs3K4CFBVmP8hmV29MBFActwemoDysxk`,
+          },
+          body: JSON.stringify({ email: e }),
+        });
+      } catch {
+        // Non-fatal — admin is saved, email delivery may still work
+      }
       setInvitedEmail(e);
       setInviteEmail("");
       setInviteError("");
@@ -155,7 +167,7 @@ function AdminAdminsTab({ admin, adminList, setAdminList, clients, setClients, w
           color: "#111827", marginBottom: "6px" }}>Invite a New Admin</div>
         <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
           marginBottom: "16px", lineHeight: "1.6" }}>
-          Enter their email address. They'll set up their name and PIN on first login.
+          Enter their email address. They'll receive an invite email with a link to set their password.
         </p>
         <div style={{ display: "flex", gap: "10px" }}>
           <input type="email" placeholder="newadmin@example.com" value={inviteEmail}
@@ -178,8 +190,8 @@ function AdminAdminsTab({ admin, adminList, setAdminList, clients, setClients, w
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
               fontWeight: 600, color: "#16a34a", marginBottom: "4px" }}>✓ Invite created!</div>
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#15803d" }}>
-              Share the admin portal URL with <strong>{invitedEmail}</strong>. When they enter their email,
-              they'll be guided through setting up their name and PIN.
+              An invite email has been sent to <strong>{invitedEmail}</strong>. They'll click the link
+              to set their password, then log in at the admin portal.
             </div>
           </div>
         )}

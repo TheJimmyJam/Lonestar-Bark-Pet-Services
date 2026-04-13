@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { sbFetch } from "../../supabase.js";
-import { formatPhone, emptyAddr, addrToString, addrFromString } from "../../helpers.js";
-import AddressFields from "../shared/AddressFields.jsx";
+import { supabase } from "../../supabase.js";
 
 // ─── Admin My Info Tab ────────────────────────────────────────────────────────
 function AdminMyInfo({ admin, setAdmin, adminList, setAdminList, onLogout }) {
@@ -19,37 +18,50 @@ function AdminMyInfo({ admin, setAdmin, adminList, setAdminList, onLogout }) {
   };
 
   // ── Edit My Info ──
-  const me = adminList.find(a => a.id === admin.id) || { name: admin.name, email: admin.email, pin: "" };
+  const me = adminList.find(a => a.id === admin.id) || { name: admin.name, email: admin.email };
   const [editing, setEditing]     = useState(false);
   const [draftName, setDraftName] = useState(me.name);
-  const [draftPin, setDraftPin]   = useState("");
-  const [draftPin2, setDraftPin2] = useState("");
   const [infoErrors, setInfoErrors] = useState({});
   const [infoSaved, setInfoSaved]   = useState(false);
 
   const handleSaveInfo = () => {
     const errs = {};
     if (!draftName.trim()) errs.name = "Name is required.";
-    if (draftPin) {
-      if (!/^\d{6}$/.test(draftPin)) errs.pin = "PIN must be exactly 6 digits.";
-      else if (draftPin !== draftPin2) errs.pin2 = "PINs don't match.";
-      else {
-        const dup = adminList.find(a => a.id !== admin.id && a.pin === draftPin && a.status === "active");
-        if (dup) errs.pin = "That PIN is already used by another admin.";
-      }
-    }
     if (Object.keys(errs).length) { setInfoErrors(errs); return; }
 
     const updated = adminList.map(a =>
-      a.id === admin.id
-        ? { ...a, name: draftName.trim(), ...(draftPin ? { pin: draftPin } : {}) }
-        : a
+      a.id === admin.id ? { ...a, name: draftName.trim() } : a
     );
     setAdminList(updated);
     setAdmin({ ...admin, name: draftName.trim() });
     setEditing(false);
-    setDraftPin(""); setDraftPin2(""); setInfoErrors({});
+    setInfoErrors({});
     setInfoSaved(true); setTimeout(() => setInfoSaved(false), 2500);
+  };
+
+  // ── Change Password ──
+  const [newPw, setNewPw]       = useState("");
+  const [newPw2, setNewPw2]     = useState("");
+  const [pwError, setPwError]   = useState("");
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwSaved, setPwSaved]   = useState(false);
+
+  const handleChangePassword = async () => {
+    setPwError("");
+    if (!newPw) { setPwError("Enter a new password."); return; }
+    if (newPw.length < 8) { setPwError("Password must be at least 8 characters."); return; }
+    if (newPw !== newPw2) { setPwError("Passwords don't match."); return; }
+    setPwLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPw });
+      if (error) { setPwError(error.message); return; }
+      setNewPw(""); setNewPw2("");
+      setPwSaved(true); setTimeout(() => setPwSaved(false), 3000);
+    } catch {
+      setPwError("Something went wrong. Please try again.");
+    } finally {
+      setPwLoading(false);
+    }
   };
 
   return (
@@ -73,7 +85,7 @@ function AdminMyInfo({ admin, setAdmin, adminList, setAdminList, onLogout }) {
             )}
           </div>
           {!editing && (
-            <button onClick={() => { setEditing(true); setDraftName(me.name); setDraftPin(""); setDraftPin2(""); setInfoErrors({}); }}
+            <button onClick={() => { setEditing(true); setDraftName(me.name); setInfoErrors({}); }}
               style={{ padding: "7px 14px", borderRadius: "8px", border: "1.5px solid #e4e7ec",
                 background: "#f9fafb", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                 color: "#374151", cursor: "pointer", fontWeight: 500 }}>
@@ -96,12 +108,6 @@ function AdminMyInfo({ admin, setAdmin, adminList, setAdminList, onLogout }) {
                 {me.email}
               </div>
             </div>
-            <div>
-              <div style={labelStyle}>PIN</div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#111827", letterSpacing: "6px" }}>
-                ••••
-              </div>
-            </div>
             {infoSaved && (
               <div style={{ color: "#16a34a", fontFamily: "'DM Sans', sans-serif",
                 fontSize: "15px", fontWeight: 500 }}>✓ Changes saved</div>
@@ -121,24 +127,6 @@ function AdminMyInfo({ admin, setAdmin, adminList, setAdminList, onLogout }) {
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                 color: "#6b7280", padding: "11px 0" }}>{me.email}</div>
             </div>
-            <div>
-              <label style={labelStyle}>New PIN (leave blank to keep current)</label>
-              <input type="password" inputMode="numeric" maxLength={6} placeholder="••••••" value={draftPin}
-                onChange={e => { setDraftPin(e.target.value.replace(/\D/g,"")); setInfoErrors(p => ({ ...p, pin: "" })); }}
-                style={{ ...iStyle(infoErrors.pin), letterSpacing: "8px", fontSize: "20px" }} />
-              {infoErrors.pin && <div style={{ color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "14px", marginTop: "4px" }}>{infoErrors.pin}</div>}
-            </div>
-            {draftPin && (
-              <div>
-                <label style={labelStyle}>Confirm New PIN</label>
-                <input type="password" inputMode="numeric" maxLength={6} placeholder="••••••" value={draftPin2}
-                  onChange={e => { setDraftPin2(e.target.value.replace(/\D/g,"")); setInfoErrors(p => ({ ...p, pin2: "" })); }}
-                  style={{ ...iStyle(infoErrors.pin2), letterSpacing: "8px", fontSize: "20px" }} />
-                {infoErrors.pin2 && <div style={{ color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
-                  fontSize: "14px", marginTop: "4px" }}>{infoErrors.pin2}</div>}
-              </div>
-            )}
             <div style={{ display: "flex", gap: "10px", marginTop: "4px" }}>
               <button onClick={handleSaveInfo} style={{ flex: 1, padding: "12px", borderRadius: "10px",
                 border: "none", background: amber, color: "#fff", fontFamily: "'DM Sans', sans-serif",
@@ -151,6 +139,57 @@ function AdminMyInfo({ admin, setAdmin, adminList, setAdminList, onLogout }) {
             </div>
           </div>
         )}
+      </div>
+
+      {/* ── Change Password card ── */}
+      <div style={{ background: "#fff", borderRadius: "16px", border: "1.5px solid #e4e7ec",
+        padding: "24px", marginBottom: "24px" }}>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+          textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600,
+          color: "#111827", marginBottom: "16px" }}>Change Password</div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div>
+            <label style={labelStyle}>New Password</label>
+            <input
+              type="password"
+              placeholder="At least 8 characters"
+              value={newPw}
+              onChange={e => { setNewPw(e.target.value); setPwError(""); }}
+              style={iStyle(!!pwError)}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Confirm New Password</label>
+            <input
+              type="password"
+              placeholder="Repeat password"
+              value={newPw2}
+              onChange={e => { setNewPw2(e.target.value); setPwError(""); }}
+              onKeyDown={e => e.key === "Enter" && handleChangePassword()}
+              style={iStyle(!!pwError)}
+            />
+          </div>
+
+          {pwError && (
+            <div style={{ color: "#ef4444", fontFamily: "'DM Sans', sans-serif", fontSize: "14px" }}>
+              {pwError}
+            </div>
+          )}
+          {pwSaved && (
+            <div style={{ color: "#16a34a", fontFamily: "'DM Sans', sans-serif",
+              fontSize: "15px", fontWeight: 500 }}>✓ Password updated</div>
+          )}
+
+          <button onClick={handleChangePassword} disabled={pwLoading} style={{
+            padding: "12px", borderRadius: "10px", border: "none",
+            background: amber, color: "#fff", fontFamily: "'DM Sans', sans-serif",
+            fontSize: "15px", fontWeight: 600, cursor: pwLoading ? "wait" : "pointer",
+            opacity: pwLoading ? 0.75 : 1,
+          }}>
+            {pwLoading ? "Saving…" : "Update Password"}
+          </button>
+        </div>
       </div>
 
     </div>

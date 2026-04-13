@@ -689,24 +689,6 @@ export default function LonestarBark() {
         onBackToLanding={() => { setSelectedRole(null); setShowApp(false); setShowLogin(false); }}
         adminList={adminList}
         setAdminList={(updated) => { setAdminList(updated); saveAdminList(updated); }}
-        onRequestPinReset={async (email) => {
-          const admin = adminList.find(a => a.email?.toLowerCase() === email.toLowerCase() && a.status === "active");
-          if (!admin) return false;
-          const code = String(Math.floor(100000 + Math.random() * 900000));
-          const expiry = Date.now() + 15 * 60 * 1000;
-          const updated = adminList.map(a => a.id === admin.id ? { ...a, resetCode: code, resetCodeExpiry: expiry } : a);
-          setAdminList(updated);
-          saveAdminList(updated);
-          await sendPinResetCode({ name: admin.name, email: admin.email, code });
-          return true;
-        }}
-        onVerifyPinReset={(email, code) => {
-          const admin = adminList.find(a => a.email?.toLowerCase() === email.toLowerCase() && a.status === "active");
-          if (!admin || !admin.resetCode) return false;
-          if (admin.resetCode !== code) return false;
-          if (Date.now() > admin.resetCodeExpiry) return false;
-          return true;
-        }}
       />
     );
     return (
