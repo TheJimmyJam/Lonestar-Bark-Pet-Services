@@ -68,7 +68,7 @@ const errStyle = { color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
   fontSize: "14px", marginBottom: "10px" };
 
 // ─── WalkerAuthScreen ─────────────────────────────────────────────────────────
-function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPassword, inviteEmail }) {
+function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPassword }) {
   const STORAGE_KEY = "dw_walker_email";
   const accentBlue  = "#3D6B7A";
 
@@ -83,14 +83,8 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPassword, inv
   const [formError, setFormError]       = useState("");
   const [isLoading, setIsLoading]       = useState(false);
 
-  // On mount: if arrived via invite link, jump straight to set-password;
-  // otherwise restore any saved email from a previous session.
+  // On mount: restore saved email from a previous session.
   useEffect(() => {
-    if (inviteEmail) {
-      setEmail(inviteEmail);
-      setStage("setpassword");
-      return;
-    }
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored && WALKER_CREDENTIALS[stored]) {
