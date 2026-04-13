@@ -2,10 +2,9 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { FULL_DAYS, SERVICES, SERVICE_SLOTS } from "../../constants.js";
 import { saveClients, loadAllWalkersAvailability } from "../../supabase.js";
 import Header from "../shared/Header.jsx";
-import { repriceWeekBookings } from "../../helpers.js";
 import {
   getWeekDates, parseDateLocal, getWeekBookingCountForOffset,
-  getSessionPrice, getPriceTier, applySameDayDiscount, firstName,
+  getSessionPrice, repriceWeekBookings, firstName,
 } from "../../helpers.js";
 
 // ─── Quick Rebook Banner ──────────────────────────────────────────────────────
@@ -131,7 +130,7 @@ function QuickRebookBanner({ client, service, myBookings, clients, setClients, o
           recurringId: rec.id,
         };
       });
-      const allBookings = applySameDayDiscount(repriceWeekBookings([...myBookings, ...newBookings]));
+      const allBookings = repriceWeekBookings([...myBookings, ...newBookings]);
       const updated = { ...client, bookings: allBookings };
       const updatedClients = { ...clients, [clientPinKey]: updated };
       setClients(updatedClients);

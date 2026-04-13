@@ -13,11 +13,12 @@ import {
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout,
+  PUNCH_CARD_GOAL,
   getCurrentWeekRange, getWeekRangeForOffset,
   getBookingWeekKey, getWeekBookingCountForOffset,
-  getPriceTier, getSessionPrice, getCancellationPolicy,
-  repriceWeekBookings, applySameDayDiscount,
-  revokeWalkSavings, fulfillFreeWalkClaim,
+  getSessionPrice, getCancellationPolicy,
+  repriceWeekBookings,
+  revokePunchCard, fulfillPunchCardClaim,
   getWeekDates, firstName, parseDateLocal, dateStrFromDate,
   fmt, formatPhone, addrToString, addrFromString, emptyAddr,
 } from "../../helpers.js";
@@ -284,11 +285,11 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
       const updatedClient = { ...c, bookings: updatedBookings };
       const next = spawnNextRecurringOccurrence(updatedClient, booking);
       if (next) {
-        updatedBookings = applySameDayDiscount(repriceWeekBookings([...updatedBookings, next]));
+        updatedBookings = repriceWeekBookings([...updatedBookings, next]);
       }
     }
 
-    // Bark Bucks are awarded at payment time (Stripe return), not on walk completion.
+    // Punch card punches are awarded at payment time (Stripe return), not on walk completion.
     const updatedClients = { ...clients, [clientId]: { ...c, bookings: updatedBookings } };
     setClients(updatedClients);
     saveClients(updatedClients);
@@ -318,8 +319,8 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
         ? { ...b, adminCompleted: false, completedAt: undefined, walkerMarkedComplete: false }
         : b
     );
-    // Bark Bucks are NOT revoked on undo-complete — they were earned at payment time.
-    // Bark Bucks are only revoked if the booking is cancelled.
+    // Punch card punches are NOT revoked on undo-complete — they were earned at payment time.
+    // Punches are only revoked if the booking is cancelled.
     const updatedClients = { ...clients, [clientId]: { ...c, bookings: updatedBookings } };
     setClients(updatedClients);
     saveClients(updatedClients);
@@ -762,9 +763,9 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                         <div style={{ textAlign: "right", flexShrink: 0 }}>
                           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                             fontWeight: 600, color: "#C4541A" }}>${item.totalSpend}</div>
-                          {(item.c.savingsBalance || 0) > 0 && (
+                          {(item.c.punchCardCount || 0) > 0 && (
                             <div style={{ fontSize: "13px", color: "#b45309", fontWeight: 600 }}>
-                              ${(item.c.savingsBalance).toFixed(2)} Bark Bucks
+                              🥊 {item.c.punchCardCount}/{PUNCH_CARD_GOAL} punches
                             </div>
                           )}
                           <div style={{ fontSize: "14px", color: "#C4541A" }}>→ account</div>
@@ -1602,7 +1603,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                         borderRadius: "10px", border: "1px solid #E8D0E0",
                         fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                         color: "#7A4D6E", lineHeight: "1.5" }}>
-                        ⚠️ Estimates based on booked prices. Cancellations, reschedules, and same-day discounts may affect final figures.
+                        ⚠️ Estimates based on booked prices. Cancellations and reschedules may affect final figures.
                       </div>
                     </div>
                   );
@@ -2966,23 +2967,23 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                   ))}
                 </div>
 
-                {/* Bark Bucks & Free Walk Claims */}
+                {/* Punch Card & Free Walk Claims */}
                 {(() => {
-                  const savingsBalance = c.savingsBalance || 0;
+                  const punchCount = c.punchCardCount || 0;
                   const allClaims = c.freeWalkClaims || [];
                   const pendingClaims = allClaims.filter(cl => !cl.fulfilled);
                   const fulfilledClaims = allClaims.filter(cl => cl.fulfilled);
-                  if (savingsBalance === 0 && allClaims.length === 0) return null;
+                  if (punchCount === 0 && allClaims.length === 0) return null;
                   return (
                     <div style={{ background: pendingClaims.length > 0 ? "#fffbeb" : "#fff",
                       border: pendingClaims.length > 0 ? "1.5px solid #fcd34d" : "1.5px solid #e4e7ec",
                       borderRadius: "14px", padding: "18px 20px", marginBottom: "12px" }}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "15px",
-                          letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af" }}>Bark Bucks</div>
+                          letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af" }}>🥊 Punch Card</div>
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "18px",
-                          color: savingsBalance > 0 ? "#C4541A" : "#9ca3af" }}>
-                          ${savingsBalance.toFixed(2)} Bark Bucks
+                          color: punchCount >= PUNCH_CARD_GOAL ? "#059669" : "#C4541A" }}>
+                          {punchCount} / {PUNCH_CARD_GOAL} punches
                         </div>
                       </div>
                       {pendingClaims.length > 0 && (
@@ -2997,20 +2998,20 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                               padding: "10px 14px", marginBottom: "8px" }}>
                               <div>
                                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600, color: "#111827" }}>
-                                  Free {cl.walkType} walk (${cl.amount})
+                                  Free 60-min walk
                                 </div>
                                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>
                                   Claimed {new Date(cl.claimedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                                 </div>
                               </div>
                               <button onClick={() => {
-                                const updated = fulfillFreeWalkClaim(c, cl.id);
+                                const updated = fulfillPunchCardClaim(c, cl.id);
                                 const updatedClients = { ...clients, [selectedClientId]: updated };
                                 setClients(updatedClients);
                                 saveClients(updatedClients);
                                 logAuditEvent({ adminId: admin.id, adminName: admin.name, action: "free_walk_fulfilled",
                                   entityType: "client", entityId: selectedClientId,
-                                  details: { clientName: c.name, walkType: cl.walkType, claimId: cl.id } });
+                                  details: { clientName: c.name, walkType: "60 min", claimId: cl.id } });
                               }} style={{
                                 padding: "8px 16px", borderRadius: "8px", border: "none",
                                 background: "#059669", color: "#fff",
@@ -3499,9 +3500,9 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                           ),
                           recurringSchedules: [],
                         };
-                        // Revoke Bark Bucks for every booking being cancelled now
+                        // Revoke punch card punches for every booking being cancelled now
                         for (const b of bookingsToCancel) {
-                          deletedClientRecord = revokeWalkSavings(deletedClientRecord, b.key);
+                          deletedClientRecord = revokePunchCard(deletedClientRecord, b.key);
                         }
                         const updatedClients = {
                           ...clients,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ADD_ONS, PRICING_TIERS, SERVICES, WALKER_SERVICES } from "../constants.js";
+import { ADD_ONS, SERVICES, WALKER_SERVICES } from "../constants.js";
 import { firstName } from "../helpers.js";
 import { saveContactSubmission } from "../supabase.js";
 import LogoBadge from "./shared/LogoBadge.jsx";
@@ -12,7 +12,6 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
   const [navScrolled, setNavScrolled] = useState(false);
   const [landingMenuOpen, setLandingMenuOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(null); // index of open FAQ item
-  const [expandedTier, setExpandedTier] = useState(null); // index of expanded pricing card on mobile
   const [expandedService, setExpandedService] = useState(null); // index of expanded service card on mobile
   const [lpMobile, setLpMobile] = useState(typeof window !== "undefined" && window.innerWidth < 768);
   useEffect(() => {
@@ -463,169 +462,48 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             fontWeight: 600, color: "#111827", marginBottom: "12px" }}>Transparent Pricing</div>
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
             lineHeight: "1.7", maxWidth: "540px", margin: "0 auto 48px" }}>
-            The more you book, the less you pay — and your whole week reprices when you unlock a new tier.
+            Simple, flat pricing — no tiers, no surprises. Every walk counts toward your punch card.
           </p>
 
           {/* Pricing cards */}
-          {(() => {
-            // All tiers charge flat $30/$45. Tiers now earn walk credits per completed session.
-            const tiers = [
-              { label: "Easy Rider", freq: "1× per week", badge: null, badgeColor: null,
-                price30: 30, price60: 45, credit30: null, credit60: null,
-                bannerBg: "#f5f6f8", bannerFg: "#9ca3af",
-                cardBorder: "#e4e7ec", cardBg: "#fff",
-                nameFg: "#6b7280", lineFg: "#f3f4f6",
-                durationFg: "#9ca3af", priceFg: "#111827", creditFg: null },
-              { label: "Steady Stroll", freq: "3× per week", badge: "POPULAR", badgeColor: "#C4541A",
-                price30: 30, price60: 45, credit30: "+$2.50 Bark Bucks", credit60: "+$2.50 Bark Bucks",
-                bannerBg: "#C4541A", bannerFg: "#fff",
-                cardBorder: "#1A1A1A", cardBg: "#1A1A1A",
-                nameFg: "rgba(255,255,255,0.5)", lineFg: "rgba(255,255,255,0.1)",
-                durationFg: "rgba(255,255,255,0.35)", priceFg: "#fff", creditFg: "#C4541A" },
-              { label: "Full Gallop", freq: "5× per week", badge: "BEST VALUE", badgeColor: "#3D6B7A",
-                price30: 30, price60: 45, credit30: "+$5.00 Bark Bucks", credit60: "+$5.00 Bark Bucks",
-                bannerBg: "#3D6B7A", bannerFg: "#fff",
-                cardBorder: "#3D6B7A", cardBg: "#fff",
-                nameFg: "#6b7280", lineFg: "#f3f4f6",
-                durationFg: "#9ca3af", priceFg: "#111827", creditFg: "#3D6B7A" },
-            ];
-
-            const renderCardBody = (tier) => (
-              <div style={{ background: tier.cardBg, padding: "18px 18px 22px" }}>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", fontWeight: 600,
-                  letterSpacing: "0.12em", textTransform: "uppercase", color: tier.nameFg,
-                  marginBottom: "14px" }}>{tier.label}</div>
-                <div style={{ height: "0.5px", background: tier.lineFg, marginBottom: "14px" }} />
-                <div style={{ display: "flex", justifyContent: "space-between",
-                  alignItems: "center", padding: "5px 0" }}>
-                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
-                    color: tier.durationFg }}>30 min</span>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
-                      fontWeight: 500, color: tier.priceFg }}>${tier.price30.toFixed(2)}</span>
-                    {tier.credit30 && <span style={{ fontFamily: "'DM Sans', sans-serif",
-                      fontSize: "11px", fontWeight: 600, color: tier.creditFg }}>{tier.credit30}</span>}
-                  </div>
+          <div style={{ display: "flex", gap: "14px", justifyContent: "center",
+            marginBottom: "28px", flexWrap: "wrap" }}>
+            {[["30 min", 30], ["60 min", 45]].map(([dur, price]) => (
+              <div key={dur} style={{ flex: "1 1 180px", maxWidth: "240px",
+                background: "#fff", border: "2px solid #e4e7ec", borderRadius: "16px",
+                overflow: "hidden", textAlign: "center" }}>
+                <div style={{ background: "#1A1A1A", padding: "10px 16px" }}>
+                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px",
+                    fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase",
+                    color: "rgba(255,255,255,0.6)" }}>{dur}</span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between",
-                  alignItems: "center", padding: "5px 0" }}>
-                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
-                    color: tier.durationFg }}>60 min</span>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
-                      fontWeight: 500, color: tier.priceFg }}>${tier.price60.toFixed(2)}</span>
-                    {tier.credit60 && <span style={{ fontFamily: "'DM Sans', sans-serif",
-                      fontSize: "11px", fontWeight: 600, color: tier.creditFg }}>{tier.credit60}</span>}
-                  </div>
+                <div style={{ padding: "22px 18px 24px" }}>
+                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "36px",
+                    fontWeight: 700, color: "#C4541A" }}>${price}</span>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                    color: "#9ca3af", marginTop: "4px" }}>per session</div>
                 </div>
               </div>
-            );
+            ))}
+          </div>
 
-            const renderBanner = (tier) => (
-              <div style={{ background: tier.bannerBg, padding: "10px 16px",
-                display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px",
-                  fontWeight: 600, letterSpacing: "0.1em", color: tier.bannerFg }}>
-                  {tier.freq}
-                </span>
-                {tier.badge && (
-                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "9px",
-                    fontWeight: 600, letterSpacing: "0.1em", color: tier.bannerFg,
-                    background: "rgba(255,255,255,0.2)", padding: "2px 8px",
-                    borderRadius: "20px" }}>{tier.badge}</span>
-                )}
+          {/* Discounts & loyalty */}
+          <div style={{ display: "flex", gap: "12px", justifyContent: "center",
+            flexWrap: "wrap", marginBottom: "48px" }}>
+            {[
+              { icon: "🤝", label: "Meet & Greet Discount", desc: "20% off your first walk when booked during your M&G appointment." },
+              { icon: "🥊", label: "Punch Card", desc: "Every walk earns a punch. Buy 10 walks, get one free 60-minute walk." },
+            ].map(item => (
+              <div key={item.label} style={{ flex: "1 1 220px", maxWidth: "300px",
+                background: "#f9fafb", border: "1.5px solid #e4e7ec",
+                borderRadius: "14px", padding: "16px 18px", textAlign: "left" }}>
+                <div style={{ fontSize: "22px", marginBottom: "6px" }}>{item.icon}</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                  fontSize: "14px", color: "#111827", marginBottom: "4px" }}>{item.label}</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                  color: "#6b7280", lineHeight: "1.5" }}>{item.desc}</div>
               </div>
-            );
-
-            /* ── Desktop: normal 3-col grid ── */
-            if (!lpMobile) return (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px", marginBottom: "28px" }}>
-                {tiers.map(tier => (
-                  <div key={tier.label} style={{ borderRadius: "16px", overflow: "hidden",
-                    border: `2px solid ${tier.cardBorder}` }}>
-                    {renderBanner(tier)}
-                    {renderCardBody(tier)}
-                  </div>
-                ))}
-              </div>
-            );
-
-            /* ── Mobile: stacked overlapping cards ── */
-            const COLLAPSED_PEEK = 52; // height of the peeking banner strip
-            return (
-              <div style={{ position: "relative", marginBottom: "28px",
-                height: expandedTier !== null
-                  ? undefined  // auto height when one is expanded
-                  : `${COLLAPSED_PEEK * tiers.length + 16}px`,
-                transition: "height 0.3s ease" }}>
-                {tiers.map((tier, i) => {
-                  const isExpanded = expandedTier === i;
-                  const isOther = expandedTier !== null && expandedTier !== i;
-                  return (
-                    <div key={tier.label}
-                      onClick={() => setExpandedTier(isExpanded ? null : i)}
-                      style={{
-                        position: expandedTier === null ? "absolute" : "relative",
-                        top: expandedTier === null ? `${i * COLLAPSED_PEEK}px` : undefined,
-                        left: 0, right: 0,
-                        borderRadius: "16px", overflow: "hidden",
-                        border: `2px solid ${tier.cardBorder}`,
-                        cursor: "pointer",
-                        zIndex: isExpanded ? 10 : tiers.length - i,
-                        boxShadow: isExpanded
-                          ? "0 8px 32px rgba(0,0,0,0.18)"
-                          : "0 2px 8px rgba(0,0,0,0.08)",
-                        transition: "all 0.3s ease",
-                        display: isOther ? "block" : "block",
-                        marginBottom: expandedTier !== null ? (isOther ? "0px" : "12px") : 0,
-                        maxHeight: isOther ? `${COLLAPSED_PEEK}px` : "500px",
-                        opacity: 1,
-                      }}>
-                      {/* Banner — always visible as the peek strip */}
-                      <div style={{ background: tier.bannerBg, padding: "10px 16px",
-                        display: "flex", justifyContent: "space-between", alignItems: "center",
-                        minHeight: `${COLLAPSED_PEEK - 4}px`, boxSizing: "border-box" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-                            fontWeight: 700, letterSpacing: "0.08em", color: tier.bannerFg }}>
-                            {tier.label}
-                          </span>
-                          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px",
-                            fontWeight: 500, color: tier.bannerFg, opacity: 0.7 }}>
-                            {tier.freq}
-                          </span>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          {tier.badge && (
-                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "9px",
-                              fontWeight: 600, letterSpacing: "0.1em", color: tier.bannerFg,
-                              background: "rgba(255,255,255,0.2)", padding: "2px 8px",
-                              borderRadius: "20px" }}>{tier.badge}</span>
-                          )}
-                          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                            color: tier.bannerFg, transition: "transform 0.3s ease",
-                            transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-                            lineHeight: 1 }}>▾</span>
-                        </div>
-                      </div>
-                      {/* Card body — slides open */}
-                      <div style={{
-                        maxHeight: isExpanded ? "300px" : "0px",
-                        overflow: "hidden",
-                        transition: "max-height 0.3s ease",
-                      }}>
-                        {renderCardBody(tier)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
-
-          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af",
-            letterSpacing: "0.05em", marginBottom: "48px" }}>
-            Pricing resets weekly · Whole week reprices when you unlock a new tier
+            ))}
           </div>
 
           <button onClick={onSignUp} className="lp-cta-btn" style={{

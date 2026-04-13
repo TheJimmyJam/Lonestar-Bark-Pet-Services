@@ -1,6 +1,6 @@
 import { FULL_DAYS, SERVICES, SERVICE_SLOTS } from "../constants.js";
 import { saveClients } from "../supabase.js";
-import { applySameDayDiscount, getPriceTier, getSessionPrice, getWeekBookingCountForOffset, getWeekDates, getWeekRangeForOffset, repriceWeekBookings } from "../helpers.js";
+import { getSessionPrice, getWeekBookingCountForOffset, getWeekDates, getWeekRangeForOffset, repriceWeekBookings } from "../helpers.js";
 
 // ─── Generate concrete booking entries from recurring schedules ───────────────
 // ─── Generate concrete booking entries from recurring schedules ───────────────
@@ -116,7 +116,7 @@ function extendRecurringBookings(clients) {
 
     if (newBookings.length > 0) {
       changed = true;
-      const merged = applySameDayDiscount(repriceWeekBookings([...(c.bookings || []), ...newBookings]));
+      const merged = repriceWeekBookings([...(c.bookings || []), ...newBookings]);
       updated[id] = { ...c, bookings: merged };
     } else {
       updated[id] = c;

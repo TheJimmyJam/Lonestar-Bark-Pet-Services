@@ -14,8 +14,8 @@ import {
   effectivePrice, getWalkerPayout,
   getCurrentWeekRange, getWeekRangeForOffset,
   getBookingWeekKey, getWeekBookingCountForOffset,
-  getPriceTier, getSessionPrice, getCancellationPolicy,
-  repriceWeekBookings, applySameDayDiscount,
+  getSessionPrice, getCancellationPolicy,
+  repriceWeekBookings,
   getWeekDates, firstName, parseDateLocal, dateStrFromDate,
   fmt, formatPhone, addrToString, addrFromString, emptyAddr, toDateKey,
 } from "../../helpers.js";
@@ -341,7 +341,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
       const updatedClient = { ...clientRecord, bookings: updatedBookings };
       const next = spawnNextRecurringOccurrence(updatedClient, targetBooking);
       if (next) {
-        updatedBookings = applySameDayDiscount(repriceWeekBookings([...updatedBookings, next]));
+        updatedBookings = repriceWeekBookings([...updatedBookings, next]);
       }
     }
 
@@ -373,7 +373,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
         const updatedClient = { ...clientRecord, bookings: updatedBookings };
         const next = spawnNextRecurringOccurrence(updatedClient, targetBooking);
         if (next) {
-          updatedBookings = applySameDayDiscount(repriceWeekBookings([...updatedBookings, next]));
+          updatedBookings = repriceWeekBookings([...updatedBookings, next]);
         }
       }
       updated[clientId] = { ...clientRecord, bookings: updatedBookings };

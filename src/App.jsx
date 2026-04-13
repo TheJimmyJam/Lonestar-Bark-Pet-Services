@@ -21,7 +21,7 @@ import AdminDashboard from "./components/admin/AdminDashboard.jsx";
 import CustomerErrorBoundary from "./components/ErrorBoundary.jsx";
 import { generateRecurringBookings, extendRecurringBookings } from "./components/recurring.js";
 import HandoffFlow from "./components/HandoffFlow.jsx";
-import { addrFromString, applySameDayDiscount, awardWalkSavings, dateStrFromDate, getSessionPrice, repriceWeekBookings } from "./helpers.js";
+import { addrFromString, awardPunchCard, dateStrFromDate, getSessionPrice } from "./helpers.js";
 import { SUPABASE_URL, notifyAdmin, updateInvoiceInDB, sendWelcomeEmail, sendInvoicePaidEmail, sendPinResetCode, createRefund, sendBookingConfirmation, sendWalkerBookingNotification, createBookingCheckout, authOnChange, authGetSession, authSignOut, loadClientByUserId, synthPinFromUserId } from "./supabase.js";
 import PasswordResetScreen from "./components/auth/PasswordResetScreen.jsx";
 import OfflineBanner from "./components/shared/OfflineBanner.jsx";
@@ -96,10 +96,8 @@ export default function LonestarBark() {
         injectCustomWalkers(wp);
 
         // ── Stamp paidAt + stripeSessionId on raw DB data BEFORE extendRecurringBookings ──
-        // extendRecurringBookings calls applySameDayDiscount, which checks
-        // `alreadyPaid = !!(stripeSessionId && paidAt)` to decide whether to lock a
-        // booking's price. If we confirm AFTER that call, the discount gets stripped
-        // and the invoice shows the pre-discount price instead of what Stripe charged.
+        // extendRecurringBookings reprices flat-rate bookings.
+        // Confirm payments before this call so Stripe-paid prices are locked first.
         const keysToConfirm = pendingKeys.length > 0 ? pendingKeys : [bookingKey];
         const pinKey = bookingClientId || returnClientId;
         const rawReturningClient = c[bookingClientId] || c[returnClientId];
@@ -136,14 +134,14 @@ export default function LonestarBark() {
           // Stripe-paid receipts live on the booking itself (stripeSessionId + paidAt).
           // No separate invoice DB record needed — ClientInvoicesPage reads from bookings directly.
 
-          // Award Bark Bucks for each confirmed (paid) booking — guarded against double-award.
-          let clientWithSavings = returningClient;
+          // Award a punch card punch for each confirmed (paid) booking — guarded against double-award.
+          let clientWithPunches = returningClient;
           for (const b of confirmedNew) {
-            clientWithSavings = awardWalkSavings(clientWithSavings, b);
+            clientWithPunches = awardPunchCard(clientWithPunches, b);
           }
 
-          const confirmedClient = clientWithSavings;
-          const updatedClients = { ...withInvoices, [pinKey]: clientWithSavings };
+          const confirmedClient = clientWithPunches;
+          const updatedClients = { ...withInvoices, [pinKey]: clientWithPunches };
           setClients(updatedClients);
           try { await saveClients(updatedClients); } catch (e) { console.error("Failed to confirm booking:", e); }
 
@@ -533,12 +531,12 @@ export default function LonestarBark() {
         bookedAt: new Date().toISOString(),
         scheduledDateTime: apptDate.toISOString(),
         additionalDogCount: 0, additionalDogCharge: 0,
-        price: Math.round(getSessionPrice(fw.duration, 1) * 0.8),
-        priceBeforeSameDayDiscount: getSessionPrice(fw.duration, 1),
+        price: Math.round(getSessionPrice(fw.duration) * 0.8),
+        priceBeforeSameDayDiscount: getSessionPrice(fw.duration),
         sameDayDiscount: true,
-        priceTier: "Easy Rider", isFirstWalk: true, status: "pending_payment",
+        isFirstWalk: true, status: "pending_payment",
       };
-      bookings = applySameDayDiscount(repriceWeekBookings([...bookings, followOnBooking]));
+      bookings = [...bookings, followOnBooking];
     }
     const updated = {
       ...client, handoffDone: true, handoffConfirmed: false, handoffInfo: handoffData, bookings,

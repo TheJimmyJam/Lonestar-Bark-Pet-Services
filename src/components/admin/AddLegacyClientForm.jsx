@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { SERVICES, SERVICE_SLOTS, DAYS } from "../../constants.js";
 import { saveClients, notifyAdmin, logAuditEvent } from "../../supabase.js";
-import { addrToString, applySameDayDiscount, emptyAddr, firstName, fmt, formatPhone, generateCode, repriceWeekBookings } from "../../helpers.js";
+import { addrToString, emptyAddr, firstName, fmt, formatPhone, generateCode, repriceWeekBookings } from "../../helpers.js";
 import AddressFields from "../shared/AddressFields.jsx";
 import { getAllWalkers } from "../auth/WalkerAuthScreen.jsx";
 import { generateRecurringBookings } from "../recurring.js";
@@ -143,7 +143,7 @@ function AddLegacyClientForm({ clients, setClients, onDone, walkerProfiles = {},
     // Generate concrete upcoming bookings from recurring schedules
     if (recurringSchedules.length > 0) {
       const recurringBookings = generateRecurringBookings(recurringSchedules, newClient);
-      newClient.bookings = applySameDayDiscount(repriceWeekBookings(recurringBookings));
+      newClient.bookings = repriceWeekBookings(recurringBookings);
     }
 
     const updated = { ...clients, [newClient.id]: newClient };

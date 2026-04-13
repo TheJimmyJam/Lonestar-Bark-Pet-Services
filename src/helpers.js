@@ -10,16 +10,9 @@ function effectivePrice(b) {
   return Math.max(0, base - b.adminDiscount.amount);
 }
 
-// Walker payout: flat rates based on duration and pricing tier
+// Walker payout: flat rates based on duration
 function getWalkerPayout(b) {
-  const duration = b.slot?.duration || "30 min";
-  const tier = b.priceTier || "Easy Rider";
-  const is60 = duration === "60 min";
-  // Full Gallop (5x/week) gets slightly lower flat rate
-  if (tier === "Full Gallop") {
-    return is60 ? 32 : 18;
-  }
-  // Easy Rider and Steady Stroll
+  const is60 = (b.slot?.duration || "30 min") === "60 min";
   return is60 ? 35 : 20;
 }
 
@@ -30,22 +23,10 @@ function toDateKey(date) {
 
 // ─── Pricing Helpers ──────────────────────────────────────────────────────────
 // Flat base prices — every walk charges the same rate regardless of weekly frequency.
-// Tiers now determine savings CREDITS earned per completed walk, not live price.
 const BASE_PRICES = { "30 min": 30, "60 min": 45 };
 
-// FREE WALK thresholds: $30 saved → free 30-min walk, $45 saved → free 60-min walk
-const FREE_WALK_THRESHOLDS = { "30 min": 30, "60 min": 45 };
-
-// Savings credits earned per completed walk, based on weekly booking frequency.
-// Credits accumulate on the client account and can be redeemed for free walks.
-const SAVINGS_TIERS = [
-  { minBookings: 5, label: "Full Gallop",   creditPer30: 5.00, creditPer60: 5.00 },
-  { minBookings: 3, label: "Steady Stroll", creditPer30: 2.50, creditPer60: 2.50 },
-  { minBookings: 1, label: "Easy Rider",    creditPer30: 0,    creditPer60: 0    },
-];
-
-// PRICE_TIERS kept for backward compatibility — prices are now flat for all tiers.
-const PRICE_TIERS = SAVINGS_TIERS.map(t => ({ ...t, prices: { ...BASE_PRICES } }));
+// Punch card loyalty: buy 10 walks (any length), get one free 60-min walk.
+const PUNCH_CARD_GOAL = 10;
 
 function getCurrentWeekRange() {
   const today = new Date();
@@ -93,24 +74,7 @@ function getWeekBookingCountForOffset(bookings, weekOffset) {
   }).length;
 }
 
-function getPriceTier(weekCount) {
-  return PRICE_TIERS.find(t => weekCount >= t.minBookings) || PRICE_TIERS[2];
-}
-
-// Returns the savings tier (for credit calculation) based on weekly walk count
-function getSavingsTier(weekCount) {
-  return SAVINGS_TIERS.find(t => weekCount >= t.minBookings) || SAVINGS_TIERS[2];
-}
-
-// How much savings credit a completed walk earns, given its week's total walk count
-function getWalkSavingsCredit(booking, weeklyWalkCount) {
-  const tier = getSavingsTier(weeklyWalkCount);
-  const is60 = (booking.slot?.duration || "30 min") === "60 min";
-  return is60 ? tier.creditPer60 : tier.creditPer30;
-}
-
 function getSessionPrice(duration) {
-  // All walks now charge flat rate — frequency no longer affects live price
   return BASE_PRICES[duration] || BASE_PRICES["30 min"];
 }
 
@@ -124,198 +88,70 @@ function getCancellationPolicy(scheduledDateTime) {
   return { penalty: 1.0, label: "Appointment passed", color: "#9ca3af", canCancel: false };
 }
 
-// repriceWeekBookings — groups bookings by week and sets the savings tier label on each.
-// Prices are now FLAT ($30/$45) regardless of tier — the tier label is preserved only
-// so we know how many credits to award when a walk is completed.
+// repriceBookings — ensures every unpaid, non-completed booking has the correct flat price.
+// Meet & greet discounted bookings (sameDayDiscount flag) are left untouched —
+// their 20% off is intentional and was set at booking time.
 function repriceWeekBookings(bookings) {
-  const byWeek = {};
-  bookings.forEach((b, i) => {
-    if (b.cancelled) return;
-    const d = new Date(b.scheduledDateTime || b.bookedAt);
-    if (isNaN(d)) return;
-    const dow = d.getDay();
-    const off = dow === 0 ? -6 : 1 - dow;
-    const mon = new Date(d);
-    mon.setDate(d.getDate() + off);
-    mon.setHours(0, 0, 0, 0);
-    const key = mon.toISOString().slice(0, 10);
-    if (!byWeek[key]) byWeek[key] = [];
-    byWeek[key].push(i);
+  return bookings.map(b => {
+    if (b.cancelled || b.adminCompleted || b.stripeSessionId || b.sameDayDiscount) return b;
+    const duration = b.slot?.duration || "30 min";
+    const basePrice = BASE_PRICES[duration] || BASE_PRICES["30 min"];
+    const dogCharge = (b.additionalDogCount || 0) * 10;
+    return { ...b, price: basePrice + dogCharge };
   });
-
-  const updated = [...bookings];
-  Object.values(byWeek).forEach(idxs => {
-    const count = idxs.length;
-    const savingsTier = getSavingsTier(count);
-    idxs.forEach(i => {
-      // Never reprice completed or Stripe-paid bookings — price is locked at what was charged
-      if (updated[i].adminCompleted || updated[i].stripeSessionId) return;
-      const duration = updated[i].slot?.duration || "30 min";
-      const basePrice = BASE_PRICES[duration] || BASE_PRICES["30 min"];
-      const dogCharge = (updated[i].additionalDogCount || 0) * 10;
-      // Price is flat — only priceTier label updates (used for savings credit calculation)
-      updated[i] = { ...updated[i], price: basePrice + dogCharge, priceTier: savingsTier.label, sameDayDiscount: false };
-    });
-  });
-  return updated;
 }
 
-function applySameDayDiscount(bookings) {
-  // Group active bookings by calendar date (YYYY-MM-DD of scheduledDateTime).
-  // Free appointments (price === 0 — e.g. meet & greet) are excluded from the
-  // count so they don't trigger the 2-appointment threshold on their own.
-  const byDate = {};
-  bookings.forEach((b, i) => {
-    if (b.cancelled || !b.scheduledDateTime) return;
-    if ((b.price ?? 0) <= 0) return;
-    const dateKey = b.scheduledDateTime.slice(0, 10);
-    if (!byDate[dateKey]) byDate[dateKey] = [];
-    byDate[dateKey].push(i);
-  });
-  const updated = [...bookings];
+// ─── Punch Card Helpers ───────────────────────────────────────────────────────
+// Loyalty program: every paid walk earns 1 punch. After 10 punches the client
+// can claim one free 60-minute walk. Punches are stored in punchCardHistory so
+// we can de-duplicate and revoke if a booking is cancelled.
 
-  // First pass: strip same-day discounts from UNPAID bookings only so we get
-  // their clean base price. Never touch already-Stripe-paid bookings — their
-  // price is locked at what Stripe charged.
-  updated.forEach((b, i) => {
-    const alreadyPaid = !!(b.stripeSessionId && b.paidAt);
-    if (!alreadyPaid && b.sameDayDiscount && b.priceBeforeSameDayDiscount != null) {
-      updated[i] = {
-        ...b,
-        price: b.priceBeforeSameDayDiscount,
-        priceBeforeSameDayDiscount: undefined,
-        sameDayDiscount: false,
-      };
-    }
-  });
-
-  // Second pass: apply discount logic to days with 2+ active bookings
-  Object.values(byDate).forEach(idxs => {
-    if (idxs.length < 2) return;
-
-    const paidIdxs   = idxs.filter(i =>  (updated[i].stripeSessionId && updated[i].paidAt));
-    const unpaidIdxs = idxs.filter(i => !(updated[i].stripeSessionId && updated[i].paidAt));
-
-    // All already paid — Stripe charges are final, nothing we can adjust.
-    if (unpaidIdxs.length === 0) return;
-
-    // No paid bookings yet — apply a straight 20% to everyone.
-    if (paidIdxs.length === 0) {
-      idxs.forEach(i => {
-        const base = updated[i].price || 0;
-        updated[i] = {
-          ...updated[i],
-          price: Math.round(base * 0.8),
-          priceBeforeSameDayDiscount: base,
-          sameDayDiscount: true,
-        };
-      });
-      return;
-    }
-
-    // Mixed: some bookings already paid at full price, some not yet charged.
-    // The discount they were owed (20% of their base) couldn't be applied at
-    // checkout, so we roll it into the unpaid booking(s).
-    //
-    // Walk 2 price = Walk2_base × 0.8 − (Walk1_base × 0.2)
-    // = their own 20% off  −  the discount missed on each paid booking
-    //
-    // If there are multiple unpaid bookings we split the missed discount
-    // proportionally by each booking's base price.
-    const paidBaseTotal   = paidIdxs.reduce((s, i) => s + (updated[i].price || 0), 0);
-    const missedDiscount  = Math.round(paidBaseTotal * 0.2);
-    const unpaidBaseTotal = unpaidIdxs.reduce((s, i) => s + (updated[i].price || 0), 0);
-
-    unpaidIdxs.forEach(i => {
-      const base        = updated[i].price || 0;
-      const ownDiscount = Math.round(base * 0.2);
-      const share       = unpaidBaseTotal > 0 ? base / unpaidBaseTotal : 1 / unpaidIdxs.length;
-      const extra       = Math.round(missedDiscount * share);
-      const newPrice    = Math.max(0, base - ownDiscount - extra);
-      updated[i] = {
-        ...updated[i],
-        price: newPrice,
-        priceBeforeSameDayDiscount: base,
-        sameDayDiscount: true,
-      };
-    });
-  });
-
-  return updated;
-}
-
-// ─── Savings Credit Helpers ───────────────────────────────────────────────────
-
-// Award savings credits when a booking is paid (Stripe payment confirmed).
-// Looks at the walk's week count to determine credit tier, adds to client balance.
-// Guards against double-awarding: if this booking key is already in savingsHistory, returns client unchanged.
-function awardWalkSavings(client, completedBooking) {
-  // Guard: don't double-award if this booking was already credited
-  const alreadyCredited = (client.savingsHistory || []).some(e => e.bookingKey === completedBooking.key);
-  if (alreadyCredited) return client;
-
-  const bookingWeekKey = getBookingWeekKey(completedBooking);
-  const weeklyCount = (client.bookings || []).filter(b => {
-    if (b.cancelled) return false;
-    return getBookingWeekKey(b) === bookingWeekKey;
-  }).length;
-
-  const credit = getWalkSavingsCredit(completedBooking, weeklyCount);
-  if (credit <= 0) return client; // Easy Rider earns no credits
-
-  const currentBalance = client.savingsBalance || 0;
-  const newBalance = Math.round((currentBalance + credit) * 100) / 100;
+// Award a punch when a booking is paid. Guards against double-awarding.
+function awardPunchCard(client, booking) {
+  const alreadyPunched = (client.punchCardHistory || []).some(e => e.bookingKey === booking.key);
+  if (alreadyPunched) return client;
   const entry = {
-    bookingKey: completedBooking.key,
-    date: completedBooking.scheduledDateTime?.slice(0, 10) || new Date().toISOString().slice(0, 10),
-    credit,
-    tier: completedBooking.priceTier || "Easy Rider",
-    balance: newBalance,
+    bookingKey: booking.key,
+    date: booking.scheduledDateTime?.slice(0, 10) || new Date().toISOString().slice(0, 10),
   };
-
   return {
     ...client,
-    savingsBalance: newBalance,
-    savingsHistory: [...(client.savingsHistory || []), entry],
+    punchCardCount: (client.punchCardCount || 0) + 1,
+    punchCardHistory: [...(client.punchCardHistory || []), entry],
   };
 }
 
-// Reverse a savings credit when admin undoes a walk completion.
-function revokeWalkSavings(client, bookingKey) {
-  const history = client.savingsHistory || [];
+// Remove a punch when a booking is cancelled or un-completed.
+function revokePunchCard(client, bookingKey) {
+  const history = client.punchCardHistory || [];
   const entry = history.find(e => e.bookingKey === bookingKey);
   if (!entry) return client;
-  const newBalance = Math.max(0, Math.round(((client.savingsBalance || 0) - entry.credit) * 100) / 100);
   return {
     ...client,
-    savingsBalance: newBalance,
-    savingsHistory: history.filter(e => e.bookingKey !== bookingKey),
+    punchCardCount: Math.max(0, (client.punchCardCount || 0) - 1),
+    punchCardHistory: history.filter(e => e.bookingKey !== bookingKey),
   };
 }
 
-// Client claims a free walk. Deducts from balance and logs the pending claim.
-// walkType: "30 min" | "60 min"
-function claimFreeWalk(client, walkType) {
-  const cost = FREE_WALK_THRESHOLDS[walkType] || 30;
-  const currentBalance = client.savingsBalance || 0;
-  if (currentBalance < cost) return null; // insufficient balance — caller should guard
-  const newBalance = Math.round((currentBalance - cost) * 100) / 100;
+// Client redeems 10 punches for a free 60-minute walk.
+function claimPunchCardWalk(client) {
+  const count = client.punchCardCount || 0;
+  if (count < PUNCH_CARD_GOAL) return null; // caller should guard
   const claim = {
     id: `claim_${Date.now()}`,
     claimedAt: new Date().toISOString(),
-    walkType,
-    amount: cost,
+    walkType: "60 min",
     fulfilled: false,
   };
   return {
     ...client,
-    savingsBalance: newBalance,
+    punchCardCount: count - PUNCH_CARD_GOAL,
     freeWalkClaims: [...(client.freeWalkClaims || []), claim],
   };
 }
 
-// Admin marks a pending free walk claim as fulfilled.
-function fulfillFreeWalkClaim(client, claimId) {
+// Admin marks a pending punch card claim as fulfilled.
+function fulfillPunchCardClaim(client, claimId) {
   return {
     ...client,
     freeWalkClaims: (client.freeWalkClaims || []).map(c =>
@@ -409,13 +245,13 @@ function formatPhone(raw) {
 
 export {
   effectivePrice, getWalkerPayout,
-  BASE_PRICES, FREE_WALK_THRESHOLDS, SAVINGS_TIERS, PRICE_TIERS,
+  BASE_PRICES, PUNCH_CARD_GOAL,
   getCurrentWeekRange, getWeekRangeForOffset,
   getBookingWeekKey, getWeekBookingCountForOffset,
-  getPriceTier, getSavingsTier, getWalkSavingsCredit, getSessionPrice,
+  getSessionPrice,
   getCancellationPolicy,
-  repriceWeekBookings, applySameDayDiscount,
-  awardWalkSavings, revokeWalkSavings, claimFreeWalk, fulfillFreeWalkClaim,
+  repriceWeekBookings,
+  awardPunchCard, revokePunchCard, claimPunchCardWalk, fulfillPunchCardClaim,
   getWeekDates, firstName, parseDateLocal, dateStrFromDate,
   generateCode,
   addrToString, addrFromString, emptyAddr, US_STATES,

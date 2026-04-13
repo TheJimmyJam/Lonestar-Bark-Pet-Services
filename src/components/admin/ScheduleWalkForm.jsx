@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { DAYS, FULL_DAYS, SERVICES, SERVICE_SLOTS } from "../../constants.js";
 import { getAllWalkers } from "../auth/WalkerAuthScreen.jsx";
-import { repriceWeekBookings } from "../../helpers.js";
 import {
   saveClients, notifyAdmin, sendBookingConfirmation, sendWalkerBookingNotification,
   loadAllWalkersAvailability,
 } from "../../supabase.js";
 import {
-  getWeekDates, getWeekBookingCountForOffset, getSessionPrice, getPriceTier,
-  applySameDayDiscount, parseDateLocal, firstName, fmt, toDateKey,
+  getWeekDates, getWeekBookingCountForOffset, getSessionPrice,
+  repriceWeekBookings, parseDateLocal, firstName, fmt, toDateKey,
 } from "../../helpers.js";
 
 // ─── Schedule Walk Form (Admin) ───────────────────────────────────────────────
@@ -70,10 +69,10 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
   const relevantPets = form.service === "cat" ? clientCats : form.service === "overnight" ? clientPets : clientDogs;
 
   const calcPrice = () => {
-    if (form.service === "overnight") return { price: 150, tier: "Overnight Stay", extraDogCharge: 0 };
-    if (!selectedClient || !form.date) return { price: 30, tier: "Easy Rider", extraDogCharge: 0 };
+    if (form.service === "overnight") return { price: 150, extraDogCharge: 0 };
+    if (!selectedClient || !form.date) return { price: 30, extraDogCharge: 0 };
     // Flat pricing — all walks charge $30 (30 min) or $45 (60 min) regardless of frequency.
-    // Tier label is still tracked (for savings credits) but doesn't change the price.
+    // Tier label is still tracked (for walker payout rates) but doesn't change the price.
     const apptDate = parseDateLocal(form.date);
     const dayOfWeek = apptDate.getDay();
     const offset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -88,14 +87,12 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
       const d = new Date(b.scheduledDateTime || b.bookedAt);
       return d >= weekStart && d <= weekEnd;
     }).length;
-    const totalCount = existingCount + 1;
-    const priceTier = getPriceTier(totalCount);
     const extraDogCharge = form.additionalDogs.length * 10;
     const flatBase = getSessionPrice(form.duration);
-    return { price: flatBase + extraDogCharge, tier: priceTier.label, extraDogCharge };
+    return { price: flatBase + extraDogCharge, extraDogCharge };
   };
 
-  const { price, tier, extraDogCharge } = calcPrice();
+  const { price, extraDogCharge } = calcPrice();
 
   const validate = () => {
     const e = {};
@@ -154,7 +151,6 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
       additionalDogCount: additionalDogs.length,
       additionalDogCharge: additionalDogs.length * 10,
       price: finalPrice,
-      priceTier: tier,
       adminScheduled: true,
       // Historical walk fields
       ...(isHistorical && {
@@ -167,7 +163,7 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
 
     const updatedBookings = isHistorical
       ? [...(client.bookings || []), newBooking]
-      : applySameDayDiscount(repriceWeekBookings([...(client.bookings || []), newBooking]));
+      : repriceWeekBookings([...(client.bookings || []), newBooking]);
 
     const updatedClients = {
       ...clients,
@@ -216,7 +212,7 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
     }
     setSavedInfo({ clientName: client.name, pet: primaryPet, date: dateLabel,
       day: dayName, time: form.timeSlot?.label || "—", duration,
-      price: finalPrice, tier, walker: form.walker, isHistorical });
+      price: finalPrice, walker: form.walker, isHistorical });
     setSaved(true);
     setForm(blankForm);
     setCustomPrice("");
@@ -308,7 +304,6 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
             {savedInfo.walker && <span> · 🦺 {savedInfo.walker}</span>}
             <br />
             <span style={{ color: savedInfo.isHistorical ? "#b45309" : "#059669", fontWeight: 600 }}>${savedInfo.price}</span>
-            <span style={{ color: "#9ca3af" }}> · {savedInfo.tier}</span>
           </div>
           <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
             <button onClick={() => { setSaved(false); setSavedInfo(null); }}
@@ -661,11 +656,7 @@ function ScheduleWalkForm({ clients, setClients, onDone, defaultWalker = "", don
               {selectedClient?.name} · {form.duration} · flat rate
               {extraDogCharge > 0 && <span style={{ color: amber }}> · +${extraDogCharge} extra dog{form.additionalDogs.length !== 1 ? "s" : ""}</span>}
             </div>
-            {tier && tier !== "Easy Rider" && tier !== "Overnight Stay" && (
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#C4541A", marginTop: "2px" }}>
-                {tier} — client earns Bark Bucks when completed
-              </div>
-            )}
+
           </div>
           <div style={{ textAlign: "right", flexShrink: 0 }}>
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
