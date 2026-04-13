@@ -136,7 +136,8 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           <h3>Information We Collect</h3>
           <p>When you create an account or book a service, we collect: your name, email address, phone number, home address, and pet information (name, breed, special needs). We also collect payment information, which is processed securely by Stripe — we never store full card numbers.</p>
           <h3>How We Use Your Information</h3>
-          <p>We use your information to: schedule and confirm bookings, process payments and refunds, send booking confirmations and receipts, notify our walkers of appointments, and contact you about your service. We do not sell your personal information to third parties.</p>
+          <p>We use your information to: schedule and confirm bookings, process payments and refunds, send booking confirmations and receipts, notify our walkers of appointments, and contact you about your service.</p>
+          <p><strong>We do not, and will never, sell your personal information to third parties.</strong></p>
           <h3>Data Storage</h3>
           <p>Your account data is stored securely in Supabase, a cloud database provider based in the United States. Payment transactions are handled by Stripe, Inc. We retain your data for as long as your account is active.</p>
           <h3>Your Rights</h3>
