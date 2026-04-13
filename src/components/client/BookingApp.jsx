@@ -1737,6 +1737,58 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
             letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "14px" }}>
             Pricing
           </div>
+
+          {/* Punch card summary on pricing page */}
+          {(() => {
+            const pc = client.punchCardCount || 0;
+            const pcCanClaim = pc >= PUNCH_CARD_GOAL;
+            return (
+              <div style={{ background: pcCanClaim ? "#0B1423" : "#fff",
+                border: pcCanClaim ? "none" : "2px solid #8B5E3C",
+                borderRadius: "16px", padding: "20px", marginBottom: "28px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
+                  <div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
+                      fontWeight: 600, color: pcCanClaim ? "#fff" : "#111827", marginBottom: "2px" }}>
+                      ⭐ Lonestar Loyalty
+                    </div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "28px", fontWeight: 700,
+                      color: pcCanClaim ? "#fff" : "#111827" }}>
+                      {pc} / {PUNCH_CARD_GOAL}
+                    </div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                      color: pcCanClaim ? "rgba(255,255,255,0.75)" : "#6b7280", marginTop: "2px" }}>
+                      {pcCanClaim ? "Go to your Overview to claim your free 60-min walk!"
+                        : pc > 0
+                          ? `${PUNCH_CARD_GOAL - pc} more walk${PUNCH_CARD_GOAL - pc !== 1 ? "s" : ""} until your free 60-min walk`
+                          : "Every paid walk counts — 10 walks = 1 free 60-min walk"}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: "32px" }}>{pcCanClaim ? "🏆" : "⭐"}</span>
+                </div>
+                {!pcCanClaim && (
+                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "4px" }}>
+                    {Array.from({ length: PUNCH_CARD_GOAL }).map((_, i) => {
+                      const earned = i < pc;
+                      return (
+                        <div key={i} style={{
+                          width: "28px", height: "28px",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: earned ? "20px" : "18px",
+                          transition: "all 0.25s",
+                          filter: earned ? "none" : "grayscale(1) opacity(0.18)",
+                          transform: earned ? "scale(1.08)" : "scale(1)",
+                        }}>
+                          🐾
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
             {[["30 min", 30], ["60 min", 45]].map(([dur, price]) => (
               <div key={dur} style={{ flex: 1, background: "#fff", border: "1.5px solid #e4e7ec",
@@ -1831,56 +1883,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
             </div>
           </div>
 
-          {/* Punch card summary on pricing page */}
-          {(() => {
-            const pc = client.punchCardCount || 0;
-            const pcCanClaim = pc >= PUNCH_CARD_GOAL;
-            return (
-              <div style={{ background: pcCanClaim ? "#0B1423" : "#fff",
-                border: pcCanClaim ? "none" : "2px solid #8B5E3C",
-                borderRadius: "16px", padding: "20px", marginBottom: "28px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
-                  <div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
-                      fontWeight: 600, color: pcCanClaim ? "#fff" : "#111827", marginBottom: "2px" }}>
-                      ⭐ Lonestar Loyalty
-                    </div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "28px", fontWeight: 700,
-                      color: pcCanClaim ? "#fff" : "#111827" }}>
-                      {pc} / {PUNCH_CARD_GOAL}
-                    </div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-                      color: pcCanClaim ? "rgba(255,255,255,0.75)" : "#6b7280", marginTop: "2px" }}>
-                      {pcCanClaim ? "Go to your Overview to claim your free 60-min walk!"
-                        : pc > 0
-                          ? `${PUNCH_CARD_GOAL - pc} more walk${PUNCH_CARD_GOAL - pc !== 1 ? "s" : ""} until your free 60-min walk`
-                          : "Every paid walk counts — 10 walks = 1 free 60-min walk"}
-                    </div>
-                  </div>
-                  <span style={{ fontSize: "32px" }}>{pcCanClaim ? "🏆" : "⭐"}</span>
-                </div>
-                {!pcCanClaim && (
-                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "4px" }}>
-                    {Array.from({ length: PUNCH_CARD_GOAL }).map((_, i) => {
-                      const earned = i < pc;
-                      return (
-                        <div key={i} style={{
-                          width: "28px", height: "28px",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: earned ? "20px" : "18px",
-                          transition: "all 0.25s",
-                          filter: earned ? "none" : "grayscale(1) opacity(0.18)",
-                          transform: earned ? "scale(1.08)" : "scale(1)",
-                        }}>
-                          🐾
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
             letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af", marginBottom: "14px" }}>
             Cancellation Policy
