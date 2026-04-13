@@ -492,6 +492,27 @@ async function saveWalkerAvailabilityDay(walkerId, date, slots) {
   }
 }
 
+// Save multiple days' availability for a walker in ONE batch upsert request
+async function saveWalkerAvailabilityBatch(walkerId, dayMap) {
+  // dayMap: { "2025-04-07": ["8:00 AM", ...], ... }
+  const rows = Object.entries(dayMap).map(([date, slots]) => ({
+    walker_id: walkerId,
+    date,
+    slots: JSON.stringify(slots),
+  }));
+  if (!rows.length) return;
+  try {
+    await sbFetch("availability?on_conflict=walker_id,date", {
+      method: "POST",
+      headers: { "Prefer": "resolution=merge-duplicates,return=representation" },
+      body: JSON.stringify(rows),
+    });
+  } catch (e) {
+    console.error("saveWalkerAvailabilityBatch failed:", e);
+    throw e;
+  }
+}
+
 // Load availability for ALL walkers for a date range — used on client booking side
 // Returns { walkerId: { "2025-04-07": ["8:00 AM",...], ... }, ... }
 async function loadAllWalkersAvailability(startDate, endDate) {
@@ -599,7 +620,7 @@ export {
   loadDirectMessages, saveDirectMessage,
   loadClientMessages, saveClientMessage,
   loadCompletedPayrolls, saveCompletedPayrolls,
-  loadWalkerAvailability, saveWalkerAvailabilityDay, loadAllWalkersAvailability,
+  loadWalkerAvailability, saveWalkerAvailabilityDay, saveWalkerAvailabilityBatch, loadAllWalkersAvailability,
   DEFAULT_ADMIN, loadAdminList, saveAdminList, removeAdminFromDB,
   loadContactSubmissions, saveContactSubmission, updateContactSubmission, deleteContactSubmission,
   sendInvoiceEmail, sendWelcomeEmail, sendBookingConfirmation, sendInvoicePaidEmail, sendWalkerBookingNotification, sendPinResetCode,

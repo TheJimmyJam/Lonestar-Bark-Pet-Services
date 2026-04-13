@@ -5,7 +5,7 @@ import {
   saveClients, saveWalkerProfiles, notifyAdmin, saveTrades,
   loadChatMessages, saveChatMessage, formatChatTime,
   loadDirectMessages, saveDirectMessage,
-  loadWalkerAvailability, saveWalkerAvailabilityDay,
+  loadWalkerAvailability, saveWalkerAvailabilityDay, saveWalkerAvailabilityBatch,
   loadCompletedPayrolls, saveCompletedPayrolls,
   loadClientMessages, saveClientMessage,
   uploadWalkPhoto,
@@ -487,21 +487,26 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     setAvailSaved(false);
   };
 
-  // Save all availability for this week to Supabase at once
+  // Save all availability for this week to Supabase in a single batch upsert
   const saveAllAvailability = async () => {
     setAvailSaving(true);
     try {
-      // Find every date that differs from the last saved snapshot
+      // Collect only dates that actually changed since last save
       const allDirtyKeys = new Set([
         ...Object.keys(availability),
         ...Object.keys(savedAvailability),
       ]);
+      const dirtyDays = {};
       for (const dateKey of allDirtyKeys) {
         const current = JSON.stringify(availability[dateKey] || []);
         const saved   = JSON.stringify(savedAvailability[dateKey] || []);
         if (current !== saved) {
-          await saveWalkerAvailabilityDay(walker.id, dateKey, availability[dateKey] || []);
+          dirtyDays[dateKey] = availability[dateKey] || [];
         }
+      }
+      // Single round trip instead of one request per day
+      if (Object.keys(dirtyDays).length > 0) {
+        await saveWalkerAvailabilityBatch(walker.id, dirtyDays);
       }
       // Snapshot entire availability as the new saved state
       setSavedAvailability(JSON.parse(JSON.stringify(availability)));
