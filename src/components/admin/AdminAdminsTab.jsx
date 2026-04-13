@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, sbFetch, saveClients, saveWalkerProfiles, saveAdminList, removeAdminFromDB } from "../../supabase.js";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, sbFetch, saveClients, saveWalkerProfiles, saveAdminList, upsertAdminRow, removeAdminFromDB } from "../../supabase.js";
 import { generateCode, formatPhone } from "../../helpers.js";
 import AdminDangerZone from "./AdminDangerZone.jsx";
 import AdminDemoDataSection from "./AdminDemoDataSection.jsx";
@@ -42,7 +42,9 @@ function AdminAdminsTab({ admin, adminList, setAdminList, clients, setClients, w
     };
     const updated = [...adminList, newAdmin];
     try {
-      await saveAdminList(updated);
+      // Upsert just the new row — avoids the full-list batch failing due to
+      // conflicts or RLS issues on other existing rows.
+      await upsertAdminRow(newAdmin);
       setAdminList(updated);
       // Send branded invite email with a one-click password setup link
       try {
@@ -63,7 +65,8 @@ function AdminAdminsTab({ admin, adminList, setAdminList, clients, setClients, w
       setInviteSent(true);
       setTimeout(() => setInviteSent(false), 8000);
     } catch (err) {
-      setInviteError("Failed to save invite. Check your connection and try again.");
+      console.error("Admin invite save failed:", err);
+      setInviteError("Failed to save invite — " + (err?.message || "check your connection and try again."));
     }
   };
 

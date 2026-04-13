@@ -621,7 +621,7 @@ export {
   loadClientMessages, saveClientMessage,
   loadCompletedPayrolls, saveCompletedPayrolls,
   loadWalkerAvailability, saveWalkerAvailabilityDay, saveWalkerAvailabilityBatch, loadAllWalkersAvailability,
-  DEFAULT_ADMIN, loadAdminList, saveAdminList, removeAdminFromDB,
+  DEFAULT_ADMIN, loadAdminList, saveAdminList, upsertAdminRow, removeAdminFromDB,
   loadContactSubmissions, saveContactSubmission, updateContactSubmission, deleteContactSubmission,
   sendInvoiceEmail, sendWelcomeEmail, sendBookingConfirmation, sendInvoicePaidEmail, sendWalkerBookingNotification, sendPinResetCode,
   createBookingCheckout, createRefund, sendWalkerCancellationNotification, sendClientCancellationNotification,
@@ -733,7 +733,27 @@ async function saveAdminList(list) {
     });
   } catch (e) {
     console.error("saveAdminList failed:", e);
+    throw e; // re-throw so callers can surface the error to the user
   }
+}
+
+// Insert or update a single admin row — used when inviting so the batch upsert
+// of the full list can't silently kill the new row due to conflicts on other rows.
+async function upsertAdminRow(admin) {
+  const row = {
+    id: admin.id,
+    name: admin.name || "",
+    email: admin.email,
+    pin: admin.pin || "",
+    status: admin.status || "invited",
+    is_master: admin.isMaster || false,
+    invited_by: admin.invitedBy || null,
+  };
+  await sbFetch("admins?on_conflict=id", {
+    method: "POST",
+    headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify(row),
+  });
 }
 
 async function removeAdminFromDB(id) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase, saveAdminList } from "../../supabase.js";
+import { supabase, saveAdminList, upsertAdminRow } from "../../supabase.js";
 import LogoBadge from "../shared/LogoBadge.jsx";
 import { GLOBAL_STYLES } from "../../styles.js";
 
@@ -69,7 +69,8 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
         const updatedList = adminList.map(a => a.id === found.id ? activated : a);
         found = activated;
         setAdminList(updatedList);
-        saveAdminList(updatedList);
+        // Use single-row upsert to activate — don't let a DB error block login
+        upsertAdminRow(activated).catch(e => console.error("Admin activation upsert failed:", e));
       }
       // Keep the Supabase session alive — sbFetch uses the session JWT so
       // RLS policies can identify this user as an admin. The routing guard
