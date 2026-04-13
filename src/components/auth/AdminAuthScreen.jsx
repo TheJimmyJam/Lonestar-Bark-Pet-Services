@@ -66,6 +66,11 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
         setLoading(false);
         return;
       }
+      // Sign out of Supabase session immediately — admin state is managed
+      // by App.jsx activeUser, not a persistent Supabase session. Without
+      // this, App's authOnChange listener picks up the SIGNED_IN event and
+      // re-routes the user to the customer portal if they're also a client.
+      await supabase.auth.signOut();
       try { localStorage.setItem(STORAGE_KEY, found.email); } catch {}
       onLogin({ id: found.id, name: found.name, role: "admin", email: found.email });
     } catch (e) {
