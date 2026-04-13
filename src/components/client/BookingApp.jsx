@@ -828,7 +828,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       );
     }
 
-    // Revoke any punch card punch earned for this booking
+    // Revoke any Lonestar Loyalty punch earned for this booking
     const cancelledClientData = { ...client, bookings: updatedBookings, recurringSchedules: updatedRecurringSchedules };
     const updated = revokePunchCard(cancelledClientData, cancelKey);
     const updatedClients = { ...clients, [clientPinKey]: updated };
@@ -1610,7 +1610,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               })}
 
               {renderKpiCard({
-                label: "Punch Card",
+                label: "Lonestar Loyalty",
                 value: `${punchCount} / ${PUNCH_CARD_GOAL}`,
                 sub: canClaim ? "🏆 Free 60-min walk ready!" : `${PUNCH_CARD_GOAL - punchCount} more to free walk`,
                 accent: canClaim ? "#059669" : "#C4541A",
@@ -1638,7 +1638,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     <div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600,
                         textTransform: "uppercase", letterSpacing: "1px",
-                        color: canClaim ? "#C4A07A" : "#9ca3af" }}>Punch Card</div>
+                        color: canClaim ? "#C4A07A" : "#9ca3af" }}>Lonestar Loyalty</div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "28px", fontWeight: 700,
                         color: canClaim ? "#fff" : "#111827", marginTop: "4px" }}>
                         {punchCount} / {PUNCH_CARD_GOAL}
@@ -1650,7 +1650,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                           : `${PUNCH_CARD_GOAL - punchCount} more walk${PUNCH_CARD_GOAL - punchCount !== 1 ? "s" : ""} for a free 60-min walk`}
                       </div>
                     </div>
-                    <span style={{ fontSize: "32px" }}>{canClaim ? "🏆" : "🥊"}</span>
+                    <span style={{ fontSize: "32px" }}>{canClaim ? "🏆" : "⭐"}</span>
                   </div>
 
                   {/* Paw print punch grid */}
@@ -1829,7 +1829,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   <div>
                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                       fontWeight: 600, color: pcCanClaim ? "#fff" : "#111827", marginBottom: "2px" }}>
-                      🥊 Punch Card
+                      ⭐ Lonestar Loyalty
                     </div>
                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "28px", fontWeight: 700,
                       color: pcCanClaim ? "#fff" : "#111827" }}>
@@ -1843,7 +1843,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                           : "Every paid walk earns 1 punch — 10 punches = 1 free 60-min walk"}
                     </div>
                   </div>
-                  <span style={{ fontSize: "32px" }}>{pcCanClaim ? "🏆" : "🥊"}</span>
+                  <span style={{ fontSize: "32px" }}>{pcCanClaim ? "🏆" : "⭐"}</span>
                 </div>
                 {!pcCanClaim && (
                   <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "4px" }}>
@@ -2147,7 +2147,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   border: pcCanClaim ? "none" : "1.5px solid #D4A87A",
                   borderRadius: "16px", padding: "18px 20px", marginBottom: "28px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "10px" }}>
-                    <div style={{ fontSize: "32px" }}>{pcCanClaim ? "🏆" : "🥊"}</div>
+                    <div style={{ fontSize: "32px" }}>{pcCanClaim ? "🏆" : "⭐"}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
                         fontSize: "20px", color: pcCanClaim ? "#fff" : "#111827" }}>

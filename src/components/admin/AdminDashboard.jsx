@@ -765,7 +765,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                             fontWeight: 600, color: "#C4541A" }}>${item.totalSpend}</div>
                           {(item.c.punchCardCount || 0) > 0 && (
                             <div style={{ fontSize: "13px", color: "#b45309", fontWeight: 600 }}>
-                              🥊 {item.c.punchCardCount}/{PUNCH_CARD_GOAL} punches
+                              ⭐ {item.c.punchCardCount}/{PUNCH_CARD_GOAL}
                             </div>
                           )}
                           <div style={{ fontSize: "14px", color: "#C4541A" }}>→ account</div>
@@ -2967,7 +2967,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                   ))}
                 </div>
 
-                {/* Punch Card & Free Walk Claims */}
+                {/* Lonestar Loyalty & Free Walk Claims */}
                 {(() => {
                   const punchCount = c.punchCardCount || 0;
                   const allClaims = c.freeWalkClaims || [];
@@ -2980,7 +2980,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       borderRadius: "14px", padding: "18px 20px", marginBottom: "12px" }}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "15px",
-                          letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af" }}>🥊 Punch Card</div>
+                          letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af" }}>⭐ Lonestar Loyalty</div>
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "18px",
                           color: punchCount >= PUNCH_CARD_GOAL ? "#059669" : "#C4541A" }}>
                           {punchCount} / {PUNCH_CARD_GOAL}
@@ -3518,7 +3518,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                           ),
                           recurringSchedules: [],
                         };
-                        // Revoke punch card punches for every booking being cancelled now
+                        // Revoke Lonestar Loyalty punches for every booking being cancelled now
                         for (const b of bookingsToCancel) {
                           deletedClientRecord = revokePunchCard(deletedClientRecord, b.key);
                         }

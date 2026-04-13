@@ -462,7 +462,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             fontWeight: 600, color: "#111827", marginBottom: "12px" }}>Transparent Pricing</div>
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
             lineHeight: "1.7", maxWidth: "540px", margin: "0 auto 48px" }}>
-            Simple, flat pricing — no tiers, no surprises. Every walk counts toward your punch card.
+            Simple, flat pricing — no tiers, no surprises. Every walk counts toward your Lonestar Loyalty.
           </p>
 
           {/* Pricing cards */}
@@ -492,7 +492,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             flexWrap: "wrap", marginBottom: "48px" }}>
             {[
               { icon: "🤝", label: "Meet & Greet Discount", desc: "20% off your first walk when booked during your M&G appointment." },
-              { icon: "🥊", label: "Punch Card", desc: "Every walk earns a punch. Buy 10 walks, get one free 60-minute walk." },
+              { icon: "⭐", label: "Lonestar Loyalty", desc: "Every walk earns a punch. Buy 10 walks, get one free 60-minute walk." },
             ].map(item => (
               <div key={item.label} style={{ flex: "1 1 220px", maxWidth: "300px",
                 background: "#f9fafb", border: "1.5px solid #e4e7ec",

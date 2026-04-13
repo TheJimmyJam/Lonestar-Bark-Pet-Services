@@ -37,7 +37,7 @@ const ADD_ONS = [
   { icon: "🐶", label: "Additional Dog", price: "+$10/dog/session", note: "Applies to any session length or frequency." },
   { icon: "🌙", label: "Overnight Stay", price: "$150/night", note: "A walker stays at your home overnight." },
   { icon: "🤝", label: "Meet & Greet Discount", price: "20% off", note: "Book your first walk during the meet & greet and save 20%." },
-  { icon: "🥊", label: "Punch Card", price: "10 walks = 1 free", note: "Every walk earns a punch. After 10 walks, claim one free 60-minute walk." },
+  { icon: "⭐", label: "Lonestar Loyalty", price: "10 walks = 1 free", note: "Every walk earns a punch. After 10 walks, claim one free 60-minute walk." },
   { icon: "👥", label: "Refer a Friend", price: "$100 credit", note: "Earn a $100 credit after their first booking." },
 ];
 
