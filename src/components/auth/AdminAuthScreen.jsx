@@ -31,10 +31,6 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
     if (!e || !e.includes("@")) { setEmailError("Enter a valid email."); return; }
     const found = adminList.find(a => a.email.toLowerCase() === e);
     if (!found) { setEmailError("No admin account found for this email."); return; }
-    if (found.status === "invited") {
-      setEmailError("Your invite is pending — check your email for a setup link.");
-      return;
-    }
     setEmailError("");
     setStage("password");
   };
@@ -57,14 +53,23 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
         setLoading(false);
         return;
       }
-      const found = adminList.find(a =>
-        a.email.toLowerCase() === data.user.email.toLowerCase() && a.status === "active"
+      let found = adminList.find(a =>
+        a.email.toLowerCase() === data.user.email.toLowerCase()
       );
-      if (!found) {
+      if (!found || (found.status !== "active" && found.status !== "invited")) {
         await supabase.auth.signOut();
         setPasswordError("This account is not authorized as an admin.");
         setLoading(false);
         return;
+      }
+      // If this is their first successful login after accepting an invite,
+      // upgrade their status from "invited" to "active" automatically.
+      if (found.status === "invited") {
+        const activated = { ...found, status: "active", activatedAt: new Date().toISOString() };
+        const updatedList = adminList.map(a => a.id === found.id ? activated : a);
+        found = activated;
+        setAdminList(updatedList);
+        saveAdminList(updatedList);
       }
       // Keep the Supabase session alive — sbFetch uses the session JWT so
       // RLS policies can identify this user as an admin. The routing guard
