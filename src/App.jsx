@@ -94,6 +94,12 @@ export default function LonestarBark() {
     // instead of the client portal. Clean the URL so it doesn't persist on reload.
     if (setup === "walker") {
       window.history.replaceState({}, "", window.location.pathname);
+      // Set the ref immediately so handleSession's role guard sees "walker"
+      // before authGetSession resolves (state updates are async, ref is sync).
+      selectedRoleRef.current = "walker";
+      // Clear any existing Supabase session so a prior client/admin session
+      // can't override the walker routing via authOnChange or authGetSession.
+      authSignOut().catch(() => {});
       setSelectedRole("walker");
       setShowApp(true);
       setShowLogin(true);
