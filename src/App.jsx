@@ -591,7 +591,7 @@ export default function LonestarBark() {
       await saveClients(updatedClients);
     } catch (err) {
       console.error("[handleHandoffComplete] saveClients failed:", err);
-      alert("There was a problem saving your booking. Please try again — if this keeps happening, contact us at hello@lonestarbarkco.com");
+      alert(`Booking save failed: ${err.message}\n\nPlease screenshot this and send to hello@lonestarbarkco.com`);
       return;
     }
     setActiveUser(updated);

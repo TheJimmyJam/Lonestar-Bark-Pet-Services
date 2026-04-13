@@ -115,7 +115,7 @@ async function saveClients(clients) {
     });
   } catch (e) {
     console.error("saveClients failed:", e);
-    throw new Error("Your booking could not be saved — database unavailable. Please try again.");
+    throw new Error(e.message || "Your booking could not be saved — database unavailable. Please try again.");
   }
 }
 
