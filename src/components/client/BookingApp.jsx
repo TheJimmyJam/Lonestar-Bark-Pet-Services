@@ -437,6 +437,14 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     loadClientMessages(client.email, client.keyholder).then(setClientMsgs);
   };
 
+  // Old Walks — which week rows are expanded
+  const [expandedWeeks, setExpandedWeeks] = useState(new Set());
+  const toggleWeek = (key) => setExpandedWeeks(prev => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
+
   const clientNotifCountsFull = { ...clientNotifCounts, messages: unreadClientMsgCount,
     invoices: (client.invoices || []).filter(inv => {
       const { effectiveStatus } = invoiceStatusMeta(inv.status, inv.dueDate);
@@ -2472,42 +2480,112 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
               </div>
             )}
 
-            {/* ── COMPLETED ── */}
-            {pastWalks.length > 0 && (
-              <div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600,
-                  letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af",
-                  marginBottom: "14px", display: "flex", alignItems: "center", gap: "10px" }}>
-                  <span>Completed</span>
-                  <div style={{ flex: 1, height: "1px", background: "#f3f4f6" }} />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {[...pastWalks].sort((a,b) => new Date(b.scheduledDateTime) - new Date(a.scheduledDateTime)).map((b, i) => {
-                    const s = SERVICES[b.service] || SERVICES["dog"];
-                    return (
-                      <div key={i} style={{ background: "#fff", border: "1.5px solid #e4e7ec",
-                        borderRadius: "12px", padding: "12px 16px", display: "flex",
-                        alignItems: "center", gap: "12px" }}>
-                        <div style={{ width: "36px", height: "36px", borderRadius: "10px",
-                          background: s.light, display: "flex", alignItems: "center",
-                          justifyContent: "center", fontSize: "18px", flexShrink: 0 }}>{s.icon}</div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
-                            fontSize: "15px", color: "#374151" }}>{b.form.pet}</div>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af" }}>
-                            {b.day} {fmtBookingDate(b.scheduledDateTime)} at {b.slot?.time} · {b.slot?.duration}
-                          </div>
+            {/* ── OLD WALKS (grouped by week, collapsible) ── */}
+            {pastWalks.length > 0 && (() => {
+              // Group past walks into Mon–Sun weeks, newest first
+              const sorted = [...pastWalks].sort((a, b) =>
+                new Date(b.scheduledDateTime) - new Date(a.scheduledDateTime)
+              );
+              const weekMap = new Map();
+              sorted.forEach(b => {
+                const d = new Date(b.scheduledDateTime);
+                // Find the Monday of this walk's week
+                const day = d.getDay(); // 0=Sun
+                const monday = new Date(d);
+                monday.setDate(d.getDate() - ((day + 6) % 7));
+                monday.setHours(0, 0, 0, 0);
+                const sunday = new Date(monday);
+                sunday.setDate(monday.getDate() + 6);
+                const key = monday.toISOString().slice(0, 10);
+                const fmt = (dt) => dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                const label = `${fmt(monday)} – ${fmt(sunday)}`;
+                if (!weekMap.has(key)) weekMap.set(key, { key, label, walks: [] });
+                weekMap.get(key).walks.push(b);
+              });
+              const weeks = [...weekMap.values()];
+
+              return (
+                <div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600,
+                    letterSpacing: "2px", textTransform: "uppercase", color: "#9ca3af",
+                    marginBottom: "10px", display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span>Old Walks</span>
+                    <div style={{ flex: 1, height: "1px", background: "#f3f4f6" }} />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {weeks.map(({ key, label, walks }) => {
+                      const open = expandedWeeks.has(key);
+                      const weekTotal = walks.reduce((s, b) => s + (Number(b.price) || 0), 0);
+                      return (
+                        <div key={key} style={{ border: "1.5px solid #e4e7ec", borderRadius: "12px",
+                          overflow: "hidden", background: "#fff" }}>
+                          {/* Week header row — always visible, click to expand */}
+                          <button onClick={() => toggleWeek(key)} style={{
+                            width: "100%", display: "flex", alignItems: "center", gap: "10px",
+                            padding: "10px 14px", background: "none", border: "none",
+                            cursor: "pointer", textAlign: "left",
+                          }}>
+                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                              fontWeight: 600, color: "#374151", flex: 1 }}>{label}</span>
+                            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                              color: "#9ca3af" }}>
+                              {walks.length} walk{walks.length !== 1 ? "s" : ""}
+                              {weekTotal > 0 ? ` · $${weekTotal.toFixed(0)}` : ""}
+                            </span>
+                            <span style={{ fontSize: "11px", color: "#9ca3af",
+                              transform: open ? "rotate(180deg)" : "none",
+                              transition: "transform 0.18s", display: "inline-block" }}>▼</span>
+                          </button>
+
+                          {/* Expanded walk rows */}
+                          {open && (
+                            <div style={{ borderTop: "1px solid #f3f4f6" }}>
+                              {walks.map((b, i) => {
+                                const s = SERVICES[b.service] || SERVICES["dog"];
+                                const d = new Date(b.scheduledDateTime);
+                                const dateLabel = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+                                return (
+                                  <div key={i} onClick={() => setSelectedBooking(b)}
+                                    style={{ display: "flex", alignItems: "center", gap: "10px",
+                                      padding: "8px 14px", cursor: "pointer",
+                                      borderBottom: i < walks.length - 1 ? "1px solid #f9fafb" : "none",
+                                      transition: "background 0.12s" }}
+                                    onMouseEnter={e => e.currentTarget.style.background = "#fafafa"}
+                                    onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                                    <div style={{ width: "28px", height: "28px", borderRadius: "8px",
+                                      background: s.light, display: "flex", alignItems: "center",
+                                      justifyContent: "center", fontSize: "14px", flexShrink: 0 }}>
+                                      {s.icon}
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                                        fontWeight: 500, color: "#374151", whiteSpace: "nowrap",
+                                        overflow: "hidden", textOverflow: "ellipsis" }}>
+                                        {b.form?.pet}{b.form?.walker ? ` · ${b.form.walker}` : ""}
+                                      </div>
+                                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                                        color: "#9ca3af" }}>
+                                        {dateLabel} · {b.slot?.time} · {b.slot?.duration}
+                                      </div>
+                                    </div>
+                                    {b.price > 0 && (
+                                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                                        fontWeight: 600, color: "#9ca3af", flexShrink: 0 }}>
+                                        ${Number(b.price).toFixed(0)}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
-                        {b.price > 0 && (
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                            fontWeight: 600, color: "#9ca3af" }}>${Number(b.price).toFixed(2)}</div>
-                        )}
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {futureWalks.length === 0 && pastWalks.length === 0 && recurringSchedules.length === 0 && (
               <div style={{ textAlign: "center", padding: "48px 0" }}>
