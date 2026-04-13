@@ -4,6 +4,10 @@ import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = "https://mvkmxmhsudqwxrsiifms.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12a214bWhzdWRxd3hyc2lpZm1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTEyMDIsImV4cCI6MjA5MTAyNzIwMn0.dP6PunUbTuuNs3K4CFBVmP8hmV29MBFActwemoDysxk";
+// Shared secret for the notify-admin edge function.
+// Must match the NOTIFY_ADMIN_SECRET env var set in Supabase Edge Function secrets.
+// To rotate: generate a new value, update both here and in Supabase dashboard.
+const NOTIFY_ADMIN_SECRET = import.meta.env.VITE_NOTIFY_ADMIN_SECRET || "";
 const edgeHeaders = {
   "Content-Type": "application/json",
   "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
@@ -25,11 +29,11 @@ async function notifyAdmin(type, data) {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/notify-admin`, {
       method: "POST",
-      headers: edgeHeaders,
+      headers: { ...edgeHeaders, "x-app-key": NOTIFY_ADMIN_SECRET },
       body: JSON.stringify({ type, data }),
     });
     const body = await res.json();
-    console.log(`[notifyAdmin] ${type} → ${res.status}`, body);
+    if (!res.ok) console.error(`[notifyAdmin] ${type} → ${res.status}`, body);
   } catch (e) {
     console.error("[notifyAdmin] failed:", e);
   }
