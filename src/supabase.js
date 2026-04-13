@@ -143,11 +143,15 @@ async function loadWalkerProfiles() {
 
 async function saveWalkerProfiles(profiles) {
   try {
-    const rows = Object.entries(profiles).map(([id, profileData]) => ({
-      walker_id: parseInt(id),
-      email: profileData.email || "",
-      data: JSON.stringify(profileData),
-    }));
+    // Never upsert deleted profiles — they should be physically absent from the DB
+    // so that manually removing a row in Supabase stays removed.
+    const rows = Object.entries(profiles)
+      .filter(([_, profileData]) => !profileData.deleted)
+      .map(([id, profileData]) => ({
+        walker_id: parseInt(id),
+        email: profileData.email || "",
+        data: JSON.stringify(profileData),
+      }));
     if (rows.length === 0) return;
     await sbFetch("walkers?on_conflict=walker_id", {
       method: "POST",
@@ -156,6 +160,19 @@ async function saveWalkerProfiles(profiles) {
     });
   } catch (e) {
     console.error("saveWalkerProfiles failed:", e);
+  }
+}
+
+// Permanently removes a walker row from the DB.
+// Call this after soft-deleting in walkerProfiles so the row doesn't resurface.
+async function deleteWalkerFromDB(walkerId) {
+  try {
+    await sbFetch(`walkers?walker_id=eq.${parseInt(walkerId)}`, {
+      method: "DELETE",
+      headers: { "Prefer": "return=minimal" },
+    });
+  } catch (e) {
+    console.error("deleteWalkerFromDB failed:", e);
   }
 }
 
@@ -574,7 +591,7 @@ export {
   uploadWalkPhoto,
   logAuditEvent, loadAuditLog,
   loadClients, saveClients,
-  loadWalkerProfiles, saveWalkerProfiles,
+  loadWalkerProfiles, saveWalkerProfiles, deleteWalkerFromDB,
   loadInvoicesFromDB, saveInvoiceToDB, updateInvoiceInDB, deleteInvoiceFromDB,
   mergeInvoicesIntoClients,
   loadTrades, saveTrades,

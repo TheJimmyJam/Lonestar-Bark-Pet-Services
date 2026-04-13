@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { SERVICES, SERVICE_SLOTS, DAYS, FULL_DAYS, WALKER_SERVICES } from "../../constants.js";
 import {
-  saveClients, saveWalkerProfiles, notifyAdmin, saveTrades,
+  saveClients, saveWalkerProfiles, deleteWalkerFromDB, notifyAdmin, saveTrades,
   loadChatMessages, saveChatMessage, formatChatTime,
   loadDirectMessages, saveDirectMessage,
   loadWalkerAvailability, saveWalkerAvailabilityDay,
@@ -3889,6 +3889,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
               };
               setWalkerProfiles(updatedProfiles);
               saveWalkerProfiles(updatedProfiles);
+              deleteWalkerFromDB(w.id); // physically remove row so it can't be re-added by future saves
 
               // 2. Unassign from all upcoming (non-completed) bookings
               const updatedClients = {};
