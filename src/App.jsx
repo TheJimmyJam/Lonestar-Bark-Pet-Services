@@ -587,8 +587,10 @@ export default function LonestarBark() {
     };
     const updatedClients = { ...clients, [pinKey]: updated };
     setClients(updatedClients);
+    // Only save this client's own row — clients can only write their own row via RLS.
+    // Sending all rows would fail if other clients' rows are in state.
     try {
-      await saveClients(updatedClients);
+      await saveClients({ [pinKey]: updated });
     } catch (err) {
       console.error("[handleHandoffComplete] saveClients failed:", err);
       alert(`Booking save failed: ${err.message}\n\nPlease screenshot this and send to hello@lonestarbarkco.com`);
