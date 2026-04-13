@@ -492,25 +492,21 @@ async function saveWalkerAvailabilityDay(walkerId, date, slots) {
   }
 }
 
-// Save multiple days' availability for a walker in ONE batch upsert request
+// Save multiple days' availability for a walker — fires all in parallel
+// (Promise.all) so wall-clock time is a single round trip regardless of
+// how many days changed, without needing a batch array upsert.
 async function saveWalkerAvailabilityBatch(walkerId, dayMap) {
-  // dayMap: { "2025-04-07": ["8:00 AM", ...], ... }
-  const rows = Object.entries(dayMap).map(([date, slots]) => ({
-    walker_id: walkerId,
-    date,
-    slots: JSON.stringify(slots),
-  }));
-  if (!rows.length) return;
-  try {
-    await sbFetch("availability?on_conflict=walker_id,date", {
-      method: "POST",
-      headers: { "Prefer": "resolution=merge-duplicates,return=representation" },
-      body: JSON.stringify(rows),
-    });
-  } catch (e) {
-    console.error("saveWalkerAvailabilityBatch failed:", e);
-    throw e;
-  }
+  const entries = Object.entries(dayMap);
+  if (!entries.length) return;
+  await Promise.all(
+    entries.map(([date, slots]) =>
+      sbFetch("availability?on_conflict=walker_id,date", {
+        method: "POST",
+        headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify({ walker_id: walkerId, date, slots: JSON.stringify(slots) }),
+      })
+    )
+  );
 }
 
 // Load availability for ALL walkers for a date range — used on client booking side
