@@ -22,13 +22,12 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
   const [lpContact, setLpContact] = useState({ name: "", email: "", phone: "", subject: "", message: "", contactPref: "email" });
   const [lpContactSent, setLpContactSent] = useState(false);
   const [lpContactSending, setLpContactSending] = useState(false);
-  const [landingView, setLandingView] = useState(
-    () => window.location.hash === "#apply" ? "apply" : "home"
-  ); // "home" | "apply"
+  const hashToView = (hash) => hash === "#apply" ? "apply" : hash === "#privacy" ? "privacy" : hash === "#terms" ? "terms" : "home";
+  const [landingView, setLandingView] = useState(() => hashToView(window.location.hash));
 
   // Sync view with URL hash (handles direct links and back/forward)
   useEffect(() => {
-    const handleHash = () => setLandingView(window.location.hash === "#apply" ? "apply" : "home");
+    const handleHash = () => setLandingView(hashToView(window.location.hash));
     window.addEventListener("hashchange", handleHash);
     return () => window.removeEventListener("hashchange", handleHash);
   }, []);
@@ -128,6 +127,44 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
 
       {landingView === "apply" && (
         <WalkerApplicationPage onBack={() => setLandingView("home")} />
+      )}
+
+      {landingView === "privacy" && (
+        <LegalPage title="Privacy Policy" onBack={() => setLandingView("home")}>
+          <p><strong>Last updated: April 2026</strong></p>
+          <p>Lonestar Bark Co. ("we," "us," or "our") operates lonestarbarkco.com. This Privacy Policy describes how we collect, use, and protect your personal information when you use our dog-walking and pet-care booking services.</p>
+          <h3>Information We Collect</h3>
+          <p>When you create an account or book a service, we collect: your name, email address, phone number, home address, and pet information (name, breed, special needs). We also collect payment information, which is processed securely by Stripe — we never store full card numbers.</p>
+          <h3>How We Use Your Information</h3>
+          <p>We use your information to: schedule and confirm bookings, process payments and refunds, send booking confirmations and receipts, notify our walkers of appointments, and contact you about your service. We do not sell your personal information to third parties.</p>
+          <h3>Data Storage</h3>
+          <p>Your account data is stored securely in Supabase, a cloud database provider based in the United States. Payment transactions are handled by Stripe, Inc. We retain your data for as long as your account is active.</p>
+          <h3>Your Rights</h3>
+          <p>You may request deletion of your account and data at any time by emailing hello@lonestarbarkco.com. We will process deletion requests within 30 days.</p>
+          <h3>Contact</h3>
+          <p>Questions? Email us at <a href="mailto:hello@lonestarbarkco.com" style={{color:"#C4541A"}}>hello@lonestarbarkco.com</a>.</p>
+        </LegalPage>
+      )}
+
+      {landingView === "terms" && (
+        <LegalPage title="Terms of Service" onBack={() => setLandingView("home")}>
+          <p><strong>Last updated: April 2026</strong></p>
+          <p>By using Lonestar Bark Co. services, you agree to the following terms.</p>
+          <h3>Services</h3>
+          <p>Lonestar Bark Co. provides dog walking and pet-care services in East Dallas, TX. All bookings are subject to walker availability. We reserve the right to decline bookings at our discretion.</p>
+          <h3>Payments</h3>
+          <p>Payment is collected at the time of booking via Stripe. Prices are $30 for 30-minute walks and $45 for 60-minute walks, plus applicable add-ons. Holiday surcharges and same-day express fees apply as listed.</p>
+          <h3>Cancellations & Refunds</h3>
+          <p>Cancellations made more than 24 hours before a scheduled walk are fully refunded. Cancellations within 24 hours are charged 50% of the booking price. No-shows are non-refundable.</p>
+          <h3>Lonestar Loyalty Program</h3>
+          <p>Every completed paid walk earns one loyalty punch. After 10 punches, you may claim one free 60-minute walk. Punches are forfeited if a booking is cancelled. Free walk claims must be scheduled within 90 days of claiming.</p>
+          <h3>Liability</h3>
+          <p>We carry pet-care liability insurance. In the event of an incident involving your pet, please contact us immediately at hello@lonestarbarkco.com. Our liability is limited to the cost of the booked service.</p>
+          <h3>Changes to Terms</h3>
+          <p>We may update these terms at any time. Continued use of our services constitutes acceptance of any updated terms.</p>
+          <h3>Contact</h3>
+          <p>Questions? Email <a href="mailto:hello@lonestarbarkco.com" style={{color:"#C4541A"}}>hello@lonestarbarkco.com</a>.</p>
+        </LegalPage>
       )}
 
       {landingView === "home" && (<>
@@ -855,8 +892,19 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           Born Here. Walk Here.
         </div>
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff44",
-          fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase" }}>
+          fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
+          marginBottom: "12px" }}>
           East Dallas
+        </div>
+        <div style={{ display: "flex", gap: "20px", justifyContent: "center", flexWrap: "wrap" }}>
+          {[["Privacy Policy", "privacy"], ["Terms of Service", "terms"]].map(([label, view]) => (
+            <button key={view} onClick={() => { setLandingView(view); window.scrollTo(0,0); }}
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 0,
+                fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                color: "#ffffff55", textDecoration: "underline", letterSpacing: "0.5px" }}>
+              {label}
+            </button>
+          ))}
         </div>
       </footer>
       </>)}
@@ -864,5 +912,34 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
   );
 }
 
+
+// ─── Legal Page Shell ─────────────────────────────────────────────────────────
+function LegalPage({ title, onBack, children }) {
+  return (
+    <div style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "'DM Sans', sans-serif" }}>
+      {/* Header */}
+      <div style={{ background: "#0B1423", padding: "20px 24px", display: "flex", alignItems: "center", gap: "16px" }}>
+        <button onClick={onBack} style={{
+          background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)",
+          borderRadius: "8px", color: "#fff", fontFamily: "'DM Sans', sans-serif",
+          fontSize: "14px", padding: "6px 14px", cursor: "pointer",
+        }}>← Back</button>
+        <div style={{ color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "17px", fontWeight: 600 }}>
+          Lonestar Bark Co.
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{ maxWidth: "720px", margin: "0 auto", padding: "48px 24px 80px" }}>
+        <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "32px", fontWeight: 700,
+          color: "#111827", marginBottom: "32px" }}>{title}</h1>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", lineHeight: "1.8",
+          color: "#374151" }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default LandingPage;

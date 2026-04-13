@@ -267,6 +267,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [payingBookingKey, setPayingBookingKey] = useState(null); // prevents double-click on Pay Now buttons
   const [expandedWalker, setExpandedWalker] = useState(null);
   const [cancelConfirm, setCancelConfirm] = useState(null);
   const [cancelResult, setCancelResult] = useState(null); // { booking, refundAmount, refundPercent, hoursUntilWalk, bookingPrice }
@@ -656,6 +657,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
 
   // ── Pay for unpaid first walk (booked by walker during handoff) ──
   const handlePayFirstWalk = async (booking) => {
+    if (payingBookingKey) return; // prevent double-click
+    setPayingBookingKey(booking.key);
     try {
       try {
         localStorage.setItem("dwi_stripe_return_clientId", clientPinKey);
@@ -677,6 +680,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       });
       window.location.href = url;
     } catch (err) {
+      setPayingBookingKey(null);
       alert("Unable to open payment page. Please try again or contact us.");
     }
   };
@@ -1573,11 +1577,13 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       Your {unpaidFirstWalk.slot?.duration} walk on {unpaidFirstWalk.day}, {unpaidFirstWalk.date} at {unpaidFirstWalk.slot?.time} is reserved but unpaid.
                     </div>
                     <button onClick={() => handlePayFirstWalk(unpaidFirstWalk)}
+                      disabled={!!payingBookingKey}
                       style={{ padding: "10px 20px", borderRadius: "10px", border: "none",
                         background: "#C4541A", color: "#fff",
                         fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-                        fontWeight: 700, cursor: "pointer" }}>
-                      Pay ${unpaidFirstWalk.price} now →
+                        fontWeight: 700, cursor: payingBookingKey ? "wait" : "pointer",
+                        opacity: payingBookingKey ? 0.7 : 1 }}>
+                      {payingBookingKey === unpaidFirstWalk.key ? "Redirecting…" : `Pay $${unpaidFirstWalk.price} now →`}
                     </button>
                   </div>
                 </div>
