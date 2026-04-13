@@ -84,7 +84,9 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
     if (!e) { setPasswordError("Enter your email first."); return; }
     setLoading(true);
     await supabase.auth.resetPasswordForEmail(e, {
-      redirectTo: `${window.location.origin}/#admin-reset`,
+      // ?admin_reset=1 is preserved by Supabase when it appends the token hash,
+      // so App.jsx can detect this is an admin reset vs a client reset.
+      redirectTo: `${window.location.origin}/?admin_reset=1`,
     });
     setLoading(false);
     setStage("forgot-sent");

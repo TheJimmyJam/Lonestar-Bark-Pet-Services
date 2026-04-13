@@ -66,6 +66,9 @@ export default function LonestarBark() {
   // True when Supabase fires the PASSWORD_RECOVERY event (user clicked the
   // reset link in their email). Shows PasswordResetScreen instead of normal flow.
   const [recoveryMode, setRecoveryMode] = useState(false);
+  // True when the recovery link came from the admin "Forgot password" flow
+  // (distinguished by ?admin_reset=1 query param, which Supabase preserves).
+  const [isAdminReset, setIsAdminReset] = useState(false);
 
   // Stamp the returning-visitor flag whenever anyone successfully logs in
   const handleLogin = (user) => {
@@ -411,6 +414,10 @@ export default function LonestarBark() {
     // Subscribe to auth changes
     const subscription = authOnChange(async (event, session) => {
       if (event === "PASSWORD_RECOVERY") {
+        // Detect admin vs client reset via ?admin_reset=1 query param.
+        // AdminAuthScreen sets redirectTo: origin + "/?admin_reset=1" so
+        // Supabase appends the token hash while preserving the query string.
+        setIsAdminReset(window.location.search.includes("admin_reset"));
         setRecoveryMode(true);
         return;
       }
@@ -626,9 +633,18 @@ export default function LonestarBark() {
     <PasswordResetScreen onDone={() => {
       setRecoveryMode(false);
       setActiveUser(null);
-      setSelectedRole("customer");
-      setShowApp(true);
-      setShowLogin(true);
+      if (isAdminReset) {
+        // Admin reset — route back to admin login screen
+        setIsAdminReset(false);
+        setSelectedRole("admin");
+        setShowApp(true);
+        setShowLogin(true);
+      } else {
+        // Client reset — route back to customer login
+        setSelectedRole("customer");
+        setShowApp(true);
+        setShowLogin(true);
+      }
     }} />
   );
 
