@@ -9,7 +9,7 @@ const RESEND_API_KEY       = Deno.env.get("RESEND_API_KEY")!;
 const EMAIL_1              = Deno.env.get("ADMIN_NOTIFY_EMAIL_1")!;
 const EMAIL_2              = Deno.env.get("ADMIN_NOTIFY_EMAIL_2");
 
-const FROM = "Lonestar Bark Co. <hello@lonestarbarkco.com>";
+const FROM = "Lonestar Bark Co. <hello@send.lonestarbarkco.com>";
 
 // ── Stripe signature verification ─────────────────────────────────────────────
 
