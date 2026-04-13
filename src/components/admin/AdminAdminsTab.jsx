@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { sbFetch, saveClients, saveWalkerProfiles, saveAdminList, removeAdminFromDB } from "../../supabase.js";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, sbFetch, saveClients, saveWalkerProfiles, saveAdminList, removeAdminFromDB } from "../../supabase.js";
 import { generateCode, formatPhone } from "../../helpers.js";
 import AdminDangerZone from "./AdminDangerZone.jsx";
 import AdminDemoDataSection from "./AdminDemoDataSection.jsx";
@@ -44,18 +44,18 @@ function AdminAdminsTab({ admin, adminList, setAdminList, clients, setClients, w
     try {
       await saveAdminList(updated);
       setAdminList(updated);
-      // Send Supabase invite email so they can set their password
+      // Send branded invite email with a one-click password setup link
       try {
-        await fetch(`https://mvkmxmhsudqwxrsiifms.supabase.co/functions/v1/admin-invite`, {
+        await fetch(`${SUPABASE_URL}/functions/v1/admin-invite`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12a214bWhzdWRxd3hyc2lpZm1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTEyMDIsImV4cCI6MjA5MTAyNzIwMn0.dP6PunUbTuuNs3K4CFBVmP8hmV29MBFActwemoDysxk`,
+            "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
           },
-          body: JSON.stringify({ email: e }),
+          body: JSON.stringify({ email: e, name: newAdmin.name || e }),
         });
       } catch {
-        // Non-fatal — admin is saved, email delivery may still work
+        // Non-fatal — admin record is saved; they can use Forgot Password to get in
       }
       setInvitedEmail(e);
       setInviteEmail("");
