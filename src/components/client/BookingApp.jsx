@@ -578,7 +578,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       const updatedWithStatus = { ...updated, bookings: bookingsWithStatus };
       const updatedClients = { ...clients, [clientPinKey]: updatedWithStatus };
       setClients(updatedClients);
-      await saveClients(updatedClients);
+      await saveClients({ [clientPinKey]: updatedClients[clientPinKey] });
 
       if (requiresPayment && newBookings.length > 0) {
         // Redirect to Stripe — emails fire after successful payment return
@@ -718,7 +718,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     const updated = { ...client, bookings: allBookings };
     const updatedClients = { ...clients, [clientPinKey]: updated };
     setClients(updatedClients);
-    await saveClients(updatedClients);
+    await saveClients({ [clientPinKey]: updatedClients[clientPinKey] });
     try {
       localStorage.setItem("dwi_stripe_return_clientId", clientPinKey);
       localStorage.setItem("dwi_pending_booking_keys", JSON.stringify([bookingId]));
@@ -845,7 +845,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     const updated = revokePunchCard(cancelledClientData, cancelKey);
     const updatedClients = { ...clients, [clientPinKey]: updated };
     setClients(updatedClients);
-    await saveClients(updatedClients);
+    await saveClients({ [clientPinKey]: updatedClients[clientPinKey] });
 
     // Issue Stripe refund if owed
     // stripeRefundSucceeded tracks whether Stripe actually processed it (vs. admin handling manually)
@@ -883,7 +883,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           };
           const clientsWithRefund = { ...updatedClients, [clientPinKey]: withRefundId };
           setClients(clientsWithRefund);
-          await saveClients(clientsWithRefund);
+          await saveClients({ [clientPinKey]: withRefundId });
         }
       } catch (e) {
         console.error("[handleCancel] Refund failed:", e);
@@ -1224,7 +1224,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 const updated = { ...client, handoffInfo: null };
                 const updatedClients = { ...clients, [clientPinKey]: updated };
                 setClients(updatedClients);
-                saveClients(updatedClients);
+                saveClients({ [clientPinKey]: updatedClients[clientPinKey] });
                 setHandoffCancelConfirm(false);
               }} style={{ width: "100%", padding: "13px", borderRadius: "10px", border: "none",
                 background: "#dc2626", color: "#fff", fontFamily: "'DM Sans', sans-serif",
@@ -1388,7 +1388,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 };
                 const updatedClients = { ...clients, [clientPinKey]: updated };
                 setClients(updatedClients);
-                saveClients(updatedClients);
+                saveClients({ [clientPinKey]: updatedClients[clientPinKey] });
                 setHandoffEditOpen(false);
                 setHandoffReschedDay(null);
                 setHandoffReschedWindow(null);
@@ -1694,7 +1694,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       if (!updated) return;
                       const updatedClients = { ...clients, [clientPinKey]: updated };
                       setClients(updatedClients);
-                      saveClients(updatedClients);
+                      saveClients({ [clientPinKey]: updatedClients[clientPinKey] });
                       notifyAdmin("free_walk_claimed", { clientName: client.name || client.email, walkType: "60 min", punchesUsed: PUNCH_CARD_GOAL });
                     }} style={{
                       padding: "10px 18px", borderRadius: "10px", border: "1.5px solid rgba(255,255,255,0.4)",
@@ -2049,7 +2049,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           };
           const updatedClients = { ...clients, [clientPinKey]: updated };
           setClients(updatedClients);
-          saveClients(updatedClients);
+          saveClients({ [clientPinKey]: updatedClients[clientPinKey] });
         };
 
         const handleCancelRecurringWeek = (recurringId, weekKey) => {
@@ -2063,7 +2063,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           };
           const updatedClients = { ...clients, [clientPinKey]: updated };
           setClients(updatedClients);
-          saveClients(updatedClients);
+          saveClients({ [clientPinKey]: updatedClients[clientPinKey] });
         };
 
         return (
@@ -3205,7 +3205,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     phone: form.phone || client.phone || "",
                   };
                   setClients({ ...clients, [clientPinKey]: updated });
-                  saveClients({ ...clients, [clientPinKey]: updated });
+                  saveClients({ [clientPinKey]: updated });
                   setOvernightSubmitting(false);
                   setOvernightStep("confirm");
                 }, 800);
