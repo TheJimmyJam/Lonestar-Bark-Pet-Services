@@ -10,6 +10,7 @@ import {
   updateInvoiceInDB,
   loadContactSubmissions,
   logAuditEvent,
+  createWalkerAuthAccount,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout,
@@ -4994,6 +4995,9 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       // Inject immediately into runtime so they can log in + appear everywhere
                       injectCustomWalkers(updatedProfiles);
 
+                      // Provision a Supabase Auth account so the walker can log in via PIN
+                      createWalkerAuthAccount(emailKey, wf.name.trim());
+
                       logAuditEvent({ adminId: admin.id, adminName: admin.name,
                         action: "walker_added", entityType: "walker", entityId: newId,
                         details: { walkerName: newProf.name, email: newProf.email, role: newProf.role } });
@@ -5176,6 +5180,8 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
             setWalkerProfiles(updated);
             await saveWalkerProfiles(updated);
             injectCustomWalkers(updated);
+            // Provision Supabase Auth account so they can log in via PIN
+            createWalkerAuthAccount(emailKey, fullName);
           };
 
           const updateStatus = async (id, status) => {
@@ -5539,6 +5545,8 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
             setWalkerProfiles(updated);
             await saveWalkerProfiles(updated);
             injectCustomWalkers(updated);
+            // Provision Supabase Auth account so they can log in via PIN
+            createWalkerAuthAccount(emailKey, fullName);
           };
 
           const updateStatus = async (id, status) => {

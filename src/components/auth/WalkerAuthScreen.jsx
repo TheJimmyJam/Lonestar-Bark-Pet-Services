@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { WALKER_SERVICES } from "../../constants.js";
-import { notifyAdmin, loadWalkerProfiles } from "../../supabase.js";
+import { notifyAdmin, loadWalkerProfiles, walkerSignIn, setWalkerAuthPin } from "../../supabase.js";
 import { generateCode, formatPhone, emptyAddr, addrToString, firstName } from "../../helpers.js";
 import PinPad from "../shared/PinPad.jsx";
 import LogoBadge from "../shared/LogoBadge.jsx";
@@ -63,6 +63,7 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin, onReques
   const [resetCode, setResetCode] = useState("");
   const [resetCodeError, setResetCodeError] = useState("");
   const [resetSending, setResetSending] = useState(false);
+  const [isLoading, setIsLoading]     = useState(false);
   const rateLimiter = useRateLimiter(email);
 
   // On mount: check for a previously saved email
@@ -87,14 +88,29 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin, onReques
     setStage(cred.mustSetPin ? "setpin" : "pin");
   };
 
-  const handlePin = (pin) => {
-    if (rateLimiter.locked) return;
+  const handlePin = async (pin) => {
+    if (rateLimiter.locked || isLoading) return;
     const e = email.trim().toLowerCase();
     const cred = WALKER_CREDENTIALS[e];
-    if (cred && cred.pin === pin) {
+    setIsLoading(true);
+
+    let result = await walkerSignIn(e, pin);
+
+    // ── Auto-migration path ───────────────────────────────────────────────────
+    // If Supabase Auth fails but the old locally-stored PIN matches, this walker
+    // was created before Supabase Auth was wired up. Transparently provision
+    // their account now so subsequent logins go through Supabase Auth.
+    if (!result.success && cred && cred.pin === pin) {
+      await setWalkerAuthPin(e, pin, cred.name);
+      result = await walkerSignIn(e, pin);
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    setIsLoading(false);
+    if (result.success) {
       rateLimiter.clearFailures();
       try { localStorage.setItem(STORAGE_KEY, e); } catch {}
-      const walkerData = getAllWalkers().find(w => w.id === cred.walkerId);
+      const walkerData = getAllWalkers().find(w => w.id === cred?.walkerId);
       onLogin({ ...walkerData, email: e, role: "walker" });
     } else {
       const nowLocked = rateLimiter.recordFailure();
@@ -107,7 +123,7 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin, onReques
     }
   };
 
-  const handleSetPin = (pin) => {
+  const handleSetPin = async (pin) => {
     if (!newPin) {
       setNewPin(pin);
       setStage("confirmpin");
@@ -119,10 +135,25 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin, onReques
     }
     const e = email.trim().toLowerCase();
     const cred = WALKER_CREDENTIALS[e];
-    WALKER_CREDENTIALS[e] = { ...cred, pin, mustSetPin: false };
-    if (onSetPin) onSetPin(e, pin);
+    setIsLoading(true);
+
+    // Set their PIN as their Supabase Auth password (creates account if needed)
+    const setResult = await setWalkerAuthPin(e, pin, cred?.name);
+    if (!setResult.success) {
+      setIsLoading(false);
+      setPinError("Failed to save PIN — please try again."); setTimeout(() => setPinError(""), 3000);
+      setNewPin(null); setStage("setpin"); return;
+    }
+
+    // Sign in with the new PIN
+    await walkerSignIn(e, pin);
+    setIsLoading(false);
+
+    // Update WALKER_CREDENTIALS in memory (mustSetPin false, pin cleared — auth is Supabase now)
+    WALKER_CREDENTIALS[e] = { ...cred, mustSetPin: false };
+    if (onSetPin) onSetPin(e);   // tell App.jsx to clear mustSetPin in DB
     try { localStorage.setItem(STORAGE_KEY, e); } catch {}
-    const walkerData = getAllWalkers().find(w => w.id === cred.walkerId);
+    const walkerData = getAllWalkers().find(w => w.id === cred?.walkerId);
     onLogin({ ...walkerData, email: e, role: "walker" });
   };
 

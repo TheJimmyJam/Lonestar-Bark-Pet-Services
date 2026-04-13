@@ -784,11 +784,12 @@ export default function LonestarBark() {
         onLogin={handleLogin}
         onBack={() => setSelectedRole(null)}
         onBackToLanding={() => { setSelectedRole(null); setShowApp(false); setShowLogin(false); }}
-        onSetPin={(email, pin) => {
+        onSetPin={(email) => {
+          // PIN is now stored in Supabase Auth — only clear mustSetPin flag in DB
           const updated = { ...walkerProfiles };
           const entry = Object.values(updated).find(p => p.email?.toLowerCase() === email);
           if (entry) {
-            updated[entry.id] = { ...entry, pin, mustSetPin: false, resetCode: null, resetCodeExpiry: null };
+            updated[entry.id] = { ...entry, pin: null, mustSetPin: false, resetCode: null, resetCodeExpiry: null };
             setWalkerProfiles(updated);
             saveWalkerProfiles(updated);
           }

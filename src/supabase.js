@@ -491,6 +491,61 @@ async function loadAllWalkersAvailability(startDate, endDate) {
 }
 
 
+// ─── Walker Auth (Supabase Auth) ──────────────────────────────────────────────
+// Walker PINs are their Supabase Auth password. All PIN checks go server-side
+// via signInWithPassword instead of being compared locally.
+
+// Sign a walker in. Their PIN is their Supabase Auth password.
+async function walkerSignIn(email, pin) {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password: pin,
+    });
+    if (error) return { success: false, error: error.message };
+    return { success: true, session: data.session };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+// Called by the admin dashboard when creating a new walker.
+// Provisions a Supabase Auth account (service role edge function).
+async function createWalkerAuthAccount(email, name) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/create-walker-account`, {
+      method: "POST",
+      headers: edgeHeaders,
+      body: JSON.stringify({ email, name }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to create walker account");
+    return { success: true, userId: data.user_id };
+  } catch (e) {
+    console.error("[createWalkerAuthAccount] failed:", e);
+    return { success: false, error: e.message };
+  }
+}
+
+// Set (or reset) a walker's Supabase Auth password to their chosen PIN.
+// Creates the Supabase Auth account if it doesn't exist yet (handles
+// auto-migration for walkers who had PINs before this system was added).
+async function setWalkerAuthPin(email, pin, name) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/set-walker-pin`, {
+      method: "POST",
+      headers: edgeHeaders,
+      body: JSON.stringify({ email, pin, name }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to set walker PIN");
+    return { success: true };
+  } catch (e) {
+    console.error("[setWalkerAuthPin] failed:", e);
+    return { success: false, error: e.message };
+  }
+}
+
 export {
   SUPABASE_URL, SUPABASE_ANON_KEY,
   notifyAdmin, sbFetch,
@@ -510,12 +565,14 @@ export {
   loadContactSubmissions, saveContactSubmission, updateContactSubmission, deleteContactSubmission,
   sendInvoiceEmail, sendWelcomeEmail, sendBookingConfirmation, sendInvoicePaidEmail, sendWalkerBookingNotification, sendPinResetCode,
   createBookingCheckout, createRefund, sendWalkerCancellationNotification, sendClientCancellationNotification,
-  // Supabase Auth (clients only)
+  // Supabase Auth (clients)
   supabase,
   authSignUpWithEmail, authSignInWithEmail, authSignInWithGoogle,
   authSendPasswordReset, authUpdatePassword, authSignOut,
   authGetSession, authOnChange,
   loadClientByUserId, synthPinFromUserId,
+  // Supabase Auth (walkers)
+  walkerSignIn, createWalkerAuthAccount, setWalkerAuthPin,
 };
 
 // ─── Audit Log ───────────────────────────────────────────────────────────────

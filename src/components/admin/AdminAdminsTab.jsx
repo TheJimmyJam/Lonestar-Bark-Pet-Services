@@ -197,13 +197,15 @@ function AdminAdminsTab({ admin, adminList, setAdminList, clients, setClients, w
         )}
       </div>
 
-      {/* ── Demo Data ── */}
-      <AdminDemoDataSection
-        clients={clients}
-        setClients={setClients}
-        walkerProfiles={walkerProfiles}
-        setWalkerProfiles={setWalkerProfiles}
-      />
+      {/* ── Demo Data (master admin only) ── */}
+      {me?.isMaster && (
+        <AdminDemoDataSection
+          clients={clients}
+          setClients={setClients}
+          walkerProfiles={walkerProfiles}
+          setWalkerProfiles={setWalkerProfiles}
+        />
+      )}
 
       {/* ── Danger Zone (master admin only) ── */}
       {me?.isMaster && (
