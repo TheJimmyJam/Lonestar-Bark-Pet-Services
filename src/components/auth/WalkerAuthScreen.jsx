@@ -21,6 +21,7 @@ function injectCustomWalkers(walkerProfiles) {
     if (prof.deleted) return;
     CUSTOM_WALKERS.push({
       id: prof.id,
+      dbWalkerId: prof.dbWalkerId ?? null, // DB walker_id for FK-sensitive ops (availability)
       name: prof.preferredName || prof.name,
       role: prof.role || "Dog Walker",
       years: prof.years || 0,
@@ -31,6 +32,7 @@ function injectCustomWalkers(walkerProfiles) {
     if (prof.email && (prof.pin !== undefined || prof.mustSetPin)) {
       WALKER_CREDENTIALS[prof.email.toLowerCase()] = {
         walkerId: prof.id,
+        dbWalkerId: prof.dbWalkerId ?? null,
         pin: prof.pin || null,       // kept for auto-migration fallback only
         mustSetPin: !!prof.mustSetPin,
         name: prof.preferredName || prof.name,

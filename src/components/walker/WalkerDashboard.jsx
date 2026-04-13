@@ -413,7 +413,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
   useEffect(() => {
     if (tab !== "availability") return;
     setAvailLoading(true);
-    loadWalkerAvailability(walker.id).then(data => {
+    loadWalkerAvailability(walker.dbWalkerId ?? walker.id).then(data => {
       setAvailability(data);
       setSavedAvailability(data);
       setAvailLoading(false);
@@ -506,7 +506,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
       }
       // Single round trip instead of one request per day
       if (Object.keys(dirtyDays).length > 0) {
-        await saveWalkerAvailabilityBatch(walker.id, dirtyDays);
+        await saveWalkerAvailabilityBatch(walker.dbWalkerId ?? walker.id, dirtyDays);
       }
       // Snapshot entire availability as the new saved state
       setSavedAvailability(JSON.parse(JSON.stringify(availability)));

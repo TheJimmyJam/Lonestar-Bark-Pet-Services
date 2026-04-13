@@ -131,6 +131,9 @@ async function loadWalkerProfiles() {
     rows.forEach(row => {
       try {
         const parsed = JSON.parse(row.data);
+        // Stamp the DB walker_id onto the profile so the rest of the app
+        // (availability save/load, etc.) can always find the FK-correct ID.
+        parsed.dbWalkerId = row.walker_id;
         result[row.walker_id] = parsed;
       } catch {}
     });
