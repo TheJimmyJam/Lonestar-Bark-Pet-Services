@@ -695,7 +695,7 @@ async function loadAdminList() {
   try {
     const rows = await sbFetch("admins?select=*&order=created_at.asc");
     if (rows && rows.length > 0) {
-      return rows.map(r => ({
+      const mapped = rows.map(r => ({
         id: r.id,
         name: r.name || "",
         email: r.email,
@@ -705,6 +705,39 @@ async function loadAdminList() {
         invitedBy: r.invited_by || null,
         createdAt: r.created_at || new Date().toISOString(),
       }));
+
+      // Deduplicate by email: if multiple rows exist for the same email
+      // (e.g. stale "invited" row + activated row), keep the "active" one,
+      // or the most recently created if both have the same status.
+      const seen = new Map();
+      const dupeIds = [];
+      for (const a of mapped) {
+        const key = a.email.toLowerCase();
+        if (!seen.has(key)) {
+          seen.set(key, a);
+        } else {
+          const existing = seen.get(key);
+          // Prefer "active" over "invited"; prefer more recent if same status
+          const keepNew = a.status === "active" && existing.status !== "active"
+            || (a.status === existing.status && a.createdAt > existing.createdAt);
+          if (keepNew) {
+            dupeIds.push(existing.id);
+            seen.set(key, a);
+          } else {
+            dupeIds.push(a.id);
+          }
+        }
+      }
+      // Fire-and-forget: delete stale duplicate rows from the DB
+      if (dupeIds.length > 0) {
+        dupeIds.forEach(id =>
+          sbFetch(`admins?id=eq.${encodeURIComponent(id)}`, {
+            method: "DELETE", headers: { "Prefer": "" },
+          }).catch(() => {})
+        );
+      }
+
+      return [...seen.values()];
     }
     await saveAdminList([DEFAULT_ADMIN]);
     return [DEFAULT_ADMIN];

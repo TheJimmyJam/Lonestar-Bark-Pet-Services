@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase, saveAdminList, upsertAdminRow } from "../../supabase.js";
+import { supabase, saveAdminList, upsertAdminRow, removeAdminFromDB } from "../../supabase.js";
 import LogoBadge from "../shared/LogoBadge.jsx";
 import { GLOBAL_STYLES } from "../../styles.js";
 
@@ -66,11 +66,19 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
       // upgrade their status from "invited" to "active" automatically.
       if (found.status === "invited") {
         const activated = { ...found, status: "active", activatedAt: new Date().toISOString() };
-        const updatedList = adminList.map(a => a.id === found.id ? activated : a);
+        // Remove any stale duplicate invited rows for this email before activating
+        const staleIds = adminList
+          .filter(a => a.email.toLowerCase() === found.email.toLowerCase() && a.id !== found.id)
+          .map(a => a.id);
+        const updatedList = adminList
+          .filter(a => !staleIds.includes(a.id))
+          .map(a => a.id === found.id ? activated : a);
         found = activated;
         setAdminList(updatedList);
         // Use single-row upsert to activate — don't let a DB error block login
         upsertAdminRow(activated).catch(e => console.error("Admin activation upsert failed:", e));
+        // Clean up stale rows in DB too
+        staleIds.forEach(id => removeAdminFromDB(id).catch(() => {}));
       }
       // Keep the Supabase session alive — sbFetch uses the session JWT so
       // RLS policies can identify this user as an admin. The routing guard
