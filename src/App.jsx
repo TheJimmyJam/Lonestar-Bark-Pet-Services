@@ -75,6 +75,9 @@ export default function LonestarBark() {
   // True when the recovery link came from the admin "Forgot password" flow
   // (distinguished by ?admin_reset=1 query param, which Supabase preserves).
   const [isAdminReset, setIsAdminReset] = useState(false);
+  // Email address of a walker who clicked an invite/reset link (?walker_invite=1).
+  // When set, we show WalkerAuthScreen in set-password mode instead of normal routing.
+  const [walkerInviteEmail, setWalkerInviteEmail] = useState("");
 
   // Stamp the returning-visitor flag whenever anyone successfully logs in
   const handleLogin = (user) => {
@@ -458,11 +461,18 @@ export default function LonestarBark() {
 
     // Subscribe to auth changes — live events are always trusted, no verify needed.
     const subscription = authOnChange(async (event, session) => {
+      const search = window.location.search;
+
       if (event === "PASSWORD_RECOVERY") {
+        if (search.includes("walker_invite")) {
+          // Walker clicked a password-reset invite link — show walker set-password UI.
+          setWalkerInviteEmail(session?.user?.email || "");
+          return;
+        }
         // Detect admin vs client reset via ?admin_reset=1 query param.
         // AdminAuthScreen sets redirectTo: origin + "/?admin_reset=1" so
         // Supabase appends the token hash while preserving the query string.
-        setIsAdminReset(window.location.search.includes("admin_reset"));
+        setIsAdminReset(search.includes("admin_reset"));
         setRecoveryMode(true);
         return;
       }
@@ -470,6 +480,13 @@ export default function LonestarBark() {
         setAuthSession(null);
         setPendingRegistration(null);
         return;
+      }
+      if (event === "SIGNED_IN") {
+        if (search.includes("walker_invite")) {
+          // New walker clicked the invite magic-link — show walker set-password UI.
+          setWalkerInviteEmail(session?.user?.email || "");
+          return;
+        }
       }
       if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
         await handleSession(session);
@@ -680,6 +697,20 @@ export default function LonestarBark() {
     const isReturning = (() => { try { return !!localStorage.getItem("dwi_has_visited"); } catch { return false; } })();
     setShowLogin(isReturning);
   };
+
+  // ── Walker invite (clicked invite/reset link with ?walker_invite=1) ─────
+  if (walkerInviteEmail) return (
+    <WalkerAuthScreen
+      inviteEmail={walkerInviteEmail}
+      onLogin={(walkerUser) => {
+        setWalkerInviteEmail("");
+        window.history.replaceState({}, "", "/");
+        handleLogin(walkerUser);
+      }}
+      onBack={() => { setWalkerInviteEmail(""); window.history.replaceState({}, "", "/"); }}
+      onBackToLanding={() => { setWalkerInviteEmail(""); window.history.replaceState({}, "", "/"); }}
+    />
+  );
 
   // ── Password recovery (user clicked reset link in email) ────────────────
   if (recoveryMode) return (

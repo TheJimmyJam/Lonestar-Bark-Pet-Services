@@ -531,6 +531,24 @@ async function createWalkerAuthAccount(email, name) {
   }
 }
 
+// Send a walker an invite email so they can set their password and log in.
+// New users get a Supabase invite; existing users get a password reset link.
+async function inviteWalkerAuth(email, name) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/invite-walker`, {
+      method: "POST",
+      headers: edgeHeaders,
+      body: JSON.stringify({ email, name }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to send walker invite");
+    return { success: true, type: data.type };
+  } catch (e) {
+    console.error("[inviteWalkerAuth] failed:", e);
+    return { success: false, error: e.message };
+  }
+}
+
 // Set (or reset) a walker's Supabase Auth password to their chosen PIN.
 // Creates the Supabase Auth account if it doesn't exist yet (handles
 // auto-migration for walkers who had PINs before this system was added).
@@ -576,7 +594,7 @@ export {
   authGetSession, authOnChange,
   loadClientByUserId, synthPinFromUserId,
   // Supabase Auth (walkers)
-  walkerSignIn, createWalkerAuthAccount, setWalkerAuthPin,
+  walkerSignIn, createWalkerAuthAccount, inviteWalkerAuth, setWalkerAuthPin,
 };
 
 // ─── Audit Log ───────────────────────────────────────────────────────────────

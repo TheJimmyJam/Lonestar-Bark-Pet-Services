@@ -10,7 +10,7 @@ import {
   updateInvoiceInDB,
   loadContactSubmissions,
   logAuditEvent,
-  createWalkerAuthAccount,
+  createWalkerAuthAccount, inviteWalkerAuth,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout,
@@ -4877,7 +4877,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                         placeholder="jane@lonestarbark.com" style={iStyle(wfErrors.email)} />
                       {wfErrors.email && <div style={{ color: "#ef4444", fontSize: "15px", marginTop: "3px", fontFamily: "'DM Sans', sans-serif" }}>{wfErrors.email}</div>}
                       <div style={{ marginTop: "6px", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af" }}>
-                        🔐 The walker will set their own PIN when they log in for the first time.
+                        📧 They'll receive an email with a link to set their password.
                       </div>
                     </div>
 
@@ -4961,7 +4961,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       if (!wf.name.trim()) errs.name = "Required";
                       const emailKey = wf.email.trim().toLowerCase();
                       if (!emailKey || !emailKey.includes("@")) errs.email = "Valid email required";
-                      else if (WALKER_CREDENTIALS[emailKey]) errs.email = "Email already in use";
+                      else if (Object.values(walkerProfiles).some(p => !p.deleted && p.email?.toLowerCase() === emailKey)) errs.email = "Email already in use";
                       if (Object.keys(errs).length) { setWalkerFormErrors(errs); return; }
 
                       // Generate a new unique ID beyond the built-in range
@@ -4995,8 +4995,8 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       // Inject immediately into runtime so they can log in + appear everywhere
                       injectCustomWalkers(updatedProfiles);
 
-                      // Provision a Supabase Auth account so the walker can log in via PIN
-                      createWalkerAuthAccount(emailKey, wf.name.trim());
+                      // Send invite email so the walker can set their password
+                      inviteWalkerAuth(emailKey, wf.name.trim());
 
                       logAuditEvent({ adminId: admin.id, adminName: admin.name,
                         action: "walker_added", entityType: "walker", entityId: newId,
