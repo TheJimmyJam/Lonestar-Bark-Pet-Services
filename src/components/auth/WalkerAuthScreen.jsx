@@ -67,6 +67,34 @@ const btnGhost = { background: "none", border: "none", color: "#ffffffaa",
 const errStyle = { color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
   fontSize: "14px", marginBottom: "10px" };
 
+// ─── Shared password field (must live outside WalkerAuthScreen so React doesn't
+//     recreate it as a new component on every render, which would kill focus) ──
+function PasswordField({ value, onChange, placeholder = "••••••••", label, onEnter, showPw, onToggleShowPw, hasError }) {
+  return (
+    <div style={{ position: "relative", marginBottom: "12px" }}>
+      {label && <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffbb",
+        fontSize: "13px", marginBottom: "6px" }}>{label}</div>}
+      <input
+        type={showPw ? "text" : "password"}
+        placeholder={placeholder}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onKeyDown={e => e.key === "Enter" && onEnter && onEnter()}
+        style={{ width: "100%", padding: "14px 48px 14px 16px", borderRadius: "12px",
+          border: hasError ? "1.5px solid #ef4444" : "1.5px solid #2A6070",
+          background: "#1A3A42", color: "#fff", fontSize: "15px",
+          fontFamily: "'DM Sans', sans-serif", boxSizing: "border-box", outline: "none" }}
+      />
+      <button onClick={onToggleShowPw}
+        style={{ position: "absolute", right: "12px", top: label ? "calc(50% + 10px)" : "50%",
+          transform: "translateY(-50%)", background: "none", border: "none",
+          color: "#ffffff66", cursor: "pointer", fontSize: "18px", padding: "4px" }}>
+        {showPw ? "🙈" : "👁"}
+      </button>
+    </div>
+  );
+}
+
 // ─── WalkerAuthScreen ─────────────────────────────────────────────────────────
 function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPassword }) {
   const STORAGE_KEY = "dw_walker_email";
@@ -172,27 +200,6 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPassword }) {
     setStage("entry");
   };
 
-  // ── Shared password field ────────────────────────────────────────────────────
-  const PasswordField = ({ value, onChange, placeholder = "••••••••", label, onEnter }) => (
-    <div style={{ position: "relative", marginBottom: "12px" }}>
-      {label && <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffbb",
-        fontSize: "13px", marginBottom: "6px" }}>{label}</div>}
-      <input
-        type={showPw ? "text" : "password"}
-        placeholder={placeholder}
-        value={value}
-        onChange={e => { onChange(e.target.value); setFormError(""); }}
-        onKeyDown={e => e.key === "Enter" && onEnter && onEnter()}
-        style={{ ...inputStyle(!!formError), marginBottom: 0, paddingRight: "48px" }}
-      />
-      <button onClick={() => setShowPw(s => !s)}
-        style={{ position: "absolute", right: "12px", top: label ? "calc(50% + 10px)" : "50%",
-          transform: "translateY(-50%)", background: "none", border: "none",
-          color: "#ffffff66", cursor: "pointer", fontSize: "18px", padding: "4px" }}>
-        {showPw ? "🙈" : "👁"}
-      </button>
-    </div>
-  );
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
@@ -262,8 +269,9 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPassword }) {
               )}
             </div>
 
-            <PasswordField value={password} onChange={setPassword}
-              label="Password" onEnter={handleLogin} />
+            <PasswordField value={password} onChange={v => { setPassword(v); setFormError(""); }}
+              label="Password" onEnter={handleLogin}
+              showPw={showPw} onToggleShowPw={() => setShowPw(s => !s)} hasError={!!formError} />
             {formError && <div style={errStyle}>{formError}</div>}
 
             <button onClick={handleLogin} disabled={isLoading}
@@ -295,9 +303,12 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPassword }) {
               </div>
             </div>
 
-            <PasswordField value={password} onChange={setPassword} label="New password" />
-            <PasswordField value={confirmPw} onChange={setConfirmPw} label="Confirm password"
-              onEnter={handleSetPassword} />
+            <PasswordField value={password} onChange={v => { setPassword(v); setFormError(""); }}
+              label="New password"
+              showPw={showPw} onToggleShowPw={() => setShowPw(s => !s)} hasError={!!formError} />
+            <PasswordField value={confirmPw} onChange={v => { setConfirmPw(v); setFormError(""); }}
+              label="Confirm password" onEnter={handleSetPassword}
+              showPw={showPw} onToggleShowPw={() => setShowPw(s => !s)} hasError={!!formError} />
             {formError && <div style={errStyle}>{formError}</div>}
 
             <button onClick={handleSetPassword} disabled={isLoading}
