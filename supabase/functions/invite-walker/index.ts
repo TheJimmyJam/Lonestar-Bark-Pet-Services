@@ -63,7 +63,7 @@ serve(async (req) => {
     }
 
     // ── New account — send Supabase invite email ──────────────────────────────
-    const inviteRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/invite`, {
+    const inviteRes = await fetch(`${SUPABASE_URL}/auth/v1/invite`, {
       method: "POST",
       headers: adminHeaders,
       body: JSON.stringify({
