@@ -41,6 +41,7 @@ function HandoffFlow({ client, onComplete, onLogout, walkerProfiles = {} }) {
   const [handoffWeekOffset, setHandoffWeekOffset] = useState(() => getInitialHandoff()[0]);
   const [addFollowOnWalk, setAddFollowOnWalk] = useState(false);
   const [followOnDuration, setFollowOnDuration] = useState("30 min");
+  const [isConfirming, setIsConfirming] = useState(false);
   const weekDates = getWeekDates(handoffWeekOffset);
 
   // Scroll refs for progressive sections
@@ -597,24 +598,40 @@ function HandoffFlow({ client, onComplete, onLogout, walkerProfiles = {} }) {
                 ))}
               </div>
             )}
-            <button onClick={() => onComplete({
-              handoffDay: selDay, handoffSlot: selSlot, handoffWalker: selWalker,
-              handoffDate: weekDates[selDay].toISOString(),
-              handoffPhone, handoffAddress, handoffAddrObj,
-              followOnWalk: addFollowOnWalk && getFollowOnTime() ? {
-                duration: followOnDuration,
-                slotTime: getFollowOnTime().time,
-                hour: getFollowOnTime().hour,
-                minute: getFollowOnTime().minute,
-                dayOfWeek: selDay,
-                date: weekDates[selDay].toISOString(),
-              } : null,
-            })} style={{
-              padding: "15px 36px", borderRadius: "14px", border: "none",
-              background: "#0B1423", color: "#fff", fontFamily: "'DM Sans', sans-serif",
-              fontSize: "15px", fontWeight: 500, cursor: "pointer",
-            }}>
-              {addFollowOnWalk && getFollowOnTime() ? "Confirm & Pay for Walk →" : "Start Booking Services →"}
+            <button
+              disabled={isConfirming}
+              onClick={async () => {
+                if (isConfirming) return;
+                setIsConfirming(true);
+                try {
+                  await onComplete({
+                    handoffDay: selDay, handoffSlot: selSlot, handoffWalker: selWalker,
+                    handoffDate: weekDates[selDay].toISOString(),
+                    handoffPhone, handoffAddress, handoffAddrObj,
+                    followOnWalk: addFollowOnWalk && getFollowOnTime() ? {
+                      duration: followOnDuration,
+                      slotTime: getFollowOnTime().time,
+                      hour: getFollowOnTime().hour,
+                      minute: getFollowOnTime().minute,
+                      dayOfWeek: selDay,
+                      date: weekDates[selDay].toISOString(),
+                    } : null,
+                  });
+                } finally {
+                  setIsConfirming(false);
+                }
+              }}
+              style={{
+                padding: "15px 36px", borderRadius: "14px", border: "none",
+                background: isConfirming ? "#4b5563" : "#0B1423", color: "#fff",
+                fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500,
+                cursor: isConfirming ? "not-allowed" : "pointer", opacity: isConfirming ? 0.7 : 1,
+                transition: "all 0.15s",
+              }}>
+              {isConfirming
+                ? "Saving…"
+                : (addFollowOnWalk && getFollowOnTime() ? "Confirm & Pay for Walk →" : "Start Booking Services →")
+              }
             </button>
           </div>
         )}

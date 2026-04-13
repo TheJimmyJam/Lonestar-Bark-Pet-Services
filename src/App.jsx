@@ -587,7 +587,13 @@ export default function LonestarBark() {
     };
     const updatedClients = { ...clients, [pinKey]: updated };
     setClients(updatedClients);
-    await saveClients(updatedClients);
+    try {
+      await saveClients(updatedClients);
+    } catch (err) {
+      console.error("[handleHandoffComplete] saveClients failed:", err);
+      alert("There was a problem saving your booking. Please try again — if this keeps happening, contact us at hello@lonestarbarkco.com");
+      return;
+    }
     setActiveUser(updated);
 
     // Send welcome email now that the M&G is booked — include appointment details
