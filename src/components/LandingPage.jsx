@@ -158,7 +158,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           <h3>Cancellations & Refunds</h3>
           <p>Cancellations made more than 24 hours in advance receive a full refund. Cancellations within 12–24 hours receive a 50% refund. Cancellations with less than 12 hours notice are charged full price.</p>
           <h3>Lonestar Loyalty Program</h3>
-          <p>Every completed paid walk earns one loyalty punch. After 10 punches, you may claim one free 60-minute walk. Punches are forfeited if a booking is cancelled. Free walk claims must be scheduled within 90 days of claiming.</p>
+          <p>Every completed paid walk counts toward your Lonestar Loyalty reward. After 10 walks, you may claim one free 60-minute walk. Walk credits are forfeited if a booking is cancelled. Free walk claims must be scheduled within 90 days of claiming.</p>
           <h3>Liability</h3>
           <p>We carry pet-care liability insurance. In the event of an incident involving your pet, please contact us immediately at hello@lonestarbarkco.com. Our liability is limited to the cost of the booked service.</p>
           <h3>Changes to Terms</h3>
@@ -530,7 +530,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             flexWrap: "wrap", marginBottom: "48px" }}>
             {[
               { icon: "🤝", label: "Meet & Greet Discount", desc: "20% off your first walk when booked during your M&G appointment." },
-              { icon: "⭐", label: "Lonestar Loyalty", desc: "Every walk earns a punch. Buy 10 walks, get one free 60-minute walk." },
+              { icon: "⭐", label: "Lonestar Loyalty", desc: "Every paid walk counts. Complete 10 walks, get one free 60-minute walk." },
             ].map(item => (
               <div key={item.label} style={{ flex: "1 1 220px", maxWidth: "300px",
                 background: "#f9fafb", border: "1.5px solid #e4e7ec",

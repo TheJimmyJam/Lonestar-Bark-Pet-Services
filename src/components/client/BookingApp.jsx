@@ -1660,8 +1660,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
                         color: canClaim ? "rgba(255,255,255,0.75)" : "#6b7280", marginTop: "2px" }}>
                         {canClaim ? "You've earned a free 60-min walk!"
-                          : punchCount === 0 ? "Every walk earns a punch — 10 punches = 1 free 60-min walk"
-                          : `${PUNCH_CARD_GOAL - punchCount} more walk${PUNCH_CARD_GOAL - punchCount !== 1 ? "s" : ""} for a free 60-min walk`}
+                          : punchCount === 0 ? "Every paid walk counts — 10 walks = 1 free 60-min walk"
+                          : `${PUNCH_CARD_GOAL - punchCount} more walk${PUNCH_CARD_GOAL - punchCount !== 1 ? "s" : ""} until your free 60-min walk`}
                       </div>
                     </div>
                     <span style={{ fontSize: "32px" }}>{canClaim ? "🏆" : "⭐"}</span>
@@ -1689,7 +1689,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   {/* Claim button */}
                   {canClaim && (
                     <button onClick={() => {
-                      if (!window.confirm("Claim your free 60-min walk? This will use 10 punches.")) return;
+                      if (!window.confirm("Claim your free 60-min walk? This will use 10 walks.")) return;
                       const updated = claimPunchCardWalk(client);
                       if (!updated) return;
                       const updatedClients = { ...clients, [clientPinKey]: updated };
@@ -1853,8 +1853,8 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       color: pcCanClaim ? "rgba(255,255,255,0.75)" : "#6b7280", marginTop: "2px" }}>
                       {pcCanClaim ? "Go to your Overview to claim your free 60-min walk!"
                         : pc > 0
-                          ? `${PUNCH_CARD_GOAL - pc} more walk${PUNCH_CARD_GOAL - pc !== 1 ? "s" : ""} for a free 60-min walk`
-                          : "Every paid walk earns 1 punch — 10 punches = 1 free 60-min walk"}
+                          ? `${PUNCH_CARD_GOAL - pc} more walk${PUNCH_CARD_GOAL - pc !== 1 ? "s" : ""} until your free 60-min walk`
+                          : "Every paid walk counts — 10 walks = 1 free 60-min walk"}
                     </div>
                   </div>
                   <span style={{ fontSize: "32px" }}>{pcCanClaim ? "🏆" : "⭐"}</span>
@@ -2165,7 +2165,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     <div style={{ flex: 1 }}>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
                         fontSize: "20px", color: pcCanClaim ? "#fff" : "#111827" }}>
-                        {pc} / {PUNCH_CARD_GOAL} punches
+                        {pc} / {PUNCH_CARD_GOAL} walks
                       </div>
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
                         color: pcCanClaim ? "rgba(255,255,255,0.75)" : "#6b7280", marginTop: "2px" }}>
