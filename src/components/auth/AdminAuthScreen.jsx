@@ -66,11 +66,10 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
         setLoading(false);
         return;
       }
-      // Sign out of Supabase session immediately — admin state is managed
-      // by App.jsx activeUser, not a persistent Supabase session. Without
-      // this, App's authOnChange listener picks up the SIGNED_IN event and
-      // re-routes the user to the customer portal if they're also a client.
-      await supabase.auth.signOut();
+      // Keep the Supabase session alive — sbFetch uses the session JWT so
+      // RLS policies can identify this user as an admin. The routing guard
+      // in App.jsx (handleSession + adminListRef) prevents the session from
+      // being picked up by the client portal auth listener.
       try { localStorage.setItem(STORAGE_KEY, found.email); } catch {}
       onLogin({ id: found.id, name: found.name, role: "admin", email: found.email });
     } catch (e) {

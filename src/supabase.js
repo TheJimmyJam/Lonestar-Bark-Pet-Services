@@ -36,11 +36,19 @@ async function notifyAdmin(type, data) {
 }
 
 async function sbFetch(path, options = {}, { retries = 1, retryDelay = 1200 } = {}) {
+  // Use the current Supabase session JWT when available so RLS can identify
+  // the caller. Falls back to the anon key for unauthenticated operations.
+  let authToken = SUPABASE_ANON_KEY;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) authToken = session.access_token;
+  } catch {}
+
   const doFetch = () => fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
     headers: {
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+      "apikey": SUPABASE_ANON_KEY,       // always the publishable anon key
+      "Authorization": `Bearer ${authToken}`, // session JWT when logged in
       "Content-Type": "application/json",
       "Prefer": "return=representation",
       ...(options.headers || {}),

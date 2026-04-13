@@ -58,6 +58,9 @@ export default function LonestarBark() {
   // Ref that stays current inside the authOnChange closure (which captures
   // selectedRole as null at mount due to the [] dependency array).
   const selectedRoleRef = useRef(null);
+  // Ref to adminList — kept current so handleSession can check admin status
+  // without being inside the adminList state closure.
+  const adminListRef = useRef([]);
   // The logged-in entity (customer client obj, walker obj, or admin obj)
   const [activeUser, setActiveUser] = useState(null);
   // Supabase Auth session info — clients only. Staff still use PIN.
@@ -377,9 +380,9 @@ export default function LonestarBark() {
 
   // ── Supabase Auth session listener (clients only) ────────────────────────
   // Admin and walker flows still use PIN auth and are unaffected.
-  // Keep the ref in sync so the closure inside the effect always sees the
-  // current role, even though the effect only runs once ([] deps).
+  // Keep refs in sync so closures inside the [] effects always see current values.
   useEffect(() => { selectedRoleRef.current = selectedRole; }, [selectedRole]);
+  useEffect(() => { adminListRef.current = adminList; }, [adminList]);
 
   useEffect(() => {
     let cancelled = false;
@@ -388,15 +391,32 @@ export default function LonestarBark() {
       if (cancelled) return;
       setAuthSession(session);
       if (!session?.user) return;
-      // Only route an auth session to the customer portal if the user is
-      // actively trying to log in as a customer (or arrived fresh from the
-      // landing page). We don't want to hijack the admin/walker flows.
-      // Use selectedRoleRef (not selectedRole) — the closure captures the
-      // value at mount time (null), so the state variable is always stale here.
+
+      const user = session.user;
+
+      // ── Admin session guard ──────────────────────────────────────────────
+      // Admins keep their Supabase session alive so sbFetch sends their JWT
+      // and RLS can identify them. Check adminListRef before routing so that:
+      //   a) A SIGNED_IN event during the admin login flow routes to admin, not client
+      //   b) On page refresh, an existing admin session is restored correctly
+      const adminEntry = adminListRef.current?.find(
+        a => a.email.toLowerCase() === user.email.toLowerCase() && a.status === "active"
+      );
+      if (adminEntry) {
+        // Admin — restore their session if they're not already in the app
+        if (!selectedRoleRef.current) {
+          setSelectedRole("admin");
+          setShowApp(true);
+          setActiveUser({ id: adminEntry.id, name: adminEntry.name, role: "admin", email: adminEntry.email });
+        }
+        return;
+      }
+
+      // ── Client session guard ─────────────────────────────────────────────
+      // Don't hijack walker or admin flows that are already in progress.
       const currentRole = selectedRoleRef.current;
       if (currentRole && currentRole !== "customer") return;
 
-      const user = session.user;
       const existing = await loadClientByUserId(user.id);
       if (cancelled) return;
       if (existing) {
