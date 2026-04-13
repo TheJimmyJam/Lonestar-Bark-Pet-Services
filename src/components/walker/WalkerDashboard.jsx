@@ -805,6 +805,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                     }
                     const updated = { ...(walkerProfiles||{}), [walker.id]: { ...((walkerProfiles||{})[walker.id]||{}), ...infoForm, address: addrToString(infoForm.addrObj) } };
                     setWalkerProfiles(updated);
+                    saveWalkerProfiles(updated).catch(e => console.error("saveWalkerProfiles failed:", e));
                     setInfoSaved(true);
                     setTimeout(() => setInfoSaved(false), 2000);
                   } else {
@@ -4138,6 +4139,8 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               },
             };
             setWalkerProfiles(updated);
+            // Persist to Supabase so the admin dashboard sees the updated profile
+            saveWalkerProfiles(updated).catch(e => console.error("saveWalkerProfiles failed:", e));
             setInfoSaved(true);
             setTimeout(() => setInfoSaved(false), 2000);
           };
@@ -4496,6 +4499,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                       [walker.id]: { ...((walkerProfiles || {})[walker.id] || {}), pin: newPinVal },
                     };
                     setWalkerProfiles(updated);
+                    saveWalkerProfiles(updated).catch(e => console.error("saveWalkerProfiles (PIN) failed:", e));
                   }
                   setPinStage("success");
                   setCurrentPin(""); setNewPinVal(""); setConfirmPin(""); setPinErrors({});
