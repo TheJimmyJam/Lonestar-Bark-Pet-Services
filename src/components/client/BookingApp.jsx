@@ -1653,23 +1653,23 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     <span style={{ fontSize: "32px" }}>{canClaim ? "🏆" : "🥊"}</span>
                   </div>
 
-                  {/* Punch dots */}
-                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "14px" }}>
-                    {Array.from({ length: PUNCH_CARD_GOAL }).map((_, i) => (
-                      <div key={i} style={{
-                        width: "28px", height: "28px", borderRadius: "50%",
-                        background: i < punchCount
-                          ? (canClaim ? "rgba(255,255,255,0.9)" : "#C4541A")
-                          : (canClaim ? "rgba(255,255,255,0.2)" : "#f0ede8"),
-                        border: i < punchCount
-                          ? "none"
-                          : (canClaim ? "1.5px solid rgba(255,255,255,0.3)" : "1.5px solid #e4e7ec"),
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: "13px", transition: "all 0.2s",
-                      }}>
-                        {i < punchCount ? (canClaim ? "✓" : "🐾") : ""}
-                      </div>
-                    ))}
+                  {/* Paw print punch grid */}
+                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: "14px" }}>
+                    {Array.from({ length: PUNCH_CARD_GOAL }).map((_, i) => {
+                      const earned = i < punchCount;
+                      return (
+                        <div key={i} style={{
+                          width: "30px", height: "30px",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: earned ? "22px" : "20px",
+                          transition: "all 0.25s",
+                          filter: earned ? "none" : "grayscale(1) opacity(0.18)",
+                          transform: earned ? "scale(1.08)" : "scale(1)",
+                        }}>
+                          🐾
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {/* Claim button */}
@@ -1846,15 +1846,22 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   <span style={{ fontSize: "32px" }}>{pcCanClaim ? "🏆" : "🥊"}</span>
                 </div>
                 {!pcCanClaim && (
-                  <div>
-                    <div style={{ background: "#FDF5EC", borderRadius: "8px", height: "8px", overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${(pc / PUNCH_CARD_GOAL) * 100}%`,
-                        background: "linear-gradient(90deg, #C4541A, #D4A843)", borderRadius: "8px" }} />
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between",
-                      fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#9ca3af", marginTop: "4px" }}>
-                      <span>0</span><span>{PUNCH_CARD_GOAL} walks = free 60-min walk</span>
-                    </div>
+                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "4px" }}>
+                    {Array.from({ length: PUNCH_CARD_GOAL }).map((_, i) => {
+                      const earned = i < pc;
+                      return (
+                        <div key={i} style={{
+                          width: "28px", height: "28px",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: earned ? "20px" : "18px",
+                          transition: "all 0.25s",
+                          filter: earned ? "none" : "grayscale(1) opacity(0.18)",
+                          transform: earned ? "scale(1.08)" : "scale(1)",
+                        }}>
+                          🐾
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -2160,9 +2167,22 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     </div>
                   </div>
                   {!pcCanClaim && (
-                    <div style={{ background: "#FDEBD4", borderRadius: "8px", height: "6px", overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${(pc / PUNCH_CARD_GOAL) * 100}%`,
-                        background: "linear-gradient(90deg, #C4541A, #D4A843)", borderRadius: "8px" }} />
+                    <div style={{ display: "flex", gap: "3px", flexWrap: "wrap", marginTop: "2px" }}>
+                      {Array.from({ length: PUNCH_CARD_GOAL }).map((_, i) => {
+                        const earned = i < pc;
+                        return (
+                          <div key={i} style={{
+                            width: "26px", height: "26px",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: earned ? "19px" : "17px",
+                            transition: "all 0.25s",
+                            filter: earned ? "none" : "grayscale(1) opacity(0.18)",
+                            transform: earned ? "scale(1.08)" : "scale(1)",
+                          }}>
+                            🐾
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                   {pcCanClaim && (

@@ -2983,8 +2983,26 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                           letterSpacing: "1.5px", textTransform: "uppercase", color: "#9ca3af" }}>🥊 Punch Card</div>
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "18px",
                           color: punchCount >= PUNCH_CARD_GOAL ? "#059669" : "#C4541A" }}>
-                          {punchCount} / {PUNCH_CARD_GOAL} punches
+                          {punchCount} / {PUNCH_CARD_GOAL}
                         </div>
+                      </div>
+                      {/* Paw print grid */}
+                      <div style={{ display: "flex", gap: "3px", flexWrap: "wrap", marginBottom: "12px" }}>
+                        {Array.from({ length: PUNCH_CARD_GOAL }).map((_, i) => {
+                          const earned = i < punchCount;
+                          return (
+                            <div key={i} style={{
+                              width: "26px", height: "26px",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              fontSize: earned ? "19px" : "17px",
+                              filter: earned ? "none" : "grayscale(1) opacity(0.18)",
+                              transform: earned ? "scale(1.08)" : "scale(1)",
+                              transition: "all 0.2s",
+                            }}>
+                              🐾
+                            </div>
+                          );
+                        })}
                       </div>
                       {pendingClaims.length > 0 && (
                         <div>
