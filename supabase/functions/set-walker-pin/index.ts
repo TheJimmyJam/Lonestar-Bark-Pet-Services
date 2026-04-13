@@ -16,7 +16,7 @@ serve(async (req) => {
   try {
     const { email, pin, name } = await req.json();
     if (!email || !pin) throw new Error("email and pin are required");
-    if (pin.length < 4) throw new Error("PIN must be at least 4 digits");
+    if (pin.length < 8) throw new Error("Password must be at least 8 characters");
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,

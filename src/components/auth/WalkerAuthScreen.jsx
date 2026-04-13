@@ -1,26 +1,19 @@
-import { useState, useEffect, useRef } from "react";
-import { WALKER_SERVICES } from "../../constants.js";
-import { notifyAdmin, loadWalkerProfiles, walkerSignIn, setWalkerAuthPin } from "../../supabase.js";
+import { useState, useEffect } from "react";
+import { notifyAdmin, loadWalkerProfiles, walkerSignIn, setWalkerAuthPin, authSendPasswordReset } from "../../supabase.js";
 import { generateCode, formatPhone, emptyAddr, addrToString, firstName } from "../../helpers.js";
-import PinPad from "../shared/PinPad.jsx";
 import LogoBadge from "../shared/LogoBadge.jsx";
-import AddressFields from "../shared/AddressFields.jsx";
 import { GLOBAL_STYLES } from "../../styles.js";
-import useRateLimiter from "../../hooks/useRateLimiter.js";
 
 // ─── Shared mutable walker state ──────────────────────────────────────────────
-// These are module-level so all files importing from here share the same references.
 let WALKER_CREDENTIALS = {};
 let CUSTOM_WALKERS = [];
 
-// ─── Walker helpers ───────────────────────────────────────────────────────────
 function getAllWalkers() {
   return [...CUSTOM_WALKERS].sort((a, b) =>
     firstName(a.name).localeCompare(firstName(b.name))
   );
 }
 
-// Inject custom walker profiles into the runtime registries
 function injectCustomWalkers(walkerProfiles) {
   CUSTOM_WALKERS = [];
   Object.values(walkerProfiles).forEach(prof => {
@@ -34,15 +27,15 @@ function injectCustomWalkers(walkerProfiles) {
       avatar: prof.avatar || "🐾",
       bio: prof.bio || "",
     });
-    if (prof.email && (prof.pin || prof.mustSetPin)) {
+    if (prof.email && (prof.pin !== undefined || prof.mustSetPin)) {
       WALKER_CREDENTIALS[prof.email.toLowerCase()] = {
         walkerId: prof.id,
-        pin: prof.pin || null,
+        pin: prof.pin || null,       // kept for auto-migration fallback only
         mustSetPin: !!prof.mustSetPin,
+        name: prof.preferredName || prof.name,
       };
     }
   });
-  // Also remove deleted walkers' credentials
   Object.values(walkerProfiles).forEach(prof => {
     if (prof.deleted && prof.email) {
       delete WALKER_CREDENTIALS[prof.email.toLowerCase()];
@@ -50,23 +43,46 @@ function injectCustomWalkers(walkerProfiles) {
   });
 }
 
-function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin, onRequestPinReset, onVerifyPinReset }) {
-  const STORAGE_KEY = "dw_walker_email";
-  const [stage, setStage]       = useState("entry");
-  const [email, setEmail]       = useState("");
-  const [emailError, setEmailError] = useState("");
-  const [pinError, setPinError] = useState("");
-  const [savedEmail, setSavedEmail] = useState(null);
-  const [newPin, setNewPin]     = useState(null);
-  const [resetEmail, setResetEmail] = useState("");
-  const [resetEmailError, setResetEmailError] = useState("");
-  const [resetCode, setResetCode] = useState("");
-  const [resetCodeError, setResetCodeError] = useState("");
-  const [resetSending, setResetSending] = useState(false);
-  const [isLoading, setIsLoading]     = useState(false);
-  const rateLimiter = useRateLimiter(email);
+// ─── Input + button style helpers ─────────────────────────────────────────────
+const inputStyle = (hasError) => ({
+  width: "100%", padding: "14px 16px", borderRadius: "12px",
+  border: hasError ? "1.5px solid #ef4444" : "1.5px solid #2A6070",
+  background: "#1A3A42", color: "#fff", fontSize: "15px",
+  fontFamily: "'DM Sans', sans-serif", marginBottom: "12px",
+  outline: "none", boxSizing: "border-box",
+});
 
-  // On mount: check for a previously saved email
+const btnPrimary = (accentBlue, disabled) => ({
+  width: "100%", padding: "14px", borderRadius: "12px", border: "none",
+  background: disabled ? "#2A5060" : accentBlue, color: "#fff",
+  fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 500,
+  cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.7 : 1,
+});
+
+const btnGhost = { background: "none", border: "none", color: "#ffffffaa",
+  fontFamily: "'DM Sans', sans-serif", fontSize: "14px", cursor: "pointer",
+  width: "100%", textAlign: "center", marginTop: "12px" };
+
+const errStyle = { color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
+  fontSize: "14px", marginBottom: "10px" };
+
+// ─── WalkerAuthScreen ─────────────────────────────────────────────────────────
+function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPassword }) {
+  const STORAGE_KEY = "dw_walker_email";
+  const accentBlue  = "#3D6B7A";
+
+  // stage: "entry" | "password" | "setpassword" | "forgot" | "forgot-sent"
+  const [stage, setStage]               = useState("entry");
+  const [email, setEmail]               = useState("");
+  const [password, setPassword]         = useState("");
+  const [confirmPw, setConfirmPw]       = useState("");
+  const [showPw, setShowPw]             = useState(false);
+  const [savedEmail, setSavedEmail]     = useState(null);
+  const [emailError, setEmailError]     = useState("");
+  const [formError, setFormError]       = useState("");
+  const [isLoading, setIsLoading]       = useState(false);
+
+  // On mount: restore saved email
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -74,105 +90,118 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin, onReques
         const cred = WALKER_CREDENTIALS[stored];
         setSavedEmail(stored);
         setEmail(stored);
-        setStage(cred.mustSetPin ? "setpin" : "pin");
+        setStage(cred.mustSetPin ? "setpassword" : "password");
       }
     } catch {}
   }, []);
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
 
   const handleEmailSubmit = () => {
     const e = email.trim().toLowerCase();
     if (!e || !e.includes("@")) { setEmailError("Please enter a valid email."); return; }
     if (!WALKER_CREDENTIALS[e]) { setEmailError("No walker account found with that email."); return; }
-    const cred = WALKER_CREDENTIALS[e];
     setEmailError("");
-    setStage(cred.mustSetPin ? "setpin" : "pin");
+    setPassword(""); setConfirmPw(""); setFormError("");
+    setStage(WALKER_CREDENTIALS[e].mustSetPin ? "setpassword" : "password");
   };
 
-  const handlePin = async (pin) => {
-    if (rateLimiter.locked || isLoading) return;
+  const handleLogin = async () => {
+    if (isLoading) return;
     const e = email.trim().toLowerCase();
     const cred = WALKER_CREDENTIALS[e];
-    setIsLoading(true);
+    if (!password) { setFormError("Enter your password."); return; }
+    setIsLoading(true); setFormError("");
 
-    let result = await walkerSignIn(e, pin);
+    let result = await walkerSignIn(e, password);
 
-    // ── Auto-migration path ───────────────────────────────────────────────────
-    // If Supabase Auth fails but the old locally-stored PIN matches, this walker
-    // was created before Supabase Auth was wired up. Transparently provision
-    // their account now so subsequent logins go through Supabase Auth.
-    if (!result.success && cred && cred.pin === pin) {
-      await setWalkerAuthPin(e, pin, cred.name);
-      result = await walkerSignIn(e, pin);
+    // Auto-migration: existing walkers whose old PIN matches — provision Supabase account on first login
+    if (!result.success && cred && cred.pin === password) {
+      await setWalkerAuthPin(e, password, cred.name);
+      result = await walkerSignIn(e, password);
     }
-    // ─────────────────────────────────────────────────────────────────────────
 
     setIsLoading(false);
     if (result.success) {
-      rateLimiter.clearFailures();
       try { localStorage.setItem(STORAGE_KEY, e); } catch {}
       const walkerData = getAllWalkers().find(w => w.id === cred?.walkerId);
       onLogin({ ...walkerData, email: e, role: "walker" });
     } else {
-      const nowLocked = rateLimiter.recordFailure();
-      if (nowLocked) {
-        setPinError("Too many failed attempts. Account locked."); setTimeout(() => setPinError(""), 100);
-      } else {
-        setPinError(`Incorrect PIN. ${rateLimiter.attemptsLeft - 1} attempt${rateLimiter.attemptsLeft - 1 === 1 ? "" : "s"} remaining.`);
-        setTimeout(() => setPinError(""), 100);
-      }
+      setFormError("Wrong password. Try again or use Forgot password.");
     }
   };
 
-  const handleSetPin = async (pin) => {
-    if (!newPin) {
-      setNewPin(pin);
-      setStage("confirmpin");
-      return;
-    }
-    if (pin !== newPin) {
-      setPinError("PINs don't match — try again."); setTimeout(() => setPinError(""), 100);
-      setNewPin(null); setStage("setpin"); return;
-    }
+  const handleSetPassword = async () => {
+    if (isLoading) return;
     const e = email.trim().toLowerCase();
     const cred = WALKER_CREDENTIALS[e];
-    setIsLoading(true);
+    if (!password || password.length < 8) { setFormError("Password must be at least 8 characters."); return; }
+    if (password !== confirmPw) { setFormError("Passwords don't match."); return; }
+    setIsLoading(true); setFormError("");
 
-    // Set their PIN as their Supabase Auth password (creates account if needed)
-    const setResult = await setWalkerAuthPin(e, pin, cred?.name);
+    const setResult = await setWalkerAuthPin(e, password, cred?.name);
     if (!setResult.success) {
       setIsLoading(false);
-      setPinError("Failed to save PIN — please try again."); setTimeout(() => setPinError(""), 3000);
-      setNewPin(null); setStage("setpin"); return;
+      setFormError("Failed to save password — please try again.");
+      return;
     }
-
-    // Sign in with the new PIN
-    await walkerSignIn(e, pin);
+    await walkerSignIn(e, password);
     setIsLoading(false);
 
-    // Update WALKER_CREDENTIALS in memory (mustSetPin false, pin cleared — auth is Supabase now)
     WALKER_CREDENTIALS[e] = { ...cred, mustSetPin: false };
-    if (onSetPin) onSetPin(e);   // tell App.jsx to clear mustSetPin in DB
+    if (onSetPassword) onSetPassword(e);
     try { localStorage.setItem(STORAGE_KEY, e); } catch {}
     const walkerData = getAllWalkers().find(w => w.id === cred?.walkerId);
     onLogin({ ...walkerData, email: e, role: "walker" });
   };
 
+  const handleForgot = async () => {
+    if (isLoading) return;
+    const e = email.trim().toLowerCase();
+    if (!e || !e.includes("@")) { setFormError("Go back and enter your email first."); return; }
+    setIsLoading(true); setFormError("");
+    await authSendPasswordReset(e);   // Supabase sends the reset link
+    setIsLoading(false);
+    setStage("forgot-sent");
+  };
+
   const handleForgetMe = () => {
     try { localStorage.removeItem(STORAGE_KEY); } catch {}
-    setSavedEmail(null);
-    setEmail("");
-    setNewPin(null);
+    setSavedEmail(null); setEmail(""); setPassword(""); setConfirmPw("");
     setStage("entry");
   };
 
-  const accentBlue = "#3D6B7A";
+  // ── Shared password field ────────────────────────────────────────────────────
+  const PasswordField = ({ value, onChange, placeholder = "••••••••", label, onEnter }) => (
+    <div style={{ position: "relative", marginBottom: "12px" }}>
+      {label && <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffbb",
+        fontSize: "13px", marginBottom: "6px" }}>{label}</div>}
+      <input
+        type={showPw ? "text" : "password"}
+        placeholder={placeholder}
+        value={value}
+        onChange={e => { onChange(e.target.value); setFormError(""); }}
+        onKeyDown={e => e.key === "Enter" && onEnter && onEnter()}
+        style={{ ...inputStyle(!!formError), marginBottom: 0, paddingRight: "48px" }}
+      />
+      <button onClick={() => setShowPw(s => !s)}
+        style={{ position: "absolute", right: "12px", top: label ? "calc(50% + 10px)" : "50%",
+          transform: "translateY(-50%)", background: "none", border: "none",
+          color: "#ffffff66", cursor: "pointer", fontSize: "18px", padding: "4px" }}>
+        {showPw ? "🙈" : "👁"}
+      </button>
+    </div>
+  );
 
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: "100svh",
       background: "linear-gradient(135deg,#112830 0%,#1A3A42 50%,#112830 100%)",
       display: "flex", flexDirection: "column", alignItems: "center",
       justifyContent: "flex-start", padding: "clamp(20px,5vw,48px) 16px" }}>
       <style>{GLOBAL_STYLES}</style>
+
+      {/* Header */}
       <div style={{ textAlign: "center", marginBottom: "40px" }}>
         <div style={{ fontSize: "40px", marginBottom: "10px" }}>🦺</div>
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
@@ -187,37 +216,36 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin, onReques
 
       <div className="auth-card" style={{ background: "rgba(255,255,255,0.04)",
         border: "1px solid rgba(255,255,255,0.09)", borderRadius: "24px", padding: "36px 32px" }}>
+
+        {/* ── Entry: email ── */}
         {stage === "entry" && (
           <div className="fade-up">
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffbb", fontSize: "15px",
-              textAlign: "center", marginBottom: "24px" }}>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffbb",
+              fontSize: "15px", textAlign: "center", marginBottom: "24px" }}>
               Enter your walker email to continue.
             </div>
             <input type="email" placeholder="you@lonestarbark.com" value={email}
               onChange={e => { setEmail(e.target.value); setEmailError(""); }}
               onKeyDown={e => e.key === "Enter" && handleEmailSubmit()}
-              style={{ width: "100%", padding: "14px 16px", borderRadius: "12px",
-                border: emailError ? "1.5px solid #ef4444" : "1.5px solid #2A6070",
-                background: "#1A3A42", color: "#fff", fontSize: "15px",
-                fontFamily: "'DM Sans', sans-serif", marginBottom: "12px" }} />
-            {emailError && <div style={{ color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
-              fontSize: "16px", marginBottom: "10px" }}>{emailError}</div>}
-            <button onClick={handleEmailSubmit} style={{
-              width: "100%", padding: "14px", borderRadius: "12px", border: "none",
-              background: accentBlue, color: "#fff", fontFamily: "'DM Sans', sans-serif",
-              fontSize: "16px", fontWeight: 500, cursor: "pointer" }}>Continue →</button>
+              style={inputStyle(!!emailError)} />
+            {emailError && <div style={errStyle}>{emailError}</div>}
+            <button onClick={handleEmailSubmit} style={btnPrimary(accentBlue, false)}>
+              Continue →
+            </button>
           </div>
         )}
-        {stage === "pin" && (
+
+        {/* ── Password: log in ── */}
+        {stage === "password" && (
           <div className="fade-up">
-            <div style={{ textAlign: "center", marginBottom: "8px" }}>
+            <div style={{ textAlign: "center", marginBottom: "20px" }}>
               {savedEmail ? (
                 <>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffbb",
-                    fontSize: "15px", marginBottom: "4px" }}>Welcome back!</div>
+                    fontSize: "15px", marginBottom: "6px" }}>Welcome back!</div>
                   <div style={{ display: "inline-flex", alignItems: "center", gap: "8px",
                     background: "rgba(42,74,127,0.3)", borderRadius: "20px",
-                    padding: "5px 12px 5px 10px", marginBottom: "4px" }}>
+                    padding: "5px 12px 5px 10px" }}>
                     <span style={{ fontSize: "16px" }}>🦺</span>
                     <span style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
                       fontSize: "15px", fontWeight: 500 }}>{savedEmail}</span>
@@ -228,164 +256,105 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin, onReques
                   <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffbb",
                     fontSize: "15px", marginBottom: "4px" }}>Welcome back!</div>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
-                    fontSize: "16px" }}>{email.trim().toLowerCase()}</div>
+                    fontSize: "15px" }}>{email.trim().toLowerCase()}</div>
                 </>
               )}
             </div>
-            <div style={{ marginTop: "24px" }}>
-              {rateLimiter.locked ? (
-                <div style={{ textAlign: "center", padding: "24px 16px" }}>
-                  <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔒</div>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ef4444",
-                    fontSize: "15px", fontWeight: 600, marginBottom: "8px" }}>
-                    Account Locked
-                  </div>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
-                    fontSize: "15px", lineHeight: "1.6", marginBottom: "12px" }}>
-                    Too many failed PIN attempts. Try again in:
-                  </div>
-                  <div style={{ fontFamily: "'DM Sans', monospace", color: "#fff",
-                    fontSize: "28px", fontWeight: 700, letterSpacing: "2px" }}>
-                    {rateLimiter.formatRemaining()}
-                  </div>
-                </div>
-              ) : (
-                <PinPad label="Enter your walker PIN" onComplete={handlePin} error={pinError} color={accentBlue} />
-              )}
-            </div>
-            <button onClick={handleForgetMe} style={{
-              marginTop: "20px", background: "none", border: "none", color: "#ffffffaa",
-              fontFamily: "'DM Sans', sans-serif", fontSize: "16px", cursor: "pointer",
-              width: "100%", textAlign: "center" }}>
+
+            <PasswordField value={password} onChange={setPassword}
+              label="Password" onEnter={handleLogin} />
+            {formError && <div style={errStyle}>{formError}</div>}
+
+            <button onClick={handleLogin} disabled={isLoading}
+              style={{ ...btnPrimary(accentBlue, isLoading), marginTop: "4px" }}>
+              {isLoading ? "Signing in…" : "Sign In →"}
+            </button>
+
+            <button onClick={handleForgetMe} style={btnGhost}>
               {savedEmail ? "← Not you? Switch account" : "← Use a different email"}
             </button>
-            <button onClick={() => { setResetEmail(savedEmail || email); setResetEmailError(""); setStage("forgot-email"); }}
-              style={{ marginTop: "10px", background: "none", border: "none", color: accentBlue,
-                fontFamily: "'DM Sans', sans-serif", fontSize: "14px", cursor: "pointer",
-                width: "100%", textAlign: "center", textDecoration: "underline" }}>
-              Forgot PIN?
+            <button onClick={() => { setPassword(""); setFormError(""); setStage("forgot"); }}
+              style={{ ...btnGhost, color: accentBlue, textDecoration: "underline", marginTop: "6px" }}>
+              Forgot password?
             </button>
           </div>
         )}
 
-        {/* Forgot PIN — enter email */}
-        {stage === "forgot-email" && (
-          <div className="fade-up" style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔑</div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff", fontSize: "20px",
-              fontWeight: 700, marginBottom: "8px" }}>Reset Your PIN</div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa", fontSize: "14px",
-              lineHeight: "1.6", marginBottom: "24px" }}>
-              Enter your walker email and we'll send you a 6-digit reset code.
-            </div>
-            <input type="email" value={resetEmail}
-              onChange={e => { setResetEmail(e.target.value); setResetEmailError(""); }}
-              placeholder="your@email.com"
-              style={{ width: "100%", padding: "12px 16px", borderRadius: "10px",
-                border: resetEmailError ? "1.5px solid #ef4444" : "1.5px solid #444",
-                background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "15px", boxSizing: "border-box", marginBottom: "8px", outline: "none" }} />
-            {resetEmailError && <div style={{ color: "#ef4444", fontSize: "13px", marginBottom: "8px" }}>{resetEmailError}</div>}
-            <button disabled={resetSending}
-              onClick={async () => {
-                if (!resetEmail.trim()) { setResetEmailError("Enter your email."); return; }
-                setResetSending(true);
-                const ok = await onRequestPinReset(resetEmail.trim().toLowerCase());
-                setResetSending(false);
-                if (!ok) { setResetEmailError("No walker account found with that email."); return; }
-                setResetCodeError(""); setResetCode(""); setStage("forgot-code");
-              }}
-              style={{ width: "100%", padding: "13px", background: accentBlue, color: "#fff",
-                border: "none", borderRadius: "10px", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "15px", fontWeight: 700, cursor: resetSending ? "not-allowed" : "pointer",
-                opacity: resetSending ? 0.7 : 1, marginBottom: "12px" }}>
-              {resetSending ? "Sending…" : "Send Reset Code"}
-            </button>
-            <button onClick={() => setStage("pin")}
-              style={{ background: "none", border: "none", color: "#ffffffaa", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "14px", cursor: "pointer", textDecoration: "underline" }}>
-              Back to login
-            </button>
-          </div>
-        )}
-
-        {/* Forgot PIN — enter code */}
-        {stage === "forgot-code" && (
-          <div className="fade-up" style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "32px", marginBottom: "12px" }}>📬</div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff", fontSize: "20px",
-              fontWeight: 700, marginBottom: "8px" }}>Check Your Email</div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa", fontSize: "14px",
-              lineHeight: "1.6", marginBottom: "24px" }}>
-              We sent a 6-digit code to <strong style={{ color: "#fff" }}>{resetEmail}</strong>.<br/>
-              Enter it below. It expires in 15 minutes.
-            </div>
-            <input type="text" inputMode="numeric" maxLength={6} value={resetCode}
-              onChange={e => { setResetCode(e.target.value.replace(/\D/g, "")); setResetCodeError(""); }}
-              placeholder="000000"
-              style={{ width: "100%", padding: "14px 16px", borderRadius: "10px",
-                border: resetCodeError ? "1.5px solid #ef4444" : "1.5px solid #444",
-                background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "28px", fontWeight: 700, letterSpacing: "8px", textAlign: "center",
-                boxSizing: "border-box", marginBottom: "8px", outline: "none" }} />
-            {resetCodeError && <div style={{ color: "#ef4444", fontSize: "13px", marginBottom: "8px" }}>{resetCodeError}</div>}
-            <button onClick={() => {
-                if (resetCode.length !== 6) { setResetCodeError("Enter the 6-digit code from your email."); return; }
-                const valid = onVerifyPinReset(resetEmail, resetCode);
-                if (!valid) { setResetCodeError("Invalid or expired code. Try again."); return; }
-                setNewPin(null); setStage("setpin");
-              }}
-              style={{ width: "100%", padding: "13px", background: accentBlue, color: "#fff",
-                border: "none", borderRadius: "10px", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "15px", fontWeight: 700, cursor: "pointer", marginBottom: "12px" }}>
-              Verify Code
-            </button>
-            <button onClick={() => setStage("forgot-email")}
-              style={{ background: "none", border: "none", color: "#ffffffaa", fontFamily: "'DM Sans', sans-serif",
-                fontSize: "14px", cursor: "pointer", textDecoration: "underline" }}>
-              Resend code
-            </button>
-          </div>
-        )}
-
-        {(stage === "setpin" || stage === "confirmpin") && (
+        {/* ── Set password: first login ── */}
+        {stage === "setpassword" && (
           <div className="fade-up">
-            <div style={{ textAlign: "center", marginBottom: "20px" }}>
+            <div style={{ textAlign: "center", marginBottom: "24px" }}>
               <div style={{ fontSize: "32px", marginBottom: "10px" }}>🔐</div>
               <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
-                fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600, marginBottom: "6px" }}>
-                {stage === "setpin" ? "Set Your PIN" : "Confirm Your PIN"}
+                fontSize: "16px", fontWeight: 700, marginBottom: "6px" }}>
+                Set Your Password
               </div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#4E7A8C",
-                fontSize: "16px", lineHeight: "1.6" }}>
-                {stage === "setpin"
-                  ? "Welcome to Lonestar Bark Co.! Choose a 6-digit PIN you'll use to log in."
-                  : "Enter your PIN one more time to confirm."}
+              <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#4E7A8C", fontSize: "14px", lineHeight: "1.6" }}>
+                Welcome to Lonestar Bark Co.! Choose a password you'll use to log in. At least 8 characters.
               </div>
             </div>
-            <PinPad
-              label={stage === "setpin" ? "Choose a 6-digit PIN" : "Confirm PIN"}
-              onComplete={handleSetPin}
-              error={pinError}
-              color={accentBlue}
-            />
-            <button onClick={handleForgetMe} style={{
-              marginTop: "20px", background: "none", border: "none", color: "#ffffffaa",
-              fontFamily: "'DM Sans', sans-serif", fontSize: "16px", cursor: "pointer",
-              width: "100%", textAlign: "center" }}>
-              ← Use a different email
+
+            <PasswordField value={password} onChange={setPassword} label="New password" />
+            <PasswordField value={confirmPw} onChange={setConfirmPw} label="Confirm password"
+              onEnter={handleSetPassword} />
+            {formError && <div style={errStyle}>{formError}</div>}
+
+            <button onClick={handleSetPassword} disabled={isLoading}
+              style={btnPrimary(accentBlue, isLoading)}>
+              {isLoading ? "Saving…" : "Set Password & Sign In →"}
+            </button>
+            <button onClick={handleForgetMe} style={btnGhost}>← Use a different email</button>
+          </div>
+        )}
+
+        {/* ── Forgot password ── */}
+        {stage === "forgot" && (
+          <div className="fade-up" style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔑</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
+              fontSize: "18px", fontWeight: 700, marginBottom: "8px" }}>Reset Your Password</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
+              fontSize: "14px", lineHeight: "1.6", marginBottom: "24px" }}>
+              We'll email a reset link to <strong style={{ color: "#fff" }}>{email.trim().toLowerCase()}</strong>.
+            </div>
+            {formError && <div style={errStyle}>{formError}</div>}
+            <button onClick={handleForgot} disabled={isLoading}
+              style={btnPrimary(accentBlue, isLoading)}>
+              {isLoading ? "Sending…" : "Send Reset Link"}
+            </button>
+            <button onClick={() => { setFormError(""); setStage("password"); }} style={btnGhost}>
+              ← Back to login
             </button>
           </div>
         )}
+
+        {/* ── Forgot sent confirmation ── */}
+        {stage === "forgot-sent" && (
+          <div className="fade-up" style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "40px", marginBottom: "12px" }}>📬</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#fff",
+              fontSize: "18px", fontWeight: 700, marginBottom: "8px" }}>Check Your Email</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffffaa",
+              fontSize: "14px", lineHeight: "1.7", marginBottom: "24px" }}>
+              If <strong style={{ color: "#fff" }}>{email.trim().toLowerCase()}</strong> has a walker
+              account, you'll get a reset link shortly. Click it to set a new password.
+            </div>
+            <button onClick={() => setStage("password")} style={btnPrimary(accentBlue, false)}>
+              ← Back to login
+            </button>
+          </div>
+        )}
+
       </div>
 
+      {/* Footer nav */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", marginTop: "20px" }}>
         <button onClick={onBack} style={{ background: "none", border: "none",
-          color: "#ffffffaa", fontFamily: "'DM Sans', sans-serif", fontSize: "16px", cursor: "pointer" }}>
+          color: "#ffffffaa", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", cursor: "pointer" }}>
           ← Back to portal selector
         </button>
         <button onClick={onBackToLanding} style={{ background: "none", border: "none",
-          color: "#ffffff55", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", cursor: "pointer" }}>
+          color: "#ffffff55", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", cursor: "pointer" }}>
           ← Back to homepage
         </button>
       </div>
@@ -393,6 +362,5 @@ function WalkerAuthScreen({ onLogin, onBack, onBackToLanding, onSetPin, onReques
   );
 }
 
-// ─── Admin Auth Screen ────────────────────────────────────────────────────────
 export { getAllWalkers, injectCustomWalkers, WALKER_CREDENTIALS, CUSTOM_WALKERS };
 export default WalkerAuthScreen;

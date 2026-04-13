@@ -784,8 +784,8 @@ export default function LonestarBark() {
         onLogin={handleLogin}
         onBack={() => setSelectedRole(null)}
         onBackToLanding={() => { setSelectedRole(null); setShowApp(false); setShowLogin(false); }}
-        onSetPin={(email) => {
-          // PIN is now stored in Supabase Auth — only clear mustSetPin flag in DB
+        onSetPassword={(email) => {
+          // Password lives in Supabase Auth — just clear the mustSetPin flag in DB
           const updated = { ...walkerProfiles };
           const entry = Object.values(updated).find(p => p.email?.toLowerCase() === email);
           if (entry) {
@@ -793,24 +793,6 @@ export default function LonestarBark() {
             setWalkerProfiles(updated);
             saveWalkerProfiles(updated);
           }
-        }}
-        onRequestPinReset={async (email) => {
-          const entry = Object.values(walkerProfiles).find(p => p.email?.toLowerCase() === email.toLowerCase());
-          if (!entry) return false;
-          const code = String(Math.floor(100000 + Math.random() * 900000));
-          const expiry = Date.now() + 15 * 60 * 1000;
-          const updated = { ...walkerProfiles, [entry.id]: { ...entry, resetCode: code, resetCodeExpiry: expiry } };
-          setWalkerProfiles(updated);
-          saveWalkerProfiles(updated);
-          await sendPinResetCode({ name: entry.name, email: entry.email, code });
-          return true;
-        }}
-        onVerifyPinReset={(email, code) => {
-          const entry = Object.values(walkerProfiles).find(p => p.email?.toLowerCase() === email.toLowerCase());
-          if (!entry || !entry.resetCode) return false;
-          if (entry.resetCode !== code) return false;
-          if (Date.now() > entry.resetCodeExpiry) return false;
-          return true;
         }}
       />
     );
