@@ -283,7 +283,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
       },
     };
     setClients(updated);
-    saveClients(updated);
+    saveClients({ [clientId]: updated[clientId] });
   };
 
   const claimHandoff = async (handoff) => {
@@ -313,7 +313,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     };
     setClients(updated);
     try {
-      await saveClients(updated);
+      await saveClients({ [cid]: updated[cid] });
     } catch (e) {
       console.error("claimHandoff: failed to save client record:", e);
       alert("Claim saved locally but could not be written to the database. Please refresh and try again.");
@@ -348,7 +348,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     const updatedClientRecord = { ...clientRecord, bookings: updatedBookings };
     const updated = { ...clients, [clientId]: updatedClientRecord };
     setClients(updated);
-    saveClients(updated);
+    saveClients({ [clientId]: updatedClientRecord });
     setExpandedWalkKey(null);
     setCompletingWalkKey(null);
   };
@@ -357,6 +357,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
     if (!setClients) return;
     const now = new Date().toISOString();
     let updated = { ...clients };
+    const changedClientIds = new Set();
     todayWalksList.forEach(targetBooking => {
       if (targetBooking.walkerMarkedComplete) return; // already done
       const clientId = targetBooking.clientId || Object.keys(updated).find(cid =>
@@ -377,9 +378,10 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
         }
       }
       updated[clientId] = { ...clientRecord, bookings: updatedBookings };
+      changedClientIds.add(clientId);
     });
     setClients(updated);
-    saveClients(updated);
+    saveClients(Object.fromEntries([...changedClientIds].map(id => [id, updated[id]])));
     setExpandedWalkKey(null);
     setCompletingWalkKey(null);
   };
@@ -402,7 +404,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
       },
     };
     setClients(updated);
-    saveClients(updated);
+    saveClients({ [clientId]: updated[clientId] });
     setUndoingWalkKey(null);
   };
 
@@ -1619,21 +1621,25 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
             if (!setClients) return;
             const updated = { ...clients };
             const confirmedWalks = [];
+            const changedCids = new Set();
             Object.keys(updated).forEach(cid => {
               const c = updated[cid];
+              let clientHadChanges = false;
               const newBookings = (c.bookings || []).map(bk => {
                 if (bk.cancelled || bk.walkerConfirmed) return bk;
                 const appt = new Date(bk.scheduledDateTime || bk.bookedAt);
                 if (appt.toDateString() === todayStr && bk.form?.walker === walker.name) {
+                  clientHadChanges = true;
                   confirmedWalks.push({ clientName: c.name, pet: bk.form?.pet, time: bk.slot?.time });
                   return { ...bk, walkerConfirmed: true, walkerConfirmedAt: new Date().toISOString() };
                 }
                 return bk;
               });
               updated[cid] = { ...c, bookings: newBookings };
+              if (clientHadChanges) changedCids.add(cid);
             });
             setClients(updated);
-            saveClients(updated);
+            saveClients(Object.fromEntries([...changedCids].map(cid => [cid, updated[cid]])));
             if (confirmedWalks.length > 0) {
               notifyAdmin("walk_confirmed", {
                 walkerName: walker.name,
@@ -1662,7 +1668,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               },
             };
             setClients(updatedClients);
-            saveClients(updatedClients);
+            saveClients({ [cid]: updatedClients[cid] });
             notifyAdmin("walk_confirmed", {
               walkerName: walker.name,
               count: 1,
@@ -1685,7 +1691,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                   [cid]: { ...clients[cid], handoffConfirmed: true },
                 };
                 setClients(updatedClients);
-                saveClients(updatedClients);
+                saveClients({ [cid]: updatedClients[cid] });
                 setCompletingWalkKey(null);
               };
               return (
@@ -2122,7 +2128,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                             };
                             const updatedClients = { ...clients, [cid]: updatedClient };
                             setClients(updatedClients);
-                            saveClients(updatedClients);
+                            saveClients({ [cid]: updatedClient });
                           }
                         } catch (err) {
                           alert("Photo upload failed. Please try again.");
@@ -2147,7 +2153,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                           };
                           const updatedClients = { ...clients, [cid]: updatedClient };
                           setClients(updatedClients);
-                          saveClients(updatedClients);
+                          saveClients({ [cid]: updatedClient });
                         }
                       };
 
