@@ -126,7 +126,7 @@ function exportPDF(client, allPaid) {
   <div class="header">
     <div>
       <div class="brand">🐾 Lonestar Bark Co.</div>
-      <div class="brand-sub">East Dallas Dog Walking</div>
+      <div class="brand-sub">Dallas, TX Dog Walking</div>
     </div>
     <div class="doc-title">
       <h1>Walk History & Receipts</h1>
@@ -169,7 +169,7 @@ function exportPDF(client, allPaid) {
   </div>
 
   <div class="footer">
-    <span>Lonestar Bark Co. &nbsp;·&nbsp; hello@lonestarbarkco.com &nbsp;·&nbsp; East Dallas, TX</span>
+    <span>Lonestar Bark Co. &nbsp;·&nbsp; hello@lonestarbarkco.com &nbsp;·&nbsp; Dallas, TX</span>
     <span>This document may be used for pet care expense documentation.</span>
   </div>
 

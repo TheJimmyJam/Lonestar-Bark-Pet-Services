@@ -72,7 +72,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
     },
     {
       q: "What areas do you serve?",
-      a: "We currently serve East Dallas and surrounding neighborhoods. Not sure if we cover your area? Sign up and we'll let you know.",
+      a: "We currently serve Dallas, TX and surrounding neighborhoods. Not sure if we cover your area? Sign up and we'll let you know.",
     },
     {
       q: "Do you have any references?",
@@ -151,11 +151,11 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           <p><strong>Last updated: April 2026</strong></p>
           <p>By using Lonestar Bark Co. services, you agree to the following terms.</p>
           <h3>Services</h3>
-          <p>Lonestar Bark Co. provides dog walking and pet-care services in East Dallas, TX. All bookings are subject to walker availability. We reserve the right to decline bookings at our discretion.</p>
+          <p>Lonestar Bark Co. provides dog walking and pet-care services in Dallas, TX. All bookings are subject to walker availability. We reserve the right to decline bookings at our discretion.</p>
           <h3>Payments</h3>
           <p>Payment is collected at the time of booking via Stripe. Prices are $30 for 30-minute walks and $45 for 60-minute walks, plus applicable add-ons. Holiday surcharges and same-day express fees apply as listed.</p>
           <h3>Cancellations & Refunds</h3>
-          <p>Cancellations made more than 24 hours before a scheduled walk are fully refunded. Cancellations within 24 hours are charged 50% of the booking price. No-shows are non-refundable.</p>
+          <p>Cancellations made more than 24 hours in advance receive a full refund. Cancellations within 12–24 hours receive a 50% refund. Cancellations with less than 12 hours notice are charged full price.</p>
           <h3>Lonestar Loyalty Program</h3>
           <p>Every completed paid walk earns one loyalty punch. After 10 punches, you may claim one free 60-minute walk. Punches are forfeited if a booking is cancelled. Free walk claims must be scheduled within 90 days of claiming.</p>
           <h3>Liability</h3>
@@ -362,7 +362,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           <LogoBadge size={140} />
           <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#D4A843",
             fontSize: "12px", letterSpacing: "0.5em", textTransform: "uppercase" }}>
-            East Dallas
+            Dallas, TX
           </div>
           <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#F0E8D5",
             fontSize: "15px", letterSpacing: "0.2em", fontStyle: "italic" }}>

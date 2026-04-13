@@ -52,7 +52,7 @@ function buildDemoData() {
     "Energetic and reliable — your dog's favorite part of the day.",
     "Specializes in multi-pet households and cats who need extra patience.",
     "Weekend hiker and weekday dog walker. Keeps pets active year-round.",
-    "Professional pet care provider serving East Dallas and surrounding areas.",
+    "Professional pet care provider serving Dallas, TX and surrounding areas.",
     "Dedicated to giving every pet the individual attention they deserve.",
     "Friendly, punctual, and great at following each pet's unique routine.",
   ];
