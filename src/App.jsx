@@ -387,7 +387,9 @@ export default function LonestarBark() {
   useEffect(() => {
     let cancelled = false;
 
-    const handleSession = async (session) => {
+    // verifyStaleness: true only when restoring a cached localStorage session on
+    // mount. Live auth events (SIGNED_IN, email confirmation) are always trusted.
+    const handleSession = async (session, { verifyStaleness = false } = {}) => {
       if (cancelled) return;
       setAuthSession(session);
       if (!session?.user) return;
@@ -426,17 +428,19 @@ export default function LonestarBark() {
         setActiveUser(existing);
         setPendingRegistration(null);
       } else {
-        // No client row found. Before showing the registration form, verify
-        // the auth user actually still exists server-side. A deleted user can
-        // still have a cached token in localStorage that passes getSession().
-        const { error: userErr } = await supabase.auth.getUser();
-        if (cancelled) return;
-        if (userErr) {
-          // Stale / invalid session — silently sign out and return to landing.
-          await supabase.auth.signOut();
-          return;
+        // No client row found. If this is a cached session from localStorage
+        // (not a live login/confirmation event), verify the user still exists
+        // server-side — a deleted user can still have a valid-looking local token.
+        if (verifyStaleness) {
+          const { error: userErr } = await supabase.auth.getUser();
+          if (cancelled) return;
+          if (userErr) {
+            // Stale / invalid session — silently sign out and return to landing.
+            await supabase.auth.signOut();
+            return;
+          }
         }
-        // Fresh signup (usually Google OAuth) — show name/pets form.
+        // Fresh signup (email confirmation, Google OAuth, etc.) — show name/pets form.
         setSelectedRole("customer");
         setShowApp(true);
         setPendingRegistration({
@@ -448,10 +452,11 @@ export default function LonestarBark() {
       }
     };
 
-    // Pick up any existing session on mount
-    authGetSession().then(handleSession);
+    // Pick up any existing session on mount — verify it server-side since it
+    // comes from localStorage and could belong to a deleted user.
+    authGetSession().then(s => handleSession(s, { verifyStaleness: true }));
 
-    // Subscribe to auth changes
+    // Subscribe to auth changes — live events are always trusted, no verify needed.
     const subscription = authOnChange(async (event, session) => {
       if (event === "PASSWORD_RECOVERY") {
         // Detect admin vs client reset via ?admin_reset=1 query param.
