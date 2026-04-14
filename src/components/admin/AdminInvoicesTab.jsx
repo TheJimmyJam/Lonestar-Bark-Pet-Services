@@ -16,6 +16,7 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [], admin =
   const [filterStatus, setFilterStatus] = useState("all");
 
   const [expandedInv, setExpandedInv] = useState(null);
+  const [expandedFinKpi, setExpandedFinKpi] = useState(null);
 
   // Create invoice state
   const [step, setStep] = useState(1); // 1=client, 2=type/items, 3=preview
@@ -324,6 +325,62 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [], admin =
   const refundCountLifetime = allRefundedBookings.length;
   const refundCountWeek = allRefundedBookings.filter(b => b.refundedAt && new Date(b.refundedAt) >= refundWeekMon).length;
 
+  // ── Extended financial metrics ──
+  const allCompletedBookings = Object.entries(clients).flatMap(([pin, c]) =>
+    (c.bookings || []).filter(b => b.adminCompleted && !b.cancelled).map(b => ({
+      ...b, clientId: pin,
+      clientName: b.clientName || c.name || [c.firstName, c.lastName].filter(Boolean).join(" ") || "",
+    }))
+  );
+  const { monday: extWeekMon } = getCurrentWeekRange();
+  const weekCompletedBookings = allCompletedBookings.filter(b =>
+    new Date(b.completedAt || b.scheduledDateTime || b.bookedAt) >= extWeekMon
+  );
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const monthCompletedBookings = allCompletedBookings.filter(b =>
+    new Date(b.completedAt || b.scheduledDateTime || b.bookedAt) >= thirtyDaysAgo
+  );
+  const allRevenue = allCompletedBookings.reduce((s, b) => s + effectivePrice(b), 0)
+    + stripeReceiptsAll.reduce((s, b) => s + effectivePrice(b), 0);
+  const extWeekRevenue = weekCompletedBookings.reduce((s, b) => s + effectivePrice(b), 0)
+    + stripeReceiptsAll.filter(b => new Date(b.paidAt) >= extWeekMon).reduce((s, b) => s + effectivePrice(b), 0);
+  const monthRevenue = monthCompletedBookings.reduce((s, b) => s + effectivePrice(b), 0)
+    + stripeReceiptsAll.filter(b => new Date(b.paidAt) >= thirtyDaysAgo).reduce((s, b) => s + effectivePrice(b), 0);
+  const allWalkerPayout = allCompletedBookings.reduce((s, b) => s + getWalkerPayout(b), 0);
+  const weekWalkerPayout = weekCompletedBookings.reduce((s, b) => s + getWalkerPayout(b), 0);
+  const grossProfit = allRevenue - allWalkerPayout;
+  const weekProfit = extWeekRevenue - weekWalkerPayout;
+  const grossMarginPct = allRevenue > 0 ? (grossProfit / allRevenue * 100).toFixed(1) : "0.0";
+  const laborRatioPct = allRevenue > 0 ? (allWalkerPayout / allRevenue * 100).toFixed(1) : "0.0";
+  const totalCompletedWalks = allCompletedBookings.length + stripeReceiptsAll.length;
+  const revenuePerWalk = totalCompletedWalks > 0 ? allRevenue / totalCompletedWalks : 0;
+  const activeClientsList = Object.values(clients).filter(c => !c.deleted);
+  const totalClientsCount = activeClientsList.length;
+  const activeRecentCount = activeClientsList.filter(c =>
+    (c.bookings || []).some(b => !b.cancelled && new Date(b.scheduledDateTime || b.bookedAt) >= thirtyDaysAgo)
+  ).length;
+  const retainedCount = activeClientsList.filter(c =>
+    (c.bookings || []).filter(b => b.adminCompleted && !b.cancelled).length >= 2
+  ).length;
+  const retentionPct = totalClientsCount > 0 ? Math.round(retainedCount / totalClientsCount * 100) : 0;
+  const avgRevPerClient = totalClientsCount > 0 ? allRevenue / totalClientsCount : 0;
+  const allUpcomingExt = Object.entries(clients).flatMap(([pin, c]) =>
+    (c.bookings || []).filter(b =>
+      !b.cancelled && !b.adminCompleted && !b.stripeSessionId &&
+      new Date(b.scheduledDateTime || b.bookedAt) > new Date()
+    ).map(b => ({
+      ...b, clientId: pin,
+      clientName: b.clientName || c.name || [c.firstName, c.lastName].filter(Boolean).join(" ") || "",
+    }))
+  );
+  const pipelineRev = allUpcomingExt.filter(b => !b.isOvernight).reduce((s, b) => s + effectivePrice(b), 0);
+  const uninvoicedAmount = Object.values(allUninvoicedByClient).reduce((s, { walks }) =>
+    s + walks.reduce((ws, b) => ws + effectivePrice(b), 0), 0);
+  const uniqueWalkerNames = new Set(allCompletedBookings.map(b => b.form?.walker).filter(Boolean));
+  const activeWalkerCount = uniqueWalkerNames.size;
+  const walksPerWalker = activeWalkerCount > 0 ? (allCompletedBookings.length / activeWalkerCount).toFixed(1) : "—";
+  const revPerWalker = activeWalkerCount > 0 ? fmt(allRevenue / activeWalkerCount, true) : "—";
+
   return (
     <div className="fade-up">
       {/* Header row */}
@@ -333,7 +390,7 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [], admin =
           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
             fontWeight: 600, color: "#111827", marginBottom: "4px" }}>Financials</div>
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280" }}>
-            Stripe collections, refunds, gratuities, and invoices.
+            Revenue, profitability, client health, and collections.
           </p>
         </div>
         {view === "list" && (
@@ -467,39 +524,551 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [], admin =
       {/* ══ LIST VIEW ══ */}
       {view === "list" && (
         <>
-          {/* KPI grid — auto-reflows from 3 cols on desktop to 2 on tablet to 1 on narrow phones */}
+          {/* ── Comprehensive KPI Dashboard (expandable drawers) ── */}
           {(() => {
-            const kpiCard = (kpi) => (
-              <div key={kpi.label} style={{ background: kpi.bg, border: `1.5px solid ${kpi.border}`,
-                borderRadius: "14px", padding: "16px 18px",
-                minWidth: 0, overflow: "hidden" }}>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-                  fontWeight: 700, color: kpi.color, textTransform: "uppercase",
-                  letterSpacing: "1px", marginBottom: "6px",
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.label}</div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
-                  fontWeight: 700, color: "#111827", lineHeight: 1,
-                  overflowWrap: "anywhere" }}>{kpi.value}</div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-                  color: "#6b7280", marginTop: "3px",
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.sub}</div>
+            // ── Shared row/drawer helpers ──
+            const rowSt = { display: "flex", justifyContent: "space-between", alignItems: "center",
+              padding: "9px 0", borderBottom: "1px solid #f3f4f6",
+              fontFamily: "'DM Sans', sans-serif", fontSize: "14px" };
+            const val = (color = "#111827") => ({ fontWeight: 600, color, fontFamily: "'DM Sans', sans-serif", fontSize: "14px" });
+            const sub12 = { fontSize: "12px", color: "#9ca3af", fontFamily: "'DM Sans', sans-serif" };
+            const emptyNote = (msg) => (
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af",
+                fontStyle: "italic", padding: "12px 0", textAlign: "center" }}>{msg}</div>
+            );
+            const secHead = (t) => (
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", fontWeight: 700,
+                color: "#9ca3af", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "8px", marginTop: "4px" }}>{t}</div>
+            );
+            const totalRow = (label, value, color = amber) => (
+              <div style={{ ...rowSt, borderBottom: "none", marginTop: "4px" }}>
+                <span style={{ fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>{label}</span>
+                <span style={val(color)}>{value}</span>
               </div>
             );
-            const kpis = [
-              { label: "Weekly Charges",   value: fmt(stripeTotalWeek, true),  sub: `${stripeCountWeek} Stripe payment${stripeCountWeek !== 1 ? "s" : ""} this week`,           color: green,      bg: "#FDF5EC", border: "#D4A843" },
-              { label: "Total Charges",    value: fmt(stripeTotal, true),       sub: `${stripeReceiptsAll.length} Stripe payment${stripeReceiptsAll.length !== 1 ? "s" : ""} lifetime`, color: "#059669",  bg: "#f0fdf4", border: "#a8d5bf" },
-              { label: "Gratuities Owed",  value: gratuityOwed > 0 ? fmt(gratuityOwed, true) : "—",           sub: "unpaid to walkers",     color: "#b45309",  bg: "#fffbeb", border: "#fde68a" },
-              { label: "Gratuities Paid",  value: gratuitiesPaidLifetime > 0 ? fmt(gratuitiesPaidLifetime, true) : "—", sub: "lifetime disbursed", color: "#7A4D6E",  bg: "#F7F0F5", border: "#D8ABCF" },
-              { label: "Refunds This Week", value: refundsThisWeek > 0 ? fmt(refundsThisWeek, true) : "—",     sub: `${refundCountWeek} refund${refundCountWeek !== 1 ? "s" : ""} issued`,             color: "#dc2626",  bg: "#fef2f2", border: "#fecaca" },
-              { label: "Refunds Lifetime", value: refundsLifetime > 0 ? fmt(refundsLifetime, true) : "—",      sub: `${refundCountLifetime} total refund${refundCountLifetime !== 1 ? "s" : ""}`,      color: "#9ca3af",  bg: "#f9fafb", border: "#e4e7ec" },
+
+            // ── Per-walk list row ──
+            const walkRow = (b, i) => {
+              const d = new Date(b.completedAt || b.scheduledDateTime || b.bookedAt);
+              return (
+                <div key={i} style={{ ...rowSt, gap: "8px" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, color: "#111827", fontFamily: "'DM Sans', sans-serif", fontSize: "14px" }}>
+                      {b.clientName || "—"}{b.form?.pet ? ` · ${b.form.pet}` : ""}
+                    </div>
+                    <div style={sub12}>
+                      {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      {b.form?.walker ? ` · ${b.form.walker}` : ""}
+                      {b.slot?.duration ? ` · ${b.slot.duration}` : ""}
+                    </div>
+                  </div>
+                  <span style={val("#059669")}>${effectivePrice(b).toFixed(2)}</span>
+                </div>
+              );
+            };
+
+            // ── Walker breakdown helper ──
+            const walkerBreakdown = (bookingSet) => {
+              const bw = {};
+              bookingSet.forEach(b => {
+                const n = b.form?.walker || "Unassigned";
+                if (!bw[n]) bw[n] = { revenue: 0, payout: 0, count: 0 };
+                bw[n].revenue += effectivePrice(b);
+                bw[n].payout  += getWalkerPayout(b);
+                bw[n].count   += 1;
+              });
+              return Object.entries(bw).sort((a, b) => b[1].revenue - a[1].revenue)
+                .map(([name, d]) => ({ name, ...d, profit: d.revenue - d.payout }));
+            };
+
+            // ── All drawer content keyed by KPI id ──
+            const drawerContent = (id) => {
+
+              // ─ Revenue drawers ─
+              if (id === "weekRev") {
+                const walks = [...weekCompletedBookings].sort((a, b) =>
+                  new Date(b.completedAt || b.scheduledDateTime || b.bookedAt) - new Date(a.completedAt || a.scheduledDateTime || a.bookedAt));
+                const stripeWk = stripeReceiptsAll.filter(b => new Date(b.paidAt) >= extWeekMon)
+                  .sort((a, b) => new Date(b.paidAt) - new Date(a.paidAt));
+                return (<div>
+                  {secHead("Completed Walks This Week")}
+                  {walks.length === 0 && stripeWk.length === 0
+                    ? emptyNote("No revenue recorded this week yet.")
+                    : <>{walks.map((b, i) => walkRow(b, i))}
+                        {stripeWk.length > 0 && <>{secHead("Stripe Payments This Week")}
+                          {stripeWk.map((b, i) => (
+                            <div key={i} style={rowSt}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 600, color: "#111827", fontFamily: "'DM Sans', sans-serif", fontSize: "14px" }}>{b.clientName}</div>
+                                <div style={sub12}>{new Date(b.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · Stripe</div>
+                              </div>
+                              <span style={val("#059669")}>${(b.price || 0).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </>}
+                        {totalRow("Week Total", fmt(extWeekRevenue, true), amber)}
+                      </>
+                  }
+                </div>);
+              }
+
+              if (id === "monthRev") {
+                const walks = [...monthCompletedBookings].sort((a, b) =>
+                  new Date(b.completedAt || b.scheduledDateTime || b.bookedAt) - new Date(a.completedAt || a.scheduledDateTime || a.bookedAt));
+                const stripeMo = stripeReceiptsAll.filter(b => new Date(b.paidAt) >= thirtyDaysAgo);
+                return (<div>
+                  {secHead("Last 30 Days — Completed Walks")}
+                  {walks.length === 0 && stripeMo.length === 0 ? emptyNote("No revenue in the last 30 days.") : <>
+                    {walks.slice(0, 20).map((b, i) => walkRow(b, i))}
+                    {walks.length > 20 && <div style={{ ...sub12, padding: "6px 0" }}>+ {walks.length - 20} more walks</div>}
+                    {stripeMo.length > 0 && (
+                      <div style={rowSt}>
+                        <span style={{ color: "#6b7280", fontFamily: "'DM Sans', sans-serif" }}>Stripe payments (30d)</span>
+                        <span style={val("#059669")}>{stripeMo.length} · ${stripeMo.reduce((s, b) => s + (b.price || 0), 0).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {totalRow("30-Day Total", fmt(monthRevenue, true), "#7A4D6E")}
+                  </>}
+                </div>);
+              }
+
+              if (id === "allRev") {
+                const revMap = {};
+                allCompletedBookings.forEach(b => { const k = b.clientName || "Unknown"; revMap[k] = (revMap[k] || 0) + effectivePrice(b); });
+                stripeReceiptsAll.forEach(b => { const k = b.clientName || "Unknown"; revMap[k] = (revMap[k] || 0) + (b.price || 0); });
+                const sorted = Object.entries(revMap).sort((a, b) => b[1] - a[1]);
+                const maxR = sorted[0]?.[1] || 1;
+                return (<div>
+                  {secHead(`Top Clients by Lifetime Revenue · ${sorted.length} total`)}
+                  {sorted.length === 0 ? emptyNote("No completed walks yet.") : <>
+                    {sorted.slice(0, 12).map(([name, rev], i) => (
+                      <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid #f3f4f6" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, color: "#111827" }}>{i + 1}. {name}</span>
+                          <span style={val("#059669")}>${rev.toFixed(2)}</span>
+                        </div>
+                        <div style={{ height: "4px", background: "#f3f4f6", borderRadius: "2px" }}>
+                          <div style={{ height: "4px", borderRadius: "2px", background: "#059669", width: `${Math.round(rev / maxR * 100)}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                    {sorted.length > 12 && <div style={{ ...sub12, padding: "6px 0" }}>+ {sorted.length - 12} more clients</div>}
+                    {totalRow("Lifetime Total", fmt(allRevenue, true), "#059669")}
+                  </>}
+                </div>);
+              }
+
+              if (id === "revPerWalk") {
+                const by30 = allCompletedBookings.filter(b => (b.slot?.duration || "30 min") === "30 min");
+                const by60 = allCompletedBookings.filter(b => b.slot?.duration === "60 min");
+                return (<div>
+                  {secHead("Revenue Breakdown by Service Type")}
+                  {[
+                    { label: "30-min walks", count: by30.length, rev: by30.reduce((s, b) => s + effectivePrice(b), 0) },
+                    { label: "60-min walks", count: by60.length, rev: by60.reduce((s, b) => s + effectivePrice(b), 0) },
+                    { label: "Stripe at-booking", count: stripeReceiptsAll.length, rev: stripeTotal },
+                  ].map(({ label, count, rev }, i) => (
+                    <div key={i} style={rowSt}>
+                      <div>
+                        <div style={{ fontWeight: 600, color: "#111827", fontFamily: "'DM Sans', sans-serif", fontSize: "14px" }}>{label}</div>
+                        <div style={sub12}>{count} · avg ${count > 0 ? (rev / count).toFixed(2) : "0.00"}</div>
+                      </div>
+                      <span style={val()}>${rev.toFixed(2)}</span>
+                    </div>
+                  ))}
+                  {totalRow("Overall avg / walk", `$${revenuePerWalk.toFixed(2)}`, "#3D6B7A")}
+                </div>);
+              }
+
+              // ─ Profitability drawers ─
+              if (id === "grossProfit" || id === "laborRatio") {
+                const rows = walkerBreakdown(allCompletedBookings);
+                return (<div>
+                  {secHead("Lifetime Profit by Walker")}
+                  {rows.length === 0 ? emptyNote("No completed walks yet.") : <>
+                    {rows.map((r, i) => (
+                      <div key={i} style={rowSt}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, color: "#111827", fontFamily: "'DM Sans', sans-serif", fontSize: "14px" }}>{r.name}</div>
+                          <div style={sub12}>{r.count} walk{r.count !== 1 ? "s" : ""} · pay ${r.payout.toFixed(0)} · {r.revenue > 0 ? Math.round(r.profit / r.revenue * 100) : 0}% margin</div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={val("#059669")}>${r.profit.toFixed(0)}</div>
+                          <div style={sub12}>of ${r.revenue.toFixed(0)}</div>
+                        </div>
+                      </div>
+                    ))}
+                    {totalRow("Total Gross Profit", fmt(grossProfit, true), "#059669")}
+                  </>}
+                </div>);
+              }
+
+              if (id === "grossMargin") {
+                const margin = parseFloat(grossMarginPct);
+                return (<div>
+                  {secHead("Margin Summary")}
+                  {[
+                    ["Total Revenue", fmt(allRevenue, true), "#111827"],
+                    ["Walker Payouts", `-$${allWalkerPayout.toFixed(0)}`, "#dc2626"],
+                    ["Gross Profit",   fmt(grossProfit, true), "#059669"],
+                    ["Gross Margin",  `${grossMarginPct}%`, "#059669"],
+                  ].map(([label, v, color], i) => (
+                    <div key={i} style={rowSt}>
+                      <span style={{ color: "#6b7280", fontFamily: "'DM Sans', sans-serif" }}>{label}</span>
+                      <span style={val(color)}>{v}</span>
+                    </div>
+                  ))}
+                  <div style={{ background: "#f0fdf4", border: "1px solid #a8d5bf", borderRadius: "10px",
+                    padding: "10px 14px", marginTop: "12px", fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#059669" }}>
+                    💡 Industry target: 40–60% gross margin.{" "}
+                    {margin >= 40 ? "You're in the healthy range ✓"
+                      : margin > 0 ? "Below target — consider adjusting pricing or payout rates."
+                      : "No data yet."}
+                  </div>
+                </div>);
+              }
+
+              if (id === "weekProfit") {
+                const rows = walkerBreakdown(weekCompletedBookings);
+                return (<div>
+                  {secHead("This Week's Walker Breakdown")}
+                  {rows.length === 0 ? emptyNote("No completed walks this week.") : <>
+                    {rows.map((r, i) => (
+                      <div key={i} style={rowSt}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, color: "#111827", fontFamily: "'DM Sans', sans-serif", fontSize: "14px" }}>{r.name}</div>
+                          <div style={sub12}>{r.count} walk{r.count !== 1 ? "s" : ""} · walker pay ${r.payout.toFixed(0)}</div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={val("#059669")}>+${r.profit.toFixed(0)}</div>
+                          <div style={sub12}>rev ${r.revenue.toFixed(0)}</div>
+                        </div>
+                      </div>
+                    ))}
+                    {totalRow("Week Profit", fmt(weekProfit, true), amber)}
+                  </>}
+                </div>);
+              }
+
+              // ─ Operations drawers ─
+              if (id === "completedWalks") {
+                const sorted = [...allCompletedBookings].sort((a, b) =>
+                  new Date(b.completedAt || b.scheduledDateTime || b.bookedAt) - new Date(a.completedAt || a.scheduledDateTime || a.bookedAt));
+                return (<div>
+                  {secHead(`${sorted.length} Total Completed — Most Recent`)}
+                  {sorted.length === 0 ? emptyNote("No completed walks yet.") : <>
+                    {sorted.slice(0, 20).map((b, i) => walkRow(b, i))}
+                    {sorted.length > 20 && <div style={{ ...sub12, padding: "6px 0" }}>+ {sorted.length - 20} older walks</div>}
+                  </>}
+                </div>);
+              }
+
+              if (id === "activeWalkers" || id === "walksPerWalker" || id === "revPerWalker") {
+                const rows = walkerBreakdown(allCompletedBookings);
+                return (<div>
+                  {secHead(`${rows.length} Walker${rows.length !== 1 ? "s" : ""} — Revenue & Efficiency`)}
+                  {rows.length === 0 ? emptyNote("No walker data yet.") : rows.map((r, i) => (
+                    <div key={i} style={rowSt}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, color: "#111827", fontFamily: "'DM Sans', sans-serif", fontSize: "14px" }}>{r.name}</div>
+                        <div style={sub12}>{r.count} walks · payout ${r.payout.toFixed(0)} · profit ${r.profit.toFixed(0)}</div>
+                      </div>
+                      <span style={val("#7A4D6E")}>${r.revenue.toFixed(0)}</span>
+                    </div>
+                  ))}
+                </div>);
+              }
+
+              // ─ Client Health drawers ─
+              if (id === "totalClients" || id === "avgRevPerClient") {
+                const data = activeClientsList.map(c => {
+                  const done = (c.bookings || []).filter(b => b.adminCompleted && !b.cancelled);
+                  return { name: c.name || [c.firstName, c.lastName].filter(Boolean).join(" ") || "Unknown",
+                    rev: done.reduce((s, b) => s + effectivePrice(b), 0), count: done.length };
+                }).sort((a, b) => b.rev - a.rev);
+                const maxR = data[0]?.rev || 1;
+                return (<div>
+                  {secHead(`${data.length} Active Clients by Lifetime Spend`)}
+                  {data.length === 0 ? emptyNote("No active clients.") : <>
+                    {data.slice(0, 15).map((c, i) => (
+                      <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid #f3f4f6" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "3px" }}>
+                          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, color: "#111827" }}>{c.name}</span>
+                          <span style={val(c.rev > 0 ? "#C4541A" : "#9ca3af")}>${c.rev.toFixed(2)}</span>
+                        </div>
+                        <div style={{ ...sub12, marginBottom: "3px" }}>{c.count} completed walk{c.count !== 1 ? "s" : ""}</div>
+                        {c.rev > 0 && <div style={{ height: "3px", background: "#f3f4f6", borderRadius: "2px" }}>
+                          <div style={{ height: "3px", borderRadius: "2px", background: "#C4541A", width: `${Math.round(c.rev / maxR * 100)}%` }} />
+                        </div>}
+                      </div>
+                    ))}
+                    {data.length > 15 && <div style={{ ...sub12, padding: "6px 0" }}>+ {data.length - 15} more clients</div>}
+                  </>}
+                </div>);
+              }
+
+              if (id === "active30d") {
+                const recent = activeClientsList.map(c => {
+                  const rb = (c.bookings || []).filter(b => !b.cancelled && new Date(b.scheduledDateTime || b.bookedAt) >= thirtyDaysAgo);
+                  const last = rb.sort((a, b) => new Date(b.scheduledDateTime || b.bookedAt) - new Date(a.scheduledDateTime || a.bookedAt))[0];
+                  return last ? { name: c.name || "Unknown", last, count: rb.length } : null;
+                }).filter(Boolean).sort((a, b) => new Date(b.last.scheduledDateTime || b.last.bookedAt) - new Date(a.last.scheduledDateTime || a.last.bookedAt));
+                return (<div>
+                  {secHead(`${recent.length} Client${recent.length !== 1 ? "s" : ""} Active in Last 30 Days`)}
+                  {recent.length === 0 ? emptyNote("No clients with recent bookings.") : recent.map((c, i) => {
+                    const d = new Date(c.last.scheduledDateTime || c.last.bookedAt);
+                    return (
+                      <div key={i} style={rowSt}>
+                        <div>
+                          <div style={{ fontWeight: 600, color: "#111827", fontFamily: "'DM Sans', sans-serif", fontSize: "14px" }}>{c.name}</div>
+                          <div style={sub12}>Last: {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {c.count} booking{c.count !== 1 ? "s" : ""} this period</div>
+                        </div>
+                        <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 600,
+                          color: "#059669", background: "#f0fdf4", border: "1px solid #a8d5bf", borderRadius: "5px", padding: "2px 8px" }}>Active</span>
+                      </div>
+                    );
+                  })}
+                </div>);
+              }
+
+              if (id === "retentionRate") {
+                const repeat  = activeClientsList.filter(c => (c.bookings || []).filter(b => b.adminCompleted && !b.cancelled).length >= 2);
+                const oneTime = activeClientsList.filter(c => (c.bookings || []).filter(b => b.adminCompleted && !b.cancelled).length === 1);
+                const never   = activeClientsList.filter(c => (c.bookings || []).filter(b => b.adminCompleted && !b.cancelled).length === 0);
+                return (<div>
+                  {secHead("Client Breakdown by Booking History")}
+                  {[
+                    { label: "Repeat clients (2+ walks)", list: repeat,  color: "#059669", bg: "#f0fdf4" },
+                    { label: "One-time clients",          list: oneTime, color: "#b45309", bg: "#fffbeb" },
+                    { label: "No completed walks yet",    list: never,   color: "#9ca3af", bg: "#f9fafb" },
+                  ].map(({ label, list, color, bg }) => (
+                    <div key={label} style={{ background: bg, border: `1px solid ${color}33`, borderRadius: "10px", padding: "10px 14px", marginBottom: "8px" }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 700, color, marginBottom: "4px" }}>
+                        {label} — {list.length}
+                      </div>
+                      {list.length > 0 && (
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#6b7280", lineHeight: "1.6" }}>
+                          {list.slice(0, 8).map(c => c.name || "Unknown").join(", ")}{list.length > 8 ? ` + ${list.length - 8} more` : ""}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>);
+              }
+
+              // ─ Pipeline & Cash drawers ─
+              if (id === "pipelineRev") {
+                const upcoming = allUpcomingExt.filter(b => !b.isOvernight)
+                  .sort((a, b) => new Date(a.scheduledDateTime || a.bookedAt) - new Date(b.scheduledDateTime || b.bookedAt));
+                return (<div>
+                  {secHead(`${upcoming.length} Upcoming Walk${upcoming.length !== 1 ? "s" : ""} — Expected Revenue`)}
+                  {upcoming.length === 0 ? emptyNote("No upcoming walks scheduled.") : <>
+                    {upcoming.slice(0, 20).map((b, i) => {
+                      const d = new Date(b.scheduledDateTime || b.bookedAt);
+                      return (
+                        <div key={i} style={rowSt}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600, color: "#111827", fontFamily: "'DM Sans', sans-serif", fontSize: "14px" }}>
+                              {b.clientName || "—"}{b.form?.pet ? ` · ${b.form.pet}` : ""}
+                            </div>
+                            <div style={sub12}>
+                              {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {b.form?.walker || "Unassigned"} · {b.slot?.duration || "30 min"}
+                            </div>
+                          </div>
+                          <span style={val("#7A4D6E")}>${effectivePrice(b).toFixed(2)}</span>
+                        </div>
+                      );
+                    })}
+                    {upcoming.length > 20 && <div style={{ ...sub12, padding: "6px 0" }}>+ {upcoming.length - 20} more walks</div>}
+                    {totalRow("Pipeline Total", fmt(pipelineRev, true), "#7A4D6E")}
+                  </>}
+                </div>);
+              }
+
+              if (id === "uninvoiced") {
+                const byClient = Object.entries(allUninvoicedByClient).map(([, { client: c, walks }]) => ({
+                  name: c.name || [c.firstName, c.lastName].filter(Boolean).join(" ") || "Unknown",
+                  count: walks.length, total: walks.reduce((s, b) => s + effectivePrice(b), 0),
+                })).sort((a, b) => b.total - a.total);
+                return (<div>
+                  {secHead(`${byClient.length} Client${byClient.length !== 1 ? "s" : ""} with Uninvoiced Walks`)}
+                  {byClient.length === 0 ? emptyNote("All completed walks have been invoiced 🎉") : <>
+                    {byClient.map((c, i) => (
+                      <div key={i} style={rowSt}>
+                        <div>
+                          <div style={{ fontWeight: 600, color: "#111827", fontFamily: "'DM Sans', sans-serif", fontSize: "14px" }}>{c.name}</div>
+                          <div style={sub12}>{c.count} uninvoiced walk{c.count !== 1 ? "s" : ""}</div>
+                        </div>
+                        <span style={val(amber)}>${c.total.toFixed(2)}</span>
+                      </div>
+                    ))}
+                    {totalRow("Total Unbilled", fmt(uninvoicedAmount, true), amber)}
+                  </>}
+                </div>);
+              }
+
+              if (id === "refundsWeek" || id === "refundsAll") {
+                const pool = id === "refundsWeek"
+                  ? allRefundedBookings.filter(b => b.refundedAt && new Date(b.refundedAt) >= refundWeekMon)
+                  : allRefundedBookings;
+                const enriched = pool.map(b => {
+                  const entry = Object.values(clients).find(c => (c.bookings || []).some(x => x.key === b.key));
+                  return { ...b, clientName: entry?.name || b.clientName || "Unknown" };
+                }).sort((a, b) => new Date(b.refundedAt || b.cancelledAt || 0) - new Date(a.refundedAt || a.cancelledAt || 0));
+                const total = enriched.reduce((s, b) => s + (b.refundAmount || 0), 0);
+                return (<div>
+                  {secHead(`${enriched.length} Refund${enriched.length !== 1 ? "s" : ""} ${id === "refundsWeek" ? "This Week" : "Lifetime"}`)}
+                  {enriched.length === 0 ? emptyNote("No refunds issued.") : <>
+                    {enriched.slice(0, 20).map((b, i) => (
+                      <div key={i} style={rowSt}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, color: "#111827", fontFamily: "'DM Sans', sans-serif", fontSize: "14px" }}>{b.clientName}</div>
+                          <div style={sub12}>
+                            {b.refundedAt ? new Date(b.refundedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+                            {b.refundPercent != null ? ` · ${Math.round(b.refundPercent * 100)}% back` : ""}
+                          </div>
+                        </div>
+                        <span style={val("#dc2626")}>−${(b.refundAmount || 0).toFixed(2)}</span>
+                      </div>
+                    ))}
+                    {enriched.length > 20 && <div style={{ ...sub12, padding: "6px 0" }}>+ {enriched.length - 20} more</div>}
+                    {totalRow("Total Refunded", `-$${total.toFixed(2)}`, "#dc2626")}
+                  </>}
+                </div>);
+              }
+
+              // ─ Stripe drawers ─
+              if (id === "stripeWeek") {
+                const wk = stripeReceiptsAll.filter(b => new Date(b.paidAt) >= extWeekMon)
+                  .sort((a, b) => new Date(b.paidAt) - new Date(a.paidAt));
+                return (<div>
+                  {secHead(`${wk.length} Stripe Payment${wk.length !== 1 ? "s" : ""} This Week`)}
+                  {wk.length === 0 ? emptyNote("No Stripe payments this week.") : <>
+                    {wk.map((b, i) => (
+                      <div key={i} style={rowSt}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, color: "#111827", fontFamily: "'DM Sans', sans-serif", fontSize: "14px" }}>{b.clientName}</div>
+                          <div style={sub12}>{new Date(b.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {b.slot?.duration || "—"}</div>
+                        </div>
+                        <span style={val("#059669")}>${(b.price || 0).toFixed(2)}</span>
+                      </div>
+                    ))}
+                    {totalRow("Week Total", fmt(stripeTotalWeek, true), green)}
+                  </>}
+                </div>);
+              }
+
+              if (id === "stripeAll") {
+                return (<div>
+                  {secHead(`${stripeReceiptsAll.length} Total Stripe Payments`)}
+                  {stripeReceiptsAll.length === 0 ? emptyNote("No Stripe payments yet.") : <>
+                    {stripeReceiptsAll.slice(0, 20).map((b, i) => (
+                      <div key={i} style={rowSt}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, color: "#111827", fontFamily: "'DM Sans', sans-serif", fontSize: "14px" }}>{b.clientName}</div>
+                          <div style={sub12}>{new Date(b.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} · {b.slot?.duration || "—"}</div>
+                        </div>
+                        <span style={val("#059669")}>${(b.price || 0).toFixed(2)}</span>
+                      </div>
+                    ))}
+                    {stripeReceiptsAll.length > 20 && <div style={{ ...sub12, padding: "6px 0" }}>+ {stripeReceiptsAll.length - 20} more · see Stripe filter tab below</div>}
+                    {totalRow("Lifetime Total", fmt(stripeTotal, true), "#059669")}
+                  </>}
+                </div>);
+              }
+
+              return null;
+            };
+
+            // ── Section + expandable card renderer ──
+            const sectionLabel = (title) => (
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 700,
+                color: "#9ca3af", textTransform: "uppercase", letterSpacing: "1px",
+                marginBottom: "8px", marginTop: "16px" }}>{title}</div>
+            );
+
+            const renderSection = (title, kpis) => (
+              <div key={title}>
+                {sectionLabel(title)}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "4px" }}>
+                  {kpis.map(kpi => {
+                    const isOpen = expandedFinKpi === kpi.id;
+                    return (
+                      <div key={kpi.id} onClick={() => setExpandedFinKpi(isOpen ? null : kpi.id)}
+                        style={{ gridColumn: isOpen ? "1 / -1" : undefined,
+                          background: isOpen ? "#fff" : kpi.bg,
+                          border: `1.5px solid ${isOpen ? kpi.color + "55" : kpi.border}`,
+                          borderRadius: "14px", overflow: "hidden", cursor: "pointer",
+                          transition: "border-color 0.2s, box-shadow 0.2s",
+                          boxShadow: isOpen ? `0 4px 16px ${kpi.color}18` : "none" }}>
+                        <div style={{ padding: "14px 16px", position: "relative", background: isOpen ? `${kpi.color}08` : kpi.bg }}>
+                          <div style={{ position: "absolute", top: "10px", right: "12px",
+                            fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                            color: isOpen ? kpi.color : "#d1d5db",
+                            transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s, color 0.2s" }}>▾</div>
+                          <div style={{ paddingRight: "20px" }}>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 700,
+                              color: kpi.color, textTransform: "uppercase", letterSpacing: "1px",
+                              marginBottom: "6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.label}</div>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px",
+                              fontWeight: 700, color: "#111827", lineHeight: 1, overflowWrap: "anywhere" }}>{kpi.value}</div>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                              color: "#6b7280", marginTop: "4px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.sub}</div>
+                          </div>
+                        </div>
+                        {isOpen && (
+                          <div style={{ borderTop: `1px solid ${kpi.color}22`, padding: "16px 16px 18px", background: `${kpi.color}05` }}
+                            onClick={e => e.stopPropagation()}>
+                            {drawerContent(kpi.id)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+
+            const sections = [
+              { title: "💰 Revenue", kpis: [
+                { id: "weekRev",    label: "Week's Revenue",   value: fmt(extWeekRevenue, true),      sub: "completed + stripe this week",           color: amber,      bg: "#fffbeb", border: "#fde68a" },
+                { id: "monthRev",   label: "Month's Revenue",  value: fmt(monthRevenue, true),        sub: "last 30 days",                           color: "#7A4D6E",  bg: "#F7F0F5", border: "#D8ABCF" },
+                { id: "allRev",     label: "All-Time Revenue", value: fmt(allRevenue, true),          sub: `${allCompletedBookings.length} completed walks`, color: "#059669", bg: "#f0fdf4", border: "#a8d5bf" },
+                { id: "revPerWalk", label: "Revenue / Walk",   value: `$${revenuePerWalk.toFixed(2)}`, sub: `avg across ${totalCompletedWalks} walks`, color: "#3D6B7A", bg: "#f0f9ff", border: "#bae6fd" },
+              ]},
+              { title: "📈 Profitability", kpis: [
+                { id: "grossProfit", label: "Gross Profit",  value: fmt(grossProfit, true),   sub: "revenue minus walker pay",              color: "#059669", bg: "#f0fdf4", border: "#a8d5bf" },
+                { id: "grossMargin", label: "Gross Margin",  value: `${grossMarginPct}%`,     sub: "of revenue kept after payout",          color: "#7A4D6E", bg: "#F7F0F5", border: "#D8ABCF" },
+                { id: "weekProfit",  label: "Week's Profit", value: fmt(weekProfit, true),    sub: "this week",                             color: amber,     bg: "#fffbeb", border: "#fde68a" },
+                { id: "laborRatio",  label: "Walker Pay %",  value: `${laborRatioPct}%`,      sub: `$${allWalkerPayout.toFixed(0)} paid out lifetime`, color: "#C4541A", bg: "#FDF5EC", border: "#D4A843" },
+              ]},
+              { title: "🐕 Operations & Labor", kpis: [
+                { id: "completedWalks", label: "Completed Walks",  value: allCompletedBookings.length, sub: "admin-marked complete",               color: "#059669", bg: "#f0fdf4", border: "#a8d5bf" },
+                { id: "activeWalkers",  label: "Active Walkers",   value: activeWalkerCount || "—",    sub: "with completed walk history",          color: "#C4541A", bg: "#FDF5EC", border: "#D4A843" },
+                { id: "walksPerWalker", label: "Walks / Walker",   value: walksPerWalker,              sub: "avg completed walks each",             color: "#3D6B7A", bg: "#f0f9ff", border: "#bae6fd" },
+                { id: "revPerWalker",   label: "Revenue / Walker", value: revPerWalker,                sub: "lifetime revenue per walker",          color: "#7A4D6E", bg: "#F7F0F5", border: "#D8ABCF" },
+              ]},
+              { title: "👥 Client Health", kpis: [
+                { id: "totalClients",    label: "Total Clients",    value: totalClientsCount,               sub: "active accounts",              color: "#C4541A", bg: "#FDF5EC", border: "#D4A843" },
+                { id: "active30d",       label: "Active (30d)",     value: activeRecentCount,               sub: "booked in last 30 days",       color: "#059669", bg: "#f0fdf4", border: "#a8d5bf" },
+                { id: "retentionRate",   label: "Retention Rate",   value: `${retentionPct}%`,              sub: `${retainedCount} repeat clients`, color: "#3D6B7A", bg: "#f0f9ff", border: "#bae6fd" },
+                { id: "avgRevPerClient", label: "Avg Rev / Client", value: `$${avgRevPerClient.toFixed(2)}`, sub: "lifetime spend per client",  color: "#7A4D6E", bg: "#F7F0F5", border: "#D8ABCF" },
+              ]},
+              { title: "🔮 Pipeline & Cash", kpis: [
+                { id: "pipelineRev",  label: "Pipeline Revenue",  value: fmt(pipelineRev, true),  sub: `${allUpcomingExt.filter(b => !b.isOvernight).length} upcoming walks`, color: "#7A4D6E", bg: "#F7F0F5", border: "#D8ABCF" },
+                { id: "uninvoiced",   label: "Uninvoiced $",      value: uninvoicedAmount > 0 ? fmt(uninvoicedAmount, true) : "—", sub: `${bulkWalkCount} walk${bulkWalkCount !== 1 ? "s" : ""} unbilled`, color: amber, bg: "#fffbeb", border: "#fde68a" },
+                { id: "refundsWeek",  label: "Refunds This Week", value: refundsThisWeek > 0 ? fmt(refundsThisWeek, true) : "—", sub: `${refundCountWeek} refund${refundCountWeek !== 1 ? "s" : ""} issued`, color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
+                { id: "refundsAll",   label: "Refunds Lifetime",  value: refundsLifetime > 0 ? fmt(refundsLifetime, true) : "—", sub: `${refundCountLifetime} total`, color: "#9ca3af", bg: "#f9fafb", border: "#e4e7ec" },
+              ]},
+              { title: "💳 Stripe Collections", kpis: [
+                { id: "stripeWeek", label: "Weekly Charges", value: fmt(stripeTotalWeek, true), sub: `${stripeCountWeek} payment${stripeCountWeek !== 1 ? "s" : ""} this week`, color: green, bg: "#FDF5EC", border: "#D4A843" },
+                { id: "stripeAll",  label: "Total Charges",  value: fmt(stripeTotal, true),     sub: `${stripeReceiptsAll.length} payment${stripeReceiptsAll.length !== 1 ? "s" : ""} lifetime`, color: "#059669", bg: "#f0fdf4", border: "#a8d5bf" },
+              ]},
             ];
+
             return (
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                gap: "10px", marginBottom: "20px",
-              }}>
-                {kpis.map(kpiCard)}
+              <div style={{ marginBottom: "24px" }}>
+                {sections.map(s => renderSection(s.title, s.kpis))}
               </div>
             );
           })()}
