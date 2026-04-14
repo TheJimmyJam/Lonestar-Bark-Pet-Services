@@ -48,6 +48,14 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [], admin =
     .reduce((s, b) => s + (b.price || 0), 0);
   const stripeCountWeek = stripeReceiptsAll.filter(b => b.paidAt && new Date(b.paidAt) >= stripeWeekMon).length;
 
+  // Stripe-processed refunds — bookings that have a Stripe refund ID
+  const stripeRefundRows = Object.entries(clients).flatMap(([pin, c]) =>
+    (c.bookings || [])
+      .filter(b => b.refundId && b.refundAmount > 0)
+      .map(b => ({ ...b, clientPin: pin, clientName: c.name || [c.firstName, c.lastName].filter(Boolean).join(" ") || "—", clientEmail: c.email || "—" }))
+  ).sort((a, b) => new Date(b.refundedAt || b.cancelledAt || 0) - new Date(a.refundedAt || a.cancelledAt || 0));
+  const stripeRefundTotal = stripeRefundRows.reduce((s, b) => s + (b.refundAmount || 0), 0);
+
   const allInvoices = getAllInvoices(clients);
   const filtered = (filterStatus === "all" ? allInvoices : allInvoices.filter(inv => {
     const { effectiveStatus } = invoiceStatusMeta(inv.status, inv.dueDate);
@@ -1109,20 +1117,44 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [], admin =
             ))}
           </div>
 
-          {/* Stripe payments list */}
-          {filterStatus === "stripe" && (
-            stripeReceiptsAll.length === 0 ? (
-              <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
-                borderRadius: "16px", padding: "40px", textAlign: "center" }}>
-                <div style={{ fontSize: "32px", marginBottom: "12px" }}>💳</div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
-                  fontWeight: 600, color: "#374151", marginBottom: "4px" }}>No Stripe payments yet</div>
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af" }}>
-                  Payments made at booking time will appear here.
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {/* Stripe payments + refunds */}
+          {filterStatus === "stripe" && (() => {
+            const netStripe = stripeTotal - stripeRefundTotal;
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                {/* Net summary bar */}
+                {(stripeReceiptsAll.length > 0 || stripeRefundRows.length > 0) && (
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                    {[
+                      { label: "Collected", value: `$${stripeTotal.toFixed(2)}`, color: "#059669", bg: "#f0fdf4", border: "#a7f3d0" },
+                      { label: "Refunded",  value: stripeRefundTotal > 0 ? `−$${stripeRefundTotal.toFixed(2)}` : "$0.00", color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
+                      { label: "Net",       value: `$${netStripe.toFixed(2)}`, color: netStripe >= 0 ? "#0b1423" : "#dc2626", bg: "#f9fafb", border: "#e4e7ec" },
+                    ].map(s => (
+                      <div key={s.label} style={{ flex: "1 1 100px", background: s.bg, border: `1.5px solid ${s.border}`, borderRadius: "12px", padding: "12px 16px" }}>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#6b7280", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.05em" }}>{s.label}</div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "18px", fontWeight: 700, color: s.color }}>{s.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Payments section */}
+                {stripeReceiptsAll.length === 0 ? (
+                  <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
+                    borderRadius: "16px", padding: "32px", textAlign: "center" }}>
+                    <div style={{ fontSize: "28px", marginBottom: "10px" }}>💳</div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                      fontWeight: 600, color: "#374151", marginBottom: "4px" }}>No Stripe payments yet</div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af" }}>
+                      Payments made at booking time will appear here.
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px" }}>
+                      Payments ({stripeReceiptsAll.length})
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {stripeReceiptsAll.map(b => {
                   const isExp = expandedInv === b.key;
                   const svcLabel = b.service === "dog" ? "Dog Walk" : b.service === "cat" ? "Cat Visit" : "Meet & Greet";
@@ -1177,9 +1209,113 @@ function AdminInvoicesTab({ clients, setClients, completedPayrolls = [], admin =
                     </div>
                   );
                 })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Stripe Refunds section */}
+                {stripeRefundRows.length > 0 && (
+                  <div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px" }}>
+                      Refunds ({stripeRefundRows.length}) · −${stripeRefundTotal.toFixed(2)}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      {stripeRefundRows.map(b => {
+                        const isExp = expandedInv === b.key + "_srefund";
+                        const svcLabel = b.service === "dog" ? "Dog Walk" : b.service === "cat" ? "Cat Visit" : b.service === "overnight" ? "Overnight" : b.service || "Service";
+                        const refundPct = b.refundPercent != null ? Math.round(b.refundPercent * 100) : null;
+                        const refundDate = b.refundedAt || b.cancelledAt;
+                        return (
+                          <div key={b.key + "_srefund"} style={{
+                            background: "#fff", border: isExp ? "2px solid #dc2626" : "1.5px solid #fecaca",
+                            borderRadius: "16px", overflow: "hidden", transition: "all 0.15s",
+                          }}>
+                            <button onClick={() => setExpandedInv(isExp ? null : b.key + "_srefund")}
+                              style={{ width: "100%", background: "none", border: "none", cursor: "pointer", padding: "16px 18px", textAlign: "left" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginBottom: "4px" }}>
+                                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600, color: "#111827" }}>{b.clientName}</span>
+                                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 700,
+                                      color: "#dc2626", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "5px", padding: "1px 7px" }}>STRIPE REFUND</span>
+                                    {refundPct != null && (
+                                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#6b7280", background: "#f3f4f6", borderRadius: "5px", padding: "1px 7px" }}>{refundPct}%</span>
+                                    )}
+                                  </div>
+                                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>
+                                    {svcLabel} · {b.day ? `${b.day}, ` : ""}{b.date || "—"} · {b.slot?.time || "—"}
+                                    {refundDate ? ` · Refunded ${new Date(refundDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}
+                                  </div>
+                                </div>
+                                <div style={{ flexShrink: 0, textAlign: "right" }}>
+                                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "#dc2626" }}>−${(b.refundAmount || 0).toFixed(2)}</div>
+                                  {b.price != null && (
+                                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#9ca3af" }}>of ${(b.price || 0).toFixed(2)}</div>
+                                  )}
+                                  <div style={{ fontSize: "14px", color: isExp ? "#dc2626" : "#d1d5db", transform: isExp ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>⌄</div>
+                                </div>
+                              </div>
+                            </button>
+                            {isExp && (
+                              <div style={{ borderTop: "1px solid #fef2f2", padding: "14px 18px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280" }}>
+                                  <strong style={{ color: "#374151" }}>Client:</strong> {b.clientName} · {b.clientEmail}
+                                </div>
+                                {b.form?.pet && (
+                                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280" }}>
+                                    <strong style={{ color: "#374151" }}>Pet:</strong> {b.form.pet}
+                                  </div>
+                                )}
+                                {b.form?.walker && (
+                                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280" }}>
+                                    <strong style={{ color: "#374151" }}>Walker:</strong> {b.form.walker}
+                                  </div>
+                                )}
+                                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280" }}>
+                                  <strong style={{ color: "#374151" }}>Original Charge:</strong> ${(b.price || 0).toFixed(2)}
+                                  {refundPct != null ? ` · ${refundPct}% refund = ` : " → "}
+                                  <strong style={{ color: "#dc2626" }}>${(b.refundAmount || 0).toFixed(2)} refunded</strong>
+                                </div>
+                                {b.cancelledAt && (
+                                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6b7280" }}>
+                                    <strong style={{ color: "#374151" }}>Cancelled:</strong>{" "}
+                                    {new Date(b.cancelledAt).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                                  </div>
+                                )}
+                                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>
+                                  <strong style={{ color: "#374151" }}>Stripe Refund ID:</strong>{" "}
+                                  <span style={{ fontFamily: "monospace" }}>{b.refundId}</span>
+                                </div>
+                                {b.stripeSessionId && (
+                                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#9ca3af" }}>
+                                    <strong style={{ color: "#374151" }}>Session:</strong>{" "}
+                                    <span style={{ fontFamily: "monospace" }}>{b.stripeSessionId}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Empty state when truly nothing */}
+                {stripeReceiptsAll.length === 0 && stripeRefundRows.length === 0 && (
+                  <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
+                    borderRadius: "16px", padding: "40px", textAlign: "center" }}>
+                    <div style={{ fontSize: "32px", marginBottom: "12px" }}>💳</div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
+                      fontWeight: 600, color: "#374151", marginBottom: "4px" }}>No Stripe activity yet</div>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af" }}>
+                      Payments made at booking time will appear here.
+                    </div>
+                  </div>
+                )}
               </div>
-            )
-          )}
+            );
+          })()}
 
           {/* Refunds list */}
           {filterStatus === "refunds" && (() => {
