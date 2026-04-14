@@ -569,7 +569,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           <div style={{ marginBottom: "60px", position: "relative" }} className="lp-steps-grid">
             {[
               { step: "01", icon: "✍️", title: "Create Your Account",
-                desc: "Sign up with your email and set a secure PIN. Takes under a minute." },
+                desc: "Sign up with your email and create a password. Takes under a minute." },
               { step: "02", icon: "🗓️", title: "Schedule Your Meet & Greet",
                 desc: "Choose a day and 3-hour window for your free 15-minute in-home Meet & Greet. Your walker will reach out to confirm their exact arrival time." },
               { step: "03", icon: "🤝", title: "We Meet Your Pet",

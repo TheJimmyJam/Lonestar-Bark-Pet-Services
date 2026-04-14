@@ -1,21 +1,12 @@
 import { useState } from "react";
 import { sbFetch } from "../../supabase.js";
-import { CUSTOM_WALKERS, WALKER_CREDENTIALS, injectCustomWalkers } from "../auth/WalkerAuthScreen.jsx";
+import { injectCustomWalkers } from "../auth/WalkerAuthScreen.jsx";
 
 // ─── Admin Danger Zone (full system reset) ────────────────────────────────────
 function AdminDangerZone({ admin, adminList, setAdminList, setClients, setWalkerProfiles, onLogout }) {
-  const [stage, setStage] = useState("idle"); // idle | step1 | step2 | step3 | deleting
-  const [pinInput, setPinInput]   = useState("");
-  const [pinError, setPinError]   = useState("");
+  const [stage, setStage] = useState("idle"); // idle | confirm1 | confirm2 | deleting
 
   const me = adminList.find(a => a.id === admin.id);
-
-  const handlePinContinue = () => {
-    if (!me || pinInput !== me.pin) {
-      setPinError("Incorrect PIN."); return;
-    }
-    setPinError(""); setStage("step2");
-  };
 
   const handleReset = async () => {
     setStage("deleting");
@@ -43,8 +34,6 @@ function AdminDangerZone({ admin, adminList, setAdminList, setClients, setWalker
     setTimeout(() => onLogout(), 1200);
   };
 
-  const amber = "#b45309";
-
   return (
     <div style={{ background: "#fff", borderRadius: "16px",
       border: "2px solid #fca5a5", padding: "24px", marginTop: "24px" }}>
@@ -63,7 +52,7 @@ function AdminDangerZone({ admin, adminList, setAdminList, setClients, setWalker
             Permanently erase <strong style={{ color: "#111827" }}>all clients, walkers, bookings,
             invoices, chat messages, and payroll records</strong> from the system. This cannot be undone.
           </p>
-          <button onClick={() => setStage("step1")} style={{
+          <button onClick={() => setStage("confirm1")} style={{
             padding: "12px 20px", borderRadius: "10px",
             border: "1.5px solid #fca5a5", background: "#fff5f5",
             color: "#dc2626", fontFamily: "'DM Sans', sans-serif",
@@ -73,7 +62,7 @@ function AdminDangerZone({ admin, adminList, setAdminList, setClients, setWalker
         </>
       )}
 
-      {stage === "step1" && (
+      {stage === "confirm1" && (
         <div className="fade-up">
           <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5",
             borderRadius: "10px", padding: "14px 16px", marginBottom: "20px" }}>
@@ -83,72 +72,18 @@ function AdminDangerZone({ admin, adminList, setAdminList, setClients, setWalker
             </div>
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#7f1d1d" }}>
               All clients, walkers, bookings, invoices, chat history, and payroll data will be wiped from
-              the database. There is no recovery. Enter your PIN to proceed.
-            </div>
-          </div>
-
-          <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif",
-            fontSize: "15px", fontWeight: 700, color: "#9ca3af",
-            letterSpacing: "1.5px", textTransform: "uppercase", marginBottom: "6px" }}>
-            Your Admin PIN
-          </label>
-          <input type="password" inputMode="numeric" maxLength={6}
-            placeholder="••••••" value={pinInput}
-            onChange={e => { setPinInput(e.target.value.replace(/\D/g, "")); setPinError(""); }}
-            onKeyDown={e => e.key === "Enter" && handlePinContinue()}
-            style={{ width: "100%", padding: "13px 14px", borderRadius: "10px",
-              border: `1.5px solid ${pinError ? "#ef4444" : "#e4e7ec"}`,
-              background: "#fff", fontFamily: "'DM Sans', sans-serif",
-              fontSize: "22px", letterSpacing: "10px", color: "#111827",
-              outline: "none", marginBottom: "6px", boxSizing: "border-box" }} />
-          {pinError && <div style={{ color: "#ef4444", fontFamily: "'DM Sans', sans-serif",
-            fontSize: "14px", marginBottom: "10px" }}>{pinError}</div>}
-
-          <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-            <button onClick={handlePinContinue}
-              disabled={pinInput.length < 6}
-              style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "none",
-                background: pinInput.length < 6 ? "#e4e7ec" : "#dc2626",
-                color: pinInput.length < 6 ? "#9ca3af" : "#fff",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                fontWeight: 600, cursor: pinInput.length < 6 ? "default" : "pointer" }}>
-              Continue →
-            </button>
-            <button onClick={() => { setStage("idle"); setPinInput(""); setPinError(""); }}
-              style={{ padding: "12px 18px", borderRadius: "10px",
-                border: "1.5px solid #e4e7ec", background: "#f9fafb",
-                fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                color: "#374151", cursor: "pointer" }}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {stage === "step2" && (
-        <div className="fade-up">
-          <div style={{ background: "#fef2f2", border: "2px solid #ef4444",
-            borderRadius: "10px", padding: "16px 18px", marginBottom: "20px" }}>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
-              color: "#dc2626", fontSize: "16px", marginBottom: "6px" }}>
-              First confirmation
-            </div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
-              color: "#7f1d1d", lineHeight: "1.6" }}>
-              You are about to permanently delete <strong>all data</strong> in the system.
-              Every client record, booking, walker profile, invoice, and message will be gone forever.
-              Click the button below to confirm this is what you want.
+              the database. There is no recovery.
             </div>
           </div>
           <div style={{ display: "flex", gap: "10px" }}>
-            <button onClick={() => setStage("step3")} style={{
+            <button onClick={() => setStage("confirm2")} style={{
               flex: 1, padding: "13px", borderRadius: "10px", border: "2px solid #dc2626",
               background: "#fef2f2", color: "#dc2626",
               fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
               fontWeight: 700, cursor: "pointer" }}>
-              I confirm I'm deleting all data
+              I understand — continue
             </button>
-            <button onClick={() => { setStage("idle"); setPinInput(""); }}
+            <button onClick={() => setStage("idle")}
               style={{ padding: "12px 18px", borderRadius: "10px",
                 border: "1.5px solid #e4e7ec", background: "#f9fafb",
                 fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
@@ -159,7 +94,7 @@ function AdminDangerZone({ admin, adminList, setAdminList, setClients, setWalker
         </div>
       )}
 
-      {stage === "step3" && (
+      {stage === "confirm2" && (
         <div className="fade-up">
           <div style={{ background: "#7f1d1d", borderRadius: "10px",
             padding: "18px 20px", marginBottom: "20px" }}>
@@ -181,9 +116,9 @@ function AdminDangerZone({ admin, adminList, setAdminList, setClients, setWalker
               fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
               fontWeight: 700, cursor: "pointer",
               boxShadow: "0 4px 14px rgba(220,38,38,0.4)" }}>
-              I confirm I'm deleting all data
+              Delete everything — I'm sure
             </button>
-            <button onClick={() => { setStage("idle"); setPinInput(""); }}
+            <button onClick={() => setStage("idle")}
               style={{ padding: "12px 18px", borderRadius: "10px",
                 border: "1.5px solid #e4e7ec", background: "#f9fafb",
                 fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
