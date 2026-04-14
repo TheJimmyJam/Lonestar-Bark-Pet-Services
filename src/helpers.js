@@ -10,10 +10,19 @@ function effectivePrice(b) {
   return Math.max(0, base - b.adminDiscount.amount);
 }
 
-// Walker payout: flat rates based on duration
+// Walker payout: flat rates at full price, scaled down proportionally when a
+// discount is applied so the walker and company both share the reduction.
+// 60 min full: $35 payout ($10 company). 30 min full: $20 payout ($10 company).
+// If the client pays less (e.g. 20% off $45 = $36), the walker also earns 20%
+// less ($28), and the company keeps $8. Payout is always rounded to nearest $1.
 function getWalkerPayout(b) {
   const is60 = (b.slot?.duration || "30 min") === "60 min";
-  return is60 ? 35 : 20;
+  const flatPayout = is60 ? 35 : 20;
+  const basePrice = is60 ? 45 : 30;
+  const charged = effectivePrice(b);
+  // If no discount (or price missing), just return the flat rate.
+  if (!charged || charged >= basePrice) return flatPayout;
+  return Math.round(flatPayout * (charged / basePrice));
 }
 
 // Format a Date object as YYYY-MM-DD
