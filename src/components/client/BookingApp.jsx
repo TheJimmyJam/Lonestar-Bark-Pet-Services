@@ -268,6 +268,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [payingBookingKey, setPayingBookingKey] = useState(null); // prevents double-click on Pay Now buttons
+  const [redeemFreeWalk, setRedeemFreeWalk] = useState(false);
   const [expandedWalker, setExpandedWalker] = useState(null);
   const [cancelConfirm, setCancelConfirm] = useState(null);
   const [cancelResult, setCancelResult] = useState(null); // { booking, refundAmount, refundPercent, hoursUntilWalk, bookingPrice }
@@ -569,7 +570,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       };
       // For paid services: mark pending_payment and redirect to Stripe
       // For meet & greet (free): mark confirmed and go straight to confirm screen
-      const bookingStatus = requiresPayment ? "pending_payment" : "confirmed";
+      const bookingStatus = (requiresPayment && !redeemFreeWalk) ? "pending_payment" : "confirmed";
       const bookingsWithStatus = allBookings.map(b =>
         newBookings.some(nb => nb.key === b.key)
           ? { ...b, status: bookingStatus }
@@ -580,7 +581,17 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
       setClients(updatedClients);
       await saveClients({ [clientPinKey]: updatedClients[clientPinKey] });
 
-      if (requiresPayment && newBookings.length > 0) {
+      // Free walk redemption — claim punch card and save, then fall through to free-booking email path
+      if (redeemFreeWalk) {
+        const claimedClient = claimPunchCardWalk(updatedClients[clientPinKey]);
+        if (claimedClient) {
+          const claimedClients = { ...updatedClients, [clientPinKey]: claimedClient };
+          setClients(claimedClients);
+          await saveClients({ [clientPinKey]: claimedClient });
+        }
+      }
+
+      if (requiresPayment && !redeemFreeWalk && newBookings.length > 0) {
         // Redirect to Stripe — emails fire after successful payment return
         const firstBooking = newBookings[0];
         const pricedBooking = bookingsWithStatus.find(b => b.key === firstBooking.key);
@@ -654,7 +665,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   };
 
   const handleReset = () => {
-    setStep("pick"); setSelectedSlot(null);
+    setStep("pick"); setSelectedSlot(null); setRedeemFreeWalk(false);
     const pets = service === "dog" ? savedDogs : savedCats;
     setForm({ name: client.name || "", pet: pets.slice(-1)[0] || "", email: client.email, phone: client.phone || "", address: client.address || "", addrObj: client.addrObj || addrFromString(client.address || ""), walker: client.preferredWalker || "", notes: client.notes || "" });
     setAdditionalDogs([]);
@@ -4136,17 +4147,66 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     </div>
                   </div>
                 )}
+                {/* Free walk redemption banner */}
+                {requiresPayment && (client.punchCardCount || 0) >= PUNCH_CARD_GOAL && (
+                  <div style={{
+                    background: redeemFreeWalk ? "#0B1423" : "#FDF5EC",
+                    border: redeemFreeWalk ? "none" : "1.5px solid #D4A87A",
+                    borderRadius: "14px", padding: "16px 18px", marginBottom: "14px",
+                    transition: "all 0.2s",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: redeemFreeWalk ? 0 : "12px" }}>
+                      <div style={{ fontSize: "28px" }}>🏆</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: "15px",
+                          color: redeemFreeWalk ? "#fff" : "#111827" }}>
+                          You have a free walk to use!
+                        </div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                          color: redeemFreeWalk ? "rgba(255,255,255,0.7)" : "#6b7280", marginTop: "2px" }}>
+                          {redeemFreeWalk ? "✓ Free walk applied — no payment needed" : "Would you like to use it for this booking?"}
+                        </div>
+                      </div>
+                    </div>
+                    {!redeemFreeWalk && (
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button onClick={() => setRedeemFreeWalk(true)} style={{
+                          flex: 1, padding: "10px", borderRadius: "10px", border: "none",
+                          background: "#C4541A", color: "#fff",
+                          fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 700, cursor: "pointer",
+                        }}>Yes, use my free walk</button>
+                        <button onClick={() => setRedeemFreeWalk(false)} style={{
+                          flex: 1, padding: "10px", borderRadius: "10px",
+                          border: "1.5px solid #D4A87A", background: "#fff", color: "#6b7280",
+                          fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500, cursor: "pointer",
+                        }}>No, pay with card</button>
+                      </div>
+                    )}
+                    {redeemFreeWalk && (
+                      <button onClick={() => setRedeemFreeWalk(false)} style={{
+                        marginTop: "8px", padding: "6px 14px", borderRadius: "8px",
+                        border: "1.5px solid rgba(255,255,255,0.3)", background: "transparent",
+                        color: "rgba(255,255,255,0.6)", fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "13px", cursor: "pointer",
+                      }}>Cancel — pay with card instead</button>
+                    )}
+                  </div>
+                )}
+
                 <button onClick={handleSubmit} disabled={submitting} style={{ width: "100%",
-                  padding: "16px", borderRadius: "12px", border: "none", background: svc.color,
+                  padding: "16px", borderRadius: "12px", border: "none",
+                  background: redeemFreeWalk ? "#059669" : svc.color,
                   color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
                   fontWeight: 500, cursor: submitting ? "wait" : "pointer" }}>
                   {submitting
-                    ? (requiresPayment ? "Redirecting to Payment…" : "Confirming…")
-                    : requiresPayment
-                      ? `🔒 Proceed to Payment`
-                      : isRecurring
-                        ? `Confirm Weekly ${svc.label}${form.walker ? ` with ${firstName(form.walker)}` : ""}`
-                        : `Confirm ${svc.label} Appointment${form.walker ? ` with ${firstName(form.walker)}` : ""}`}
+                    ? (requiresPayment && !redeemFreeWalk ? "Redirecting to Payment…" : "Confirming…")
+                    : redeemFreeWalk
+                      ? `🎉 Confirm Free Walk${form.walker ? ` with ${firstName(form.walker)}` : ""}`
+                      : requiresPayment
+                        ? `🔒 Proceed to Payment`
+                        : isRecurring
+                          ? `Confirm Weekly ${svc.label}${form.walker ? ` with ${firstName(form.walker)}` : ""}`
+                          : `Confirm ${svc.label} Appointment${form.walker ? ` with ${firstName(form.walker)}` : ""}`}
                 </button>
               </div>
             )}
