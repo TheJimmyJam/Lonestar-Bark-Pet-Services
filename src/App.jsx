@@ -804,11 +804,16 @@ export default function LonestarBark() {
         onBack={() => setSelectedRole(null)}
         onBackToLanding={() => { setSelectedRole(null); setShowApp(false); setShowLogin(false); }}
         onSetPassword={(email) => {
-          // Password lives in Supabase Auth — just clear the mustSetPin flag in DB
+          // Password lives in Supabase Auth — clear mustSetPin in DB so the
+          // walker isn't forced through setup again on next login.
+          // walkerProfiles is keyed by DB walker_id, NOT the internal profile id,
+          // so we find the correct key via Object.entries.
           const updated = { ...walkerProfiles };
-          const entry = Object.values(updated).find(p => p.email?.toLowerCase() === email);
-          if (entry) {
-            updated[entry.id] = { ...entry, pin: null, mustSetPin: false, resetCode: null, resetCodeExpiry: null };
+          const dbKey = Object.keys(updated).find(k =>
+            updated[k].email?.toLowerCase() === email.toLowerCase()
+          );
+          if (dbKey) {
+            updated[dbKey] = { ...updated[dbKey], pin: null, mustSetPin: false, resetCode: null, resetCodeExpiry: null };
             setWalkerProfiles(updated);
             saveWalkerProfiles(updated);
           }
