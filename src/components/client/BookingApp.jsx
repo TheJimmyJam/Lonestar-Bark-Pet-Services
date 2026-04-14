@@ -261,7 +261,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const savedDogs = client.dogs || client.pets || [];
   const savedCats = client.cats || [];
   const savedPets = service === "dog" ? savedDogs : savedCats;
-  const [form, setForm] = useState({ name: client.name || "", pet: (service === "dog" ? savedDogs : savedCats).slice(-1)[0] || "", email: client.email, phone: client.phone || "", address: client.address || "", addrObj: client.addrObj || addrFromString(client.address || ""), walker: client.preferredWalker || "", notes: client.notes || "" });
+  const [form, setForm] = useState({ name: client.name || "", pet: (service === "dog" ? savedDogs : savedCats).slice(-1)[0] || "", email: client.email, phone: client.phone || "", address: client.address || "", addrObj: client.addrObj || addrFromString(client.address || ""), walker: client.preferredWalker || client.keyholder || "", notes: client.notes || "" });
   const [additionalDogs, setAdditionalDogs] = useState([]);
   const [isRecurring, setIsRecurring] = useState(false);
   const [errors, setErrors] = useState({});
@@ -330,6 +330,18 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     const end = toDateKey(getWeekDates(11)[6]);
     loadAllWalkersAvailability(start, end).then(data => setWalkerAvailability(data));
   }, []);
+
+  // Auto-select preferred walker / keyholder once availability loads — only if they have any open slots
+  useEffect(() => {
+    const preferredName = client.preferredWalker || client.keyholder;
+    if (!preferredName) return;
+    const preferred = getAllWalkers(walkerProfiles).find(w => w.name === preferredName);
+    if (!preferred) return;
+    const hasAvail = Object.values(walkerAvailability[preferred.id] || {}).some(slots => slots.length > 0);
+    if (hasAvail) {
+      setForm(f => f.walker ? f : { ...f, walker: preferredName });
+    }
+  }, [walkerAvailability]);
 
   // Scroll preferred walker into view when landing on the book page or switching service
   useEffect(() => {
@@ -667,7 +679,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const handleReset = () => {
     setStep("pick"); setSelectedSlot(null); setRedeemFreeWalk(false);
     const pets = service === "dog" ? savedDogs : savedCats;
-    setForm({ name: client.name || "", pet: pets.slice(-1)[0] || "", email: client.email, phone: client.phone || "", address: client.address || "", addrObj: client.addrObj || addrFromString(client.address || ""), walker: client.preferredWalker || "", notes: client.notes || "" });
+    setForm({ name: client.name || "", pet: pets.slice(-1)[0] || "", email: client.email, phone: client.phone || "", address: client.address || "", addrObj: client.addrObj || addrFromString(client.address || ""), walker: client.preferredWalker || client.keyholder || "", notes: client.notes || "" });
     setAdditionalDogs([]);
     setSelectedWalk({ slotId: "", duration: "30 min" });
     setIsRecurring(false);
@@ -3527,7 +3539,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                         ...all.filter(w => w.name !== preferred),
                       ];
                     })().map(w => {
-                      const isPreferred = w.name === (client.preferredWalker || getAllWalkers(walkerProfiles)[0]?.name);
+                      const isPreferred = !!(client.preferredWalker || client.keyholder) && w.name === (client.preferredWalker || client.keyholder);
                       const isSelected = form.walker === w.name;
                       const walkerDateSlots = walkerAvailability[w.id]?.[selectedDateKey] || [];
                       const hasAvail = walkerDateSlots.length > 0;
