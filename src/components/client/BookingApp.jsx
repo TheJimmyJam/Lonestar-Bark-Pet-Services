@@ -619,6 +619,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           localStorage.setItem("dwi_stripe_return_clientId", clientPinKey);
           localStorage.setItem("dwi_pending_booking_keys", JSON.stringify(newBookings.map(b => b.key)));
         } catch {}
+        const assignedWalkerForCheckout = getAllWalkers(walkerProfiles).find(w => w.name === form.walker);
         const { url } = await createBookingCheckout({
           clientId: clientPinKey,
           clientName: client.name,
@@ -630,6 +631,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           time: firstBooking.slot?.time || "—",
           duration: firstBooking.slot?.duration || "—",
           walker: form.walker || "",
+          walkerEmail: assignedWalkerForCheckout?.email || "",
           pet: form.pet,
           amount,
         });
