@@ -805,7 +805,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                     setWalkerProfiles(updated);
                     saveWalkerProfiles(updated).catch(e => console.error("saveWalkerProfiles failed:", e));
                     setInfoSaved(true);
-                    setTimeout(() => setInfoSaved(false), 2000);
+                    setTimeout(() => setInfoSaved(false), 5000);
                   } else {
                     await saveAllAvailability();
                   }
@@ -4140,7 +4140,7 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
             // Persist to Supabase so the admin dashboard sees the updated profile
             saveWalkerProfiles(updated).catch(e => console.error("saveWalkerProfiles failed:", e));
             setInfoSaved(true);
-            setTimeout(() => setInfoSaved(false), 2000);
+            setTimeout(() => setInfoSaved(false), 5000);
           };
 
           const toggleDay = (day) => {
@@ -4231,16 +4231,6 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                   </div>
                 );
               })()}
-
-              {/* Saved confirmation */}
-              {infoSaved && (
-                <div style={{ background: "#FDF5EC", border: "1.5px solid #EDD5A8",
-                  borderRadius: "12px", padding: "12px 16px", marginBottom: "16px",
-                  fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                  fontWeight: 600, color: "#059669", display: "flex", alignItems: "center", gap: "8px" }}>
-                  ✓ Profile saved! Admin can now see your updated info.
-                </div>
-              )}
 
               {/* Identity */}
               <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
@@ -4481,12 +4471,23 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
               {infoEditing && (
                 <button onClick={handleSaveInfo} style={{
                   width: "100%", padding: "15px", borderRadius: "12px",
-                  border: "none", background: accentBlue, color: "#fff",
+                  border: "none", background: infoSaved ? "#059669" : accentBlue, color: "#fff",
                   fontFamily: "'DM Sans', sans-serif", fontSize: "16px",
                   fontWeight: 500, cursor: "pointer", marginTop: "4px",
+                  transition: "background 0.3s",
                 }}>
-                  Save Profile ✓
+                  {infoSaved ? "✓ Profile Saved!" : "Save Profile"}
                 </button>
+              )}
+
+              {/* Saved confirmation below button */}
+              {infoSaved && (
+                <div style={{ background: "#f0fdf4", border: "1.5px solid #86efac",
+                  borderRadius: "12px", padding: "12px 16px", marginTop: "12px",
+                  fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+                  fontWeight: 600, color: "#059669", display: "flex", alignItems: "center", gap: "8px" }}>
+                  ✓ Profile saved! Admin can now see your updated info.
+                </div>
               )}
 
             </div>
