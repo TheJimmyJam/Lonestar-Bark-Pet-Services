@@ -260,9 +260,8 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
 
   const [claimedKeys, setClaimedKeys] = useState(new Set());
 
-  const claimWalk = (booking) => {
+  const claimWalk = async (booking) => {
     if (!setClients) return;
-    // Find which client owns this booking
     const clientId = booking.clientId || Object.keys(clients).find(cid =>
       (clients[cid].bookings || []).some(bk => bk.key === booking.key)
     );
@@ -283,7 +282,12 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
       },
     };
     setClients(updated);
-    saveClients({ [clientId]: updated[clientId] });
+    try {
+      await saveClients({ [clientId]: updated[clientId] });
+    } catch (e) {
+      console.error("claimWalk: failed to save:", e);
+      alert("Claim saved locally but could not be written to the database. Please refresh and try again.");
+    }
   };
 
   const claimHandoff = async (handoff) => {

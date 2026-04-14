@@ -1224,7 +1224,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 const updated = { ...client, handoffInfo: null };
                 const updatedClients = { ...clients, [clientPinKey]: updated };
                 setClients(updatedClients);
-                saveClients({ [clientPinKey]: updatedClients[clientPinKey] });
+                saveClients({ [clientPinKey]: updatedClients[clientPinKey] }).catch(e => console.error("saveClients failed:", e));
                 setHandoffCancelConfirm(false);
               }} style={{ width: "100%", padding: "13px", borderRadius: "10px", border: "none",
                 background: "#dc2626", color: "#fff", fontFamily: "'DM Sans', sans-serif",
@@ -1388,7 +1388,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                 };
                 const updatedClients = { ...clients, [clientPinKey]: updated };
                 setClients(updatedClients);
-                saveClients({ [clientPinKey]: updatedClients[clientPinKey] });
+                saveClients({ [clientPinKey]: updatedClients[clientPinKey] }).catch(e => console.error("saveClients failed:", e));
                 setHandoffEditOpen(false);
                 setHandoffReschedDay(null);
                 setHandoffReschedWindow(null);
@@ -1694,7 +1694,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                       if (!updated) return;
                       const updatedClients = { ...clients, [clientPinKey]: updated };
                       setClients(updatedClients);
-                      saveClients({ [clientPinKey]: updatedClients[clientPinKey] });
+                      saveClients({ [clientPinKey]: updatedClients[clientPinKey] }).catch(e => console.error("saveClients failed:", e));
                       notifyAdmin("free_walk_claimed", { clientName: client.name || client.email, walkType: "60 min", punchesUsed: PUNCH_CARD_GOAL });
                     }} style={{
                       padding: "10px 18px", borderRadius: "10px", border: "1.5px solid rgba(255,255,255,0.4)",
@@ -2051,7 +2051,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           };
           const updatedClients = { ...clients, [clientPinKey]: updated };
           setClients(updatedClients);
-          saveClients({ [clientPinKey]: updatedClients[clientPinKey] });
+          saveClients({ [clientPinKey]: updatedClients[clientPinKey] }).catch(e => console.error("saveClients failed:", e));
         };
 
         const handleCancelRecurringWeek = (recurringId, weekKey) => {
@@ -2065,7 +2065,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
           };
           const updatedClients = { ...clients, [clientPinKey]: updated };
           setClients(updatedClients);
-          saveClients({ [clientPinKey]: updatedClients[clientPinKey] });
+          saveClients({ [clientPinKey]: updatedClients[clientPinKey] }).catch(e => console.error("saveClients failed:", e));
         };
 
         return (
@@ -3207,7 +3207,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     phone: form.phone || client.phone || "",
                   };
                   setClients({ ...clients, [clientPinKey]: updated });
-                  saveClients({ [clientPinKey]: updated });
+                  saveClients({ [clientPinKey]: updated }).catch(e => console.error("saveClients failed:", e));
                   setOvernightSubmitting(false);
                   setOvernightStep("confirm");
                 }, 800);

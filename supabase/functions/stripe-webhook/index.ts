@@ -434,6 +434,10 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("Webhook error:", String(e));
-    return new Response(JSON.stringify({ error: String(e) }), { status: 400 });
+    // Return 500 so Stripe retries — 400 tells Stripe it's our fault and to stop retrying
+    return new Response(JSON.stringify({ error: String(e) }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 });

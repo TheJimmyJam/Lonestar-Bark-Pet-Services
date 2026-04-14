@@ -83,7 +83,9 @@ function AdminAdminsTab({ admin, adminList, setAdminList, clients, setClients, w
   const [transferTarget, setTransferTarget] = useState(null);
   const handleTransferMaster = () => {
     if (!transferTarget) return;
-    setAdminList(adminList.map(a => ({ ...a, isMaster: a.id === transferTarget.id })));
+    const updated = adminList.map(a => ({ ...a, isMaster: a.id === transferTarget.id }));
+    setAdminList(updated);
+    saveAdminList(updated).catch(e => console.error("handleTransferMaster save failed:", e));
     setTransferTarget(null);
   };
 
