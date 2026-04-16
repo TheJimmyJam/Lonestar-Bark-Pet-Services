@@ -441,7 +441,7 @@ export default function LonestarBark() {
       const currentRole = selectedRoleRef.current;
       if (currentRole && currentRole !== "customer") return;
 
-      const existing = await loadClientByUserId(user.id);
+      const existing = await loadClientByUserId(user.id, session?.access_token);
       if (cancelled) return;
       if (existing) {
         // Returning client — route straight into the portal.

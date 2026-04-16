@@ -1165,10 +1165,20 @@ function authOnChange(callback) {
 
 // Look up a client row by Supabase Auth user_id. Returns the parsed client
 // object with its PIN attached, or null if not found.
-async function loadClientByUserId(userId) {
+// Pass accessToken directly when calling from an auth event handler —
+// the Supabase client may not have finished hydrating from localStorage yet,
+// so relying on supabase.auth.getSession() inside sbFetch can return the
+// anon key instead of the real JWT, causing RLS to block the read.
+async function loadClientByUserId(userId, accessToken = null) {
   if (!userId) return null;
   try {
-    const rows = await sbFetch(`clients?user_id=eq.${encodeURIComponent(userId)}&select=pin,email,data,user_id`);
+    const extraHeaders = accessToken
+      ? { "Authorization": `Bearer ${accessToken}` }
+      : {};
+    const rows = await sbFetch(
+      `clients?user_id=eq.${encodeURIComponent(userId)}&select=pin,email,data,user_id`,
+      { headers: extraHeaders }
+    );
     if (!rows || rows.length === 0) return null;
     const row = rows[0];
     try {
