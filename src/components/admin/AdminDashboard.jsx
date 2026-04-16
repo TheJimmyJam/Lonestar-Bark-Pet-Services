@@ -90,6 +90,82 @@ function W9ViewButton({ w9Path }) {
 }
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
+// ─── WalkerProfilePhotoUpload ─────────────────────────────────────────────────
+function WalkerProfilePhotoUpload({ walkerId, prof, walkerProfiles, setWalkerProfiles }) {
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoErr, setPhotoErr] = useState("");
+  const currentPhoto = prof?.profilePhoto || null;
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setPhotoErr("Select an image file."); return; }
+    if (file.size > 10 * 1024 * 1024) { setPhotoErr("Must be under 10 MB."); return; }
+    setPhotoErr(""); setPhotoUploading(true);
+    try {
+      const url = await uploadProfilePhoto(walkerId, file);
+      const updated = {
+        ...(walkerProfiles || {}),
+        [walkerId]: { ...((walkerProfiles || {})[walkerId] || {}), profilePhoto: url },
+      };
+      setWalkerProfiles(updated);
+      await saveWalkerProfiles(updated);
+    } catch (e) {
+      setPhotoErr("Upload failed — try again.");
+    } finally { setPhotoUploading(false); }
+  };
+
+  const handleRemove = async () => {
+    const updated = {
+      ...(walkerProfiles || {}),
+      [walkerId]: { ...((walkerProfiles || {})[walkerId] || {}), profilePhoto: null },
+    };
+    setWalkerProfiles(updated);
+    await saveWalkerProfiles(updated);
+  };
+
+  return (
+    <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
+      borderRadius: "14px", padding: "18px 20px", marginBottom: "12px" }}>
+      <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
+        fontSize: "15px", letterSpacing: "1.5px", textTransform: "uppercase",
+        color: "#9ca3af", marginBottom: "12px" }}>Profile Photo</div>
+      <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        <div style={{ width: "64px", height: "64px", borderRadius: "50%", flexShrink: 0,
+          background: "#f3f4f6", border: "2px solid #e4e7ec", overflow: "hidden",
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px" }}>
+          {currentPhoto
+            ? <img src={currentPhoto} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            : <span>{prof?.avatar || "🐾"}</span>}
+        </div>
+        <div>
+          <label style={{ display: "inline-block", padding: "8px 16px", borderRadius: "9px",
+            border: "1.5px solid #e4e7ec", background: photoUploading ? "#f9fafb" : "#fff",
+            fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500,
+            color: photoUploading ? "#9ca3af" : "#111827",
+            cursor: photoUploading ? "not-allowed" : "pointer" }}>
+            {photoUploading ? "⏳ Uploading…" : currentPhoto ? "Replace photo" : "Upload photo"}
+            <input type="file" accept="image/*" onChange={handlePhotoUpload}
+              disabled={photoUploading} style={{ display: "none" }} />
+          </label>
+          {currentPhoto && !photoUploading && (
+            <button onClick={handleRemove} style={{ marginLeft: "8px", padding: "8px 12px",
+              borderRadius: "9px", border: "1.5px solid #fca5a5", background: "#fff",
+              fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+              color: "#dc2626", cursor: "pointer" }}>Remove</button>
+          )}
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+            color: "#9ca3af", marginTop: "5px" }}>
+            Shown publicly on Meet the Team · JPG, PNG, WebP · max 10 MB
+          </div>
+          {photoErr && <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+            color: "#dc2626", marginTop: "4px" }}>{photoErr}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, setWalkerProfiles, trades, setTrades, adminList, setAdminList, onLogout }) {
   const [tab, setTab] = useState("overview");
   const [bookingsView, setBookingsView] = useState("upcoming"); // "upcoming" | "completed"
@@ -4709,75 +4785,12 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 </div>
 
                 {/* Profile Photo */}
-                {(() => {
-                  const [photoUploading, setPhotoUploading] = useState(false);
-                  const [photoErr, setPhotoErr] = useState("");
-                  const currentPhoto = prof?.profilePhoto || null;
-                  const handlePhotoUpload = async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    if (!file.type.startsWith("image/")) { setPhotoErr("Select an image file."); return; }
-                    if (file.size > 10 * 1024 * 1024) { setPhotoErr("Must be under 10 MB."); return; }
-                    setPhotoErr(""); setPhotoUploading(true);
-                    try {
-                      const url = await uploadProfilePhoto(w.id, file);
-                      const updated = {
-                        ...(walkerProfiles || {}),
-                        [w.id]: { ...((walkerProfiles || {})[w.id] || {}), profilePhoto: url },
-                      };
-                      setWalkerProfiles(updated);
-                      await saveWalkerProfiles(updated);
-                    } catch (e) {
-                      setPhotoErr("Upload failed — try again.");
-                    } finally { setPhotoUploading(false); }
-                  };
-                  return (
-                    <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
-                      borderRadius: "14px", padding: "18px 20px", marginBottom: "12px" }}>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
-                        fontSize: "15px", letterSpacing: "1.5px", textTransform: "uppercase",
-                        color: "#9ca3af", marginBottom: "12px" }}>Profile Photo</div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                        <div style={{ width: "64px", height: "64px", borderRadius: "50%", flexShrink: 0,
-                          background: "#f3f4f6", border: "2px solid #e4e7ec", overflow: "hidden",
-                          display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px" }}>
-                          {currentPhoto
-                            ? <img src={currentPhoto} alt="Profile"
-                                style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            : <span>{prof?.avatar || "🐾"}</span>}
-                        </div>
-                        <div>
-                          <label style={{ display: "inline-block", padding: "8px 16px", borderRadius: "9px",
-                            border: "1.5px solid #e4e7ec", background: photoUploading ? "#f9fafb" : "#fff",
-                            fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500,
-                            color: photoUploading ? "#9ca3af" : "#111827",
-                            cursor: photoUploading ? "not-allowed" : "pointer" }}>
-                            {photoUploading ? "⏳ Uploading…" : currentPhoto ? "Replace photo" : "Upload photo"}
-                            <input type="file" accept="image/*" onChange={handlePhotoUpload}
-                              disabled={photoUploading} style={{ display: "none" }} />
-                          </label>
-                          {currentPhoto && !photoUploading && (
-                            <button onClick={async () => {
-                              const updated = {
-                                ...(walkerProfiles || {}),
-                                [w.id]: { ...((walkerProfiles || {})[w.id] || {}), profilePhoto: null },
-                              };
-                              setWalkerProfiles(updated);
-                              await saveWalkerProfiles(updated);
-                            }} style={{ marginLeft: "8px", padding: "8px 12px", borderRadius: "9px",
-                              border: "1.5px solid #fca5a5", background: "#fff",
-                              fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-                              color: "#dc2626", cursor: "pointer" }}>Remove</button>
-                          )}
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
-                            color: "#9ca3af", marginTop: "5px" }}>Shown publicly on Meet the Team · JPG, PNG, WebP · max 10 MB</div>
-                          {photoErr && <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-                            color: "#dc2626", marginTop: "4px" }}>{photoErr}</div>}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
+                <WalkerProfilePhotoUpload
+                  walkerId={w.id}
+                  prof={prof}
+                  walkerProfiles={walkerProfiles}
+                  setWalkerProfiles={setWalkerProfiles}
+                />
 
                 {/* Bio */}
                 <div style={{ background: "#fff", border: "1.5px solid #e4e7ec",
