@@ -10,7 +10,6 @@ import {
   loadClientMessages, saveClientMessage,
   uploadWalkPhoto,
   uploadW9,
-  uploadProfilePhoto,
   SUPABASE_URL, SUPABASE_ANON_KEY,
 } from "../../supabase.js";
 import {
@@ -146,70 +145,6 @@ function W9UploadSection({ walker, myProfile }) {
           )}
         </>
       )}
-    </div>
-  );
-}
-
-// ─── ProfilePhotoUpload ───────────────────────────────────────────────────────
-// Lets a walker upload their profile photo from the My Info tab.
-// Photo goes to the public "walker-profile-photos" bucket and the URL is
-// saved to walkerProfiles so it shows on the Meet the Team page.
-function ProfilePhotoUpload({ walker, walkerProfiles, setWalkerProfiles }) {
-  const [uploading, setUploading] = useState(false);
-  const [err, setErr] = useState("");
-  const currentPhoto = (walkerProfiles?.[walker.id])?.profilePhoto || null;
-
-  const handleFile = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) { setErr("Please select an image file."); return; }
-    if (file.size > 10 * 1024 * 1024) { setErr("Photo must be under 10 MB."); return; }
-    setErr(""); setUploading(true);
-    try {
-      const url = await uploadProfilePhoto(walker.id, file);
-      const updated = {
-        ...(walkerProfiles || {}),
-        [walker.id]: { ...((walkerProfiles || {})[walker.id] || {}), profilePhoto: url },
-      };
-      setWalkerProfiles(updated);
-      const { saveWalkerProfiles } = await import("../../supabase.js");
-      await saveWalkerProfiles(updated);
-    } catch (e) {
-      setErr("Upload failed — please try again.");
-      console.error("[ProfilePhotoUpload]", e);
-    } finally { setUploading(false); }
-  };
-
-  return (
-    <div style={{ marginBottom: "24px" }}>
-      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 700,
-        letterSpacing: "1.5px", textTransform: "uppercase", color: "#4E7A8C", marginBottom: "12px" }}>
-        Profile Photo
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-        {/* Current photo or placeholder */}
-        <div style={{ width: "72px", height: "72px", borderRadius: "50%", flexShrink: 0,
-          background: "#e4e7ec", border: "2px solid #C8E4E8", overflow: "hidden",
-          display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px" }}>
-          {currentPhoto
-            ? <img src={currentPhoto} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            : <span>{walker.avatar || "🐾"}</span>}
-        </div>
-        <div style={{ flex: 1 }}>
-          <label style={{ display: "inline-block", padding: "9px 18px", borderRadius: "10px",
-            border: "1.5px solid #C8E4E8", background: uploading ? "#f9fafb" : "#fff",
-            fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500,
-            color: uploading ? "#9ca3af" : "#0B1423", cursor: uploading ? "not-allowed" : "pointer" }}>
-            {uploading ? "⏳ Uploading…" : currentPhoto ? "Replace photo" : "Upload photo"}
-            <input type="file" accept="image/*" onChange={handleFile}
-              disabled={uploading} style={{ display: "none" }} />
-          </label>
-          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
-            color: "#9ca3af", marginTop: "6px" }}>JPG, PNG, or WebP · max 10 MB</div>
-          {err && <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-            color: "#dc2626", marginTop: "4px" }}>{err}</div>}
-        </div>
-      </div>
     </div>
   );
 }
@@ -4649,9 +4584,6 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                   </div>
                 )}
               </div>
-
-              {/* ── Profile Photo ────────────────────────────────────────────── */}
-              <ProfilePhotoUpload walker={walker} walkerProfiles={walkerProfiles} setWalkerProfiles={setWalkerProfiles} />
 
               {/* ── W-9 Upload ───────────────────────────────────────────────── */}
               <W9UploadSection walker={walker} myProfile={myProfile} />
