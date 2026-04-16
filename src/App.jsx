@@ -456,6 +456,13 @@ export default function LonestarBark() {
             await supabase.auth.signOut();
             return;
           }
+          // Valid auth user but no clients row = abandoned signup (they started
+          // registration but never completed it). Sign them out so the landing
+          // page loads cleanly on reload. The registration form only makes sense
+          // as a response to a live auth event (email confirmation, OAuth), not
+          // on a cold page load from a stale cached session.
+          await supabase.auth.signOut();
+          return;
         }
         // Fresh signup (email confirmation, Google OAuth, etc.) — show name/pets form.
         setSelectedRole("customer");
