@@ -63,14 +63,44 @@ CREATE POLICY "clients_anon_insert" ON clients
 CREATE POLICY "clients_anon_read" ON clients
   FOR SELECT USING (true);
 
--- Anon callers can UPDATE — needed until admin has Supabase Auth
--- Scope: only rows where the caller is identified OR row has no auth user yet
+-- Anon callers can UPDATE — needed until admin has Supabase Auth.
+-- The blanket USING (true) is intentional: admin dashboard writes via anon key.
+-- Account-takeover is prevented by the trigger below, not by this policy.
 CREATE POLICY "clients_anon_update" ON clients
   FOR UPDATE USING (true);
 
 -- Authenticated clients can do everything on their own row
 CREATE POLICY "clients_owner_all" ON clients
   FOR ALL USING (auth.uid() = user_id);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Trigger: block anon callers from reassigning user_id
+--
+-- The clients_anon_update policy above must stay permissive because the admin
+-- dashboard uses the anon key to do full client saves. This trigger closes the
+-- account-takeover gap: an unauthenticated caller cannot change a client's
+-- user_id to hijack their Supabase Auth session. Admin saves are safe because
+-- saveClients() preserves the existing user_id (OLD.user_id = NEW.user_id),
+-- so the trigger is a no-op for legitimate admin writes.
+--
+-- Full fix: migrate admin to use service-role edge functions (future sprint).
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION prevent_anon_user_id_change()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF auth.uid() IS NULL AND (NEW.user_id IS DISTINCT FROM OLD.user_id) THEN
+    RAISE EXCEPTION
+      USING ERRCODE = '42501',
+            MESSAGE = 'user_id cannot be changed without authentication';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS clients_protect_user_id ON clients;
+CREATE TRIGGER clients_protect_user_id
+  BEFORE UPDATE ON clients
+  FOR EACH ROW EXECUTE FUNCTION prevent_anon_user_id_change();
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- NOTE: After running this SQL —
