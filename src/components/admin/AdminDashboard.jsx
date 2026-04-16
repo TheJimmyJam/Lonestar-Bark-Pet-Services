@@ -111,7 +111,7 @@ function WalkerProfilePhotoUpload({ walkerId, prof, walkerProfiles, setWalkerPro
       setWalkerProfiles(updated);
       await saveWalkerProfiles(updated);
     } catch (e) {
-      setPhotoErr("Upload failed — try again.");
+      setPhotoErr("Upload failed: " + (e?.message || e?.error_description || JSON.stringify(e)));
     } finally { setPhotoUploading(false); }
   };
 
