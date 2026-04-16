@@ -59,6 +59,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
     { id: "services", label: "Services" },
     { id: "pricing", label: "Pricing" },
     { id: "handoff", label: "How It Works" },
+    { id: "team", label: "Meet the Team" },
   ];
 
   const FAQ_ITEMS = [
@@ -716,8 +717,95 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
 
       {/* ── Contact ── */}
       <section id="team" className="lp-section" style={{ background: "#f5f6f8" }}>
-        <div style={{ maxWidth: "700px", margin: "0 auto", textAlign: "center" }}>
+        <div style={{ maxWidth: "900px", margin: "0 auto", textAlign: "center" }}>
           <div className="section-divider" />
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "36px",
+            fontWeight: 600, color: "#111827", marginBottom: "12px" }}>Meet the Team</div>
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280",
+            marginBottom: "48px", lineHeight: "1.7", maxWidth: "520px", margin: "0 auto 48px" }}>
+            Get to know the people who'll be caring for your pet. Every walker is vetted, insured, and a genuine animal lover.
+          </p>
+
+          {/* ── Walker Cards ── */}
+          {getAllWalkers(walkerProfiles).length > 0 ? (
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+              gap: "20px",
+              marginBottom: "64px",
+              textAlign: "left",
+            }}>
+              {getAllWalkers(walkerProfiles).map(walker => {
+                const open = expandedWalker === walker.id;
+                const svcs = walkerProfiles[walker.id]?.services || [];
+                return (
+                  <div key={walker.id} className="lp-walker-card" style={{
+                    background: "#fff",
+                    border: open ? `2px solid ${walker.color}` : "1.5px solid #e4e7ec",
+                    borderRadius: "20px",
+                    overflow: "hidden",
+                    transition: "all 0.2s ease",
+                    boxShadow: open ? `0 4px 24px ${walker.color}22` : "0 2px 10px rgba(0,0,0,0.05)",
+                    cursor: "pointer",
+                  }} onClick={() => setExpandedWalker(open ? null : walker.id)}>
+                    {/* Card header */}
+                    <div style={{ padding: "22px 22px 16px", display: "flex", alignItems: "center", gap: "14px" }}>
+                      <div style={{
+                        width: "56px", height: "56px", borderRadius: "50%", flexShrink: 0,
+                        background: walker.color + "18", border: `2px solid ${walker.color}44`,
+                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px",
+                      }}>{walker.avatar}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
+                          textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 700,
+                          color: "#111827", marginBottom: "2px" }}>{firstName(walker.name)}</div>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                          color: walker.color, fontWeight: 500 }}>
+                          {(walker.role || "").replace(/ & /g, " / ")}
+                        </div>
+                        {walker.years > 0 && (
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+                            color: "#9ca3af", marginTop: "2px" }}>
+                            {walker.years >= 10 ? "10+" : walker.years} yrs experience
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ color: "#9ca3af", fontSize: "18px", flexShrink: 0,
+                        transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>⌄</div>
+                    </div>
+
+                    {/* Expanded bio + services */}
+                    {open && (
+                      <div style={{ padding: "0 22px 22px", borderTop: "1px solid #f3f4f6" }}>
+                        {walker.bio && (
+                          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+                            color: "#374151", lineHeight: "1.7", margin: "16px 0 14px" }}>{walker.bio}</p>
+                        )}
+                        {svcs.length > 0 && (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                            {WALKER_SERVICES.filter(s => svcs.includes(s.id)).map(s => (
+                              <span key={s.id} style={{
+                                display: "inline-flex", alignItems: "center", gap: "5px",
+                                padding: "4px 10px", borderRadius: "20px", fontSize: "13px",
+                                fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                                color: s.color, background: s.bg, border: `1px solid ${s.border}`,
+                              }}>{s.icon} {s.label}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ marginBottom: "64px", padding: "40px", background: "#fff",
+              borderRadius: "20px", border: "1.5px solid #e4e7ec", color: "#9ca3af",
+              fontFamily: "'DM Sans', sans-serif", fontSize: "15px" }}>
+              Team profiles coming soon.
+            </div>
+          )}
 
           {/* ── Contact Us Section ── */}
           <div id="contact" style={{ background: "#fff", borderRadius: "24px", padding: "48px 32px",
