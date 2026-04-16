@@ -322,8 +322,8 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
           pointerEvents: "none" }} />
 
         <div style={{ position: "relative", zIndex: 1, maxWidth: "700px" }}>
-          <div className="lp-fade-1" style={{ fontSize: "56px", marginBottom: "20px" }}>
-            <span className="paw-float">🐾</span>
+          <div className="lp-fade-1" style={{ marginBottom: "28px", display: "flex", justifyContent: "center" }}>
+            <LogoBadge size={180} />
           </div>
           <div className="lp-fade-2" style={{ fontFamily: "'DM Sans', sans-serif",
             color: "#fff", fontSize: "clamp(32px, 8vw, 64px)", fontWeight: 600,
