@@ -347,7 +347,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             color: "#fff", fontSize: "clamp(32px, 8vw, 64px)", fontWeight: 600,
             letterSpacing: "2px", lineHeight: "1.15", marginBottom: "18px" }}>
             <span style={{ whiteSpace: "nowrap" }}>Professional Pet Care,</span><br />
-            <em style={{ color: "#D4A843", fontStyle: "italic" }}>Done Right.</em>
+            <em style={{ color: "#D4A843", fontStyle: "italic" }}>Peace of Mind.</em>
           </div>
           <div className="lp-fade-3" style={{ fontFamily: "'DM Sans', sans-serif",
             color: "rgba(255,255,255,0.55)", fontSize: "clamp(10px, 1.5vw, 11px)", lineHeight: "2.2",
