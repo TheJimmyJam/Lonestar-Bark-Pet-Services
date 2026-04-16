@@ -321,9 +321,9 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
         }}>
           <span style={{
             fontFamily: "'DM Sans', sans-serif",
-            fontSize: "clamp(10px, 1.4vw, 12px)",
+            fontSize: lpMobile ? "11px" : "12px",
             fontWeight: 600,
-            letterSpacing: "0.35em",
+            letterSpacing: lpMobile ? "0.2em" : "0.35em",
             textTransform: "uppercase",
             color: "#D4A843",
           }}>
@@ -342,19 +342,28 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
 
         <div style={{ position: "relative", zIndex: 1, maxWidth: "700px" }}>
           <div className="lp-fade-1" style={{ marginBottom: "28px", display: "flex", justifyContent: "center" }}>
-            <LogoBadge size={180} />
+            <LogoBadge size={lpMobile ? 120 : 180} />
           </div>
           <div className="lp-fade-2" style={{ fontFamily: "'DM Sans', sans-serif",
-            color: "#fff", fontSize: "clamp(32px, 8vw, 64px)", fontWeight: 600,
-            letterSpacing: "2px", lineHeight: "1.15", marginBottom: "18px" }}>
+            color: "#fff", fontSize: lpMobile ? "clamp(22px, 7vw, 32px)" : "clamp(36px, 6vw, 64px)",
+            fontWeight: 600, letterSpacing: lpMobile ? "0.5px" : "2px",
+            lineHeight: "1.15", marginBottom: "18px" }}>
             <span style={{ whiteSpace: "nowrap" }}>Professional Pet Care,</span><br />
             <em style={{ color: "#D4A843", fontStyle: "italic" }}>Peace of Mind.</em>
           </div>
           <div className="lp-fade-3" style={{ fontFamily: "'DM Sans', sans-serif",
-            color: "rgba(255,255,255,0.55)", fontSize: "clamp(10px, 1.5vw, 11px)", lineHeight: "2.2",
+            color: "rgba(255,255,255,0.55)", lineHeight: lpMobile ? "2" : "2.2",
             marginBottom: "40px", fontWeight: 500, maxWidth: "600px", margin: "0 auto 40px",
-            letterSpacing: "0.15em", textAlign: "center" }}>
-            TRANSPARENT PRICING &nbsp;/&nbsp; FREE 15-MIN MEET & GREET &nbsp;/&nbsp; INSURED & VETTED WALKERS &nbsp;/&nbsp; YOUR PEACE OF MIND
+            letterSpacing: lpMobile ? "0.08em" : "0.15em", textAlign: "center",
+            fontSize: lpMobile ? "10px" : "11px" }}>
+            {lpMobile ? (
+              <>
+                TRANSPARENT PRICING &nbsp;/&nbsp; MEET & GREET<br />
+                INSURED & VETTED WALKERS
+              </>
+            ) : (
+              "TRANSPARENT PRICING \u00a0/\u00a0 FREE 15-MIN MEET & GREET \u00a0/\u00a0 INSURED & VETTED WALKERS \u00a0/\u00a0 YOUR PEACE OF MIND"
+            )}
           </div>
           <div className="lp-fade-4 lp-hero-ctas">
             <button onClick={onSignUp} className="lp-cta-btn" style={{
