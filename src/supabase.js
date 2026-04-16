@@ -929,20 +929,24 @@ async function uploadWalkPhoto(bookingKey, file) {
 }
 
 async function uploadProfilePhoto(walkerId, file) {
-  const ext  = (file.name.split(".").pop() || "jpg").toLowerCase();
-  const path = `${walkerId}/profile.${ext}`;
+  // Route through a service-role edge function to bypass storage RLS.
+  const form = new FormData();
+  form.append("walkerId", String(walkerId));
+  form.append("file", file, file.name);
 
-  const { data, error } = await supabase.storage
-    .from("walker-profile-photos")
-    .upload(path, file, { cacheControl: "3600", upsert: true });
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/upload-walker-photo`, {
+    method: "POST",
+    headers: {
+      // No Content-Type header — browser sets it automatically with the boundary
+      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+      "apikey": SUPABASE_ANON_KEY,
+    },
+    body: form,
+  });
 
-  if (error) throw error;
-
-  const { data: urlData } = supabase.storage
-    .from("walker-profile-photos")
-    .getPublicUrl(data.path);
-
-  return urlData.publicUrl;
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `Upload failed (${res.status})`);
+  return data.url;
 }
 
 // ─── Email Notifications (via Resend) ────────────────────────────────────────

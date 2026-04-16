@@ -403,6 +403,11 @@ export default function LonestarBark() {
 
   useEffect(() => {
     let cancelled = false;
+    // Set to true once authGetSession resolves so TOKEN_REFRESHED events that
+    // fire during Supabase's init phase are suppressed — authGetSession already
+    // handles the cached session with verifyStaleness, and TOKEN_REFRESHED
+    // firing before it resolves is what caused the stale signup form flash.
+    const initialCheckDone = { current: false };
 
     // verifyStaleness: true only when restoring a cached localStorage session on
     // mount. Live auth events (SIGNED_IN, email confirmation) are always trusted.
@@ -478,7 +483,10 @@ export default function LonestarBark() {
 
     // Pick up any existing session on mount — verify it server-side since it
     // comes from localStorage and could belong to a deleted user.
-    authGetSession().then(s => handleSession(s, { verifyStaleness: true }));
+    authGetSession()
+      .then(s => handleSession(s, { verifyStaleness: true }))
+      .catch(() => {})
+      .finally(() => { initialCheckDone.current = true; });
 
     // Subscribe to auth changes — live events are always trusted, no verify needed.
     const subscription = authOnChange(async (event, session) => {
@@ -497,7 +505,15 @@ export default function LonestarBark() {
         setPendingRegistration(null);
         return;
       }
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+      if (event === "SIGNED_IN" || event === "USER_UPDATED") {
+        await handleSession(session);
+      }
+      if (event === "TOKEN_REFRESHED") {
+        // During the Supabase init phase, TOKEN_REFRESHED fires before
+        // authGetSession resolves. Suppress it — authGetSession already handles
+        // the initial cached session with verifyStaleness (preventing the stale
+        // signup form flash). After init, handle normally.
+        if (!initialCheckDone.current) return;
         await handleSession(session);
       }
     });
