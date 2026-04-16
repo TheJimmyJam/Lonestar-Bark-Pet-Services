@@ -332,7 +332,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             textTransform: "uppercase",
             color: "#D4A843",
           }}>
-            Born Here&nbsp;&nbsp;/&nbsp;&nbsp;Walk Here
+            Born Here / Walk Here
           </span>
         </div>
         {/* Subtle background texture dots */}
@@ -399,8 +399,9 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
             Dallas, TX
           </div>
           <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#F0E8D5",
-            fontSize: "15px", letterSpacing: "0.2em", fontStyle: "italic" }}>
-            Born here. Walk here.
+            fontSize: "13px", letterSpacing: "0.35em", fontVariant: "small-caps",
+            textTransform: "uppercase", fontWeight: 600 }}>
+            Born Here / Walk Here
           </div>
         </div>
       </section>
@@ -1016,7 +1017,7 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#D4A843",
           fontSize: "13px", letterSpacing: "0.4em", textTransform: "uppercase",
           marginBottom: "6px" }}>
-          Born Here. Walk Here.
+          Born Here / Walk Here
         </div>
         <div style={{ fontFamily: "'DM Sans', sans-serif", color: "#ffffff44",
           fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
