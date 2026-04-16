@@ -310,11 +310,16 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
       <section style={{
         background: "linear-gradient(160deg, #1E4A32 0%, #0B1423 55%, #112B20 100%)",
         minHeight: "100svh", display: "flex", alignItems: "center", justifyContent: "center",
-        textAlign: "center", padding: "clamp(80px, 12vw, 120px) clamp(16px, 5vw, 40px) 80px", position: "relative", overflow: "hidden",
+        textAlign: "center",
+        padding: lpMobile
+          ? "130px clamp(16px, 5vw, 40px) 80px"
+          : "clamp(80px, 12vw, 120px) clamp(16px, 5vw, 40px) 80px",
+        position: "relative", overflow: "hidden",
       }}>
         {/* ── Slogan strip — sits just below nav, scrolls away with page ── */}
+        {/* On mobile the nav has a 9px border-bottom, so we offset by 73px instead of 64px */}
         <div style={{
-          position: "absolute", top: "64px", left: 0, right: 0,
+          position: "absolute", top: lpMobile ? "73px" : "64px", left: 0, right: 0,
           display: "flex", justifyContent: "center", alignItems: "center",
           padding: "10px 24px",
           borderBottom: "1px solid rgba(212,168,67,0.18)",
