@@ -9,6 +9,8 @@ import {
   loadCompletedPayrolls, saveCompletedPayrolls,
   loadClientMessages, saveClientMessage,
   uploadWalkPhoto,
+  uploadW9,
+  SUPABASE_URL, SUPABASE_ANON_KEY,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout,
@@ -30,6 +32,122 @@ import { WALKER_CREDENTIALS, getAllWalkers } from "../auth/WalkerAuthScreen.jsx"
 import AddLegacyClientForm from "../admin/AddLegacyClientForm.jsx";
 import ScheduleWalkForm from "../admin/ScheduleWalkForm.jsx";
 import Header from "../shared/Header.jsx";
+
+// ─── W9UploadSection ─────────────────────────────────────────────────────────
+// Lets a walker upload their W9 directly from their profile tab.
+// File goes to the private "w9-forms" bucket — never publicly accessible.
+// The stored path is then saved to the walker's application record in Supabase.
+function W9UploadSection({ walker, myProfile }) {
+  const [uploading, setUploading] = useState(false);
+  const [done, setDone]           = useState(false);
+  const [err, setErr]             = useState("");
+  const fileInputRef              = useRef(null);
+
+  // Use walker's application ID if available, fall back to walker ID
+  const applicationId = myProfile?.applicationId || walker?.id || "unknown";
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
+    if (!allowedTypes.includes(file.type)) {
+      setErr("Please upload a PDF or image file (PDF, PNG, JPG).");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) { // 10 MB limit
+      setErr("File is too large. Please upload a file under 10 MB.");
+      return;
+    }
+
+    setUploading(true);
+    setErr("");
+    setDone(false);
+    try {
+      const path = await uploadW9(applicationId, file);
+      // Persist the storage path back to the walker's application row
+      // so admin can see "W-9 on file ✓"
+      if (walker?.email) {
+        await fetch(`${SUPABASE_URL}/rest/v1/applications?email=eq.${encodeURIComponent(walker.email)}`, {
+          method: "PATCH",
+          headers: {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+          },
+          body: JSON.stringify({ w9_url: path }),
+        });
+      }
+      setDone(true);
+    } catch (e) {
+      console.error("[W9UploadSection]", e);
+      setErr("Upload failed. Please try again or contact your admin.");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div style={{ marginTop: "28px", paddingTop: "24px",
+      borderTop: "1.5px solid #f3f4f6" }}>
+      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px",
+        fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase",
+        color: "#9ca3af", marginBottom: "10px" }}>
+        W-9 Tax Form
+      </div>
+
+      {done ? (
+        <div style={{ background: "#f0fdf4", border: "1.5px solid #86efac",
+          borderRadius: "12px", padding: "14px 16px", display: "flex",
+          alignItems: "center", gap: "10px" }}>
+          <span style={{ fontSize: "18px" }}>✅</span>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+            fontWeight: 600, color: "#059669" }}>
+            W-9 uploaded successfully! Your admin has been notified.
+          </div>
+        </div>
+      ) : (
+        <>
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px",
+            color: "#6b7280", marginBottom: "14px", lineHeight: "1.6" }}>
+            Upload your completed W-9 here. It will be sent securely to your admin — only they can view it.
+            Accepted formats: PDF, PNG, JPG (max 10 MB).
+          </p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.png,.jpg,.jpeg"
+            onChange={handleFileChange}
+            disabled={uploading}
+            style={{ display: "none" }}
+            id="w9-file-input"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            style={{
+              padding: "11px 20px", borderRadius: "10px",
+              border: "1.5px solid #D4A87A",
+              background: uploading ? "#f3f4f6" : "#FDF5EC",
+              color: uploading ? "#9ca3af" : "#C4541A",
+              fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+              fontWeight: 600, cursor: uploading ? "default" : "pointer",
+              transition: "opacity 0.15s",
+            }}
+          >
+            {uploading ? "⏳ Uploading…" : "📄 Upload W-9"}
+          </button>
+          {err && (
+            <div style={{ marginTop: "8px", fontFamily: "'DM Sans', sans-serif",
+              fontSize: "13px", color: "#dc2626" }}>{err}</div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 // ─── Walker Dashboard ─────────────────────────────────────────────────────────
 function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalkerProfiles, trades, setTrades, onLogout }) {
@@ -4466,6 +4584,9 @@ function WalkerDashboard({ walker, clients, setClients, walkerProfiles, setWalke
                   </div>
                 )}
               </div>
+
+              {/* ── W-9 Upload ───────────────────────────────────────────────── */}
+              <W9UploadSection walker={walker} myProfile={myProfile} />
 
               {/* Save button at bottom when editing */}
               {infoEditing && (

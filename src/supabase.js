@@ -608,6 +608,7 @@ async function setWalkerAuthPin(email, pin, name) {
 export {
   SUPABASE_URL, SUPABASE_ANON_KEY,
   notifyAdmin, sbFetch,
+  uploadW9, getW9SignedUrl,
   uploadWalkPhoto,
   logAuditEvent, loadAuditLog,
   loadClients, saveClients,
@@ -870,6 +871,40 @@ async function deleteContactSubmission(id) {
   } catch (e) {
     console.error("deleteContactSubmission failed:", e);
   }
+}
+
+// ─── W9 Upload / Signed URL (Supabase Storage — private bucket) ──────────────
+//
+// W9 forms are stored in the private "w9-forms" bucket.
+// Only authenticated users can upload; the bucket is NOT public.
+// Admins generate short-lived signed URLs to view files.
+
+async function uploadW9(applicationId, file) {
+  const ext  = (file.name.split(".").pop() || "pdf").toLowerCase();
+  const path = `applications/${applicationId}/w9.${ext}`;
+
+  const { data, error } = await supabase.storage
+    .from("w9-forms")
+    .upload(path, file, { cacheControl: "3600", upsert: true });
+
+  if (error) throw error;
+  // Return the storage path (NOT a public URL — bucket is private)
+  return path;
+}
+
+async function getW9SignedUrl(pathOrUrl) {
+  // Accept either a raw storage path ("applications/123/w9.pdf")
+  // or a legacy full URL from before the bucket was made private.
+  let storagePath = pathOrUrl;
+  if (pathOrUrl.includes("/w9-forms/")) {
+    // Extract everything after "/w9-forms/"
+    storagePath = pathOrUrl.split("/w9-forms/")[1].split("?")[0];
+  }
+  const { data, error } = await supabase.storage
+    .from("w9-forms")
+    .createSignedUrl(storagePath, 3600); // 1-hour expiry
+  if (error) throw error;
+  return data.signedUrl;
 }
 
 // ─── Walk Photo Upload (Supabase Storage) ────────────────────────────────────

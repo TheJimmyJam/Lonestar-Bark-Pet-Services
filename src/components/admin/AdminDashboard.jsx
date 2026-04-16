@@ -11,6 +11,7 @@ import {
   loadContactSubmissions,
   logAuditEvent,
   createWalkerAuthAccount, inviteWalkerAuth,
+  getW9SignedUrl,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout,
@@ -39,6 +40,53 @@ import { GLOBAL_STYLES } from "../../styles.js";
 import { WALKER_CREDENTIALS, getAllWalkers, injectCustomWalkers } from "../auth/WalkerAuthScreen.jsx";
 import Header from "../shared/Header.jsx";
 import { SUPABASE_ANON_KEY, SUPABASE_URL, loadClients, loadTrades, loadWalkerProfiles, sendWalkerCancellationNotification, sendClientCancellationNotification } from "../../supabase.js";
+
+// ─── W9ViewButton ─────────────────────────────────────────────────────────────
+// Generates a 1-hour signed URL for a private W9 file and opens it in a new tab.
+// Never exposes a permanent public link — the bucket is private.
+function W9ViewButton({ w9Path }) {
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+  const handleView = async () => {
+    setLoading(true);
+    setErr("");
+    try {
+      const url = await getW9SignedUrl(w9Path);
+      window.open(url, "_blank", "noreferrer");
+    } catch (e) {
+      setErr("Could not open W-9. The file may have been moved or deleted.");
+      console.error("[W9ViewButton]", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <button
+        onClick={handleView}
+        disabled={loading}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: "8px",
+          padding: "10px 16px", borderRadius: "9px",
+          border: "1.5px solid #D4A87A",
+          background: loading ? "#f3f4f6" : "#FDF5EC",
+          color: loading ? "#9ca3af" : "#C4541A",
+          fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
+          fontWeight: 600, cursor: loading ? "default" : "pointer",
+          transition: "opacity 0.15s",
+        }}
+      >
+        {loading ? "⏳ Opening…" : "📄 View W-9 Document"}
+      </button>
+      {err && (
+        <div style={{ marginTop: "6px", fontFamily: "'DM Sans', sans-serif",
+          fontSize: "13px", color: "#dc2626" }}>{err}</div>
+      )}
+    </div>
+  );
+}
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, setWalkerProfiles, trades, setTrades, adminList, setAdminList, onLogout }) {
@@ -5334,14 +5382,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
 
                 {a.w9_url && (
                   <Section title="W-9 Form">
-                    <a href={a.w9_url} target="_blank" rel="noreferrer"
-                      style={{ display: "inline-flex", alignItems: "center", gap: "8px",
-                        padding: "10px 16px", borderRadius: "9px", border: "1.5px solid #D4A87A",
-                        background: "#FDF5EC", color: "#C4541A",
-                        fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                        fontWeight: 600, textDecoration: "none" }}>
-                      📄 View W-9 Document
-                    </a>
+                    <W9ViewButton w9Path={a.w9_url} />
                   </Section>
                 )}
 
@@ -5692,14 +5733,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                 )}
                 {a.w9_url && (
                   <Section title="W-9 Form">
-                    <a href={a.w9_url} target="_blank" rel="noreferrer"
-                      style={{ display: "inline-flex", alignItems: "center", gap: "8px",
-                        padding: "10px 16px", borderRadius: "9px", border: "1.5px solid #D4A87A",
-                        background: "#FDF5EC", color: "#C4541A",
-                        fontFamily: "'DM Sans', sans-serif", fontSize: "15px",
-                        fontWeight: 600, textDecoration: "none" }}>
-                      📄 View W-9 Document
-                    </a>
+                    <W9ViewButton w9Path={a.w9_url} />
                   </Section>
                 )}
                 {a.status === "pending" && (
