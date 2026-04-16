@@ -517,8 +517,8 @@ function AuthScreen({ onRegister, onBack, onBackToLanding, pendingRegistration, 
         )}
       </div>
 
-      {onBack && stage !== "register-name" && (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", marginTop: "20px" }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", marginTop: "20px" }}>
+        {onBack && stage !== "register-name" && (
           <button onClick={onBack} style={{
             background: "none", border: "none",
             color: "#ffffffaa", fontFamily: "'DM Sans', sans-serif",
@@ -526,15 +526,15 @@ function AuthScreen({ onRegister, onBack, onBackToLanding, pendingRegistration, 
           }}>
             ← Back to portal selector
           </button>
-          <button onClick={onBackToLanding} style={{
-            background: "none", border: "none",
-            color: "#ffffff55", fontFamily: "'DM Sans', sans-serif",
-            fontSize: "13px", cursor: "pointer", letterSpacing: "0.3px",
-          }}>
-            ← Back to homepage
-          </button>
-        </div>
-      )}
+        )}
+        <button onClick={onBackToLanding} style={{
+          background: "none", border: "none",
+          color: "#ffffff55", fontFamily: "'DM Sans', sans-serif",
+          fontSize: "13px", cursor: "pointer", letterSpacing: "0.3px",
+        }}>
+          ← Back to homepage
+        </button>
+      </div>
     </div>
   );
 }
