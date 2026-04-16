@@ -311,6 +311,24 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
         minHeight: "100svh", display: "flex", alignItems: "center", justifyContent: "center",
         textAlign: "center", padding: "clamp(80px, 12vw, 120px) clamp(16px, 5vw, 40px) 80px", position: "relative", overflow: "hidden",
       }}>
+        {/* ── Slogan strip — sits just below nav, scrolls away with page ── */}
+        <div style={{
+          position: "absolute", top: "64px", left: 0, right: 0,
+          display: "flex", justifyContent: "center", alignItems: "center",
+          padding: "10px 24px",
+          borderBottom: "1px solid rgba(212,168,67,0.18)",
+        }}>
+          <span style={{
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: "clamp(10px, 1.4vw, 12px)",
+            fontWeight: 600,
+            letterSpacing: "0.35em",
+            textTransform: "uppercase",
+            color: "#D4A843",
+          }}>
+            Born Here&nbsp;&nbsp;/&nbsp;&nbsp;Walk Here
+          </span>
+        </div>
         {/* Subtle background texture dots */}
         <div style={{ position: "absolute", inset: 0, backgroundImage:
           "radial-gradient(circle, rgba(26,107,74,0.12) 1px, transparent 1px)",
