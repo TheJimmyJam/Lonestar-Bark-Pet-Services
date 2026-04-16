@@ -608,13 +608,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         const firstBooking = newBookings[0];
         const pricedBooking = bookingsWithStatus.find(b => b.key === firstBooking.key);
         const amount = pricedBooking?.price || 0;
-        console.log("[BookingApp] Stripe checkout debug:", {
-          firstBookingKey: firstBooking?.key,
-          pricedBookingFound: !!pricedBooking,
-          pricedBookingPrice: pricedBooking?.price,
-          amount,
-          allBookingsKeys: bookingsWithStatus.map(b => ({ key: b.key, price: b.price })),
-        });
         try {
           localStorage.setItem("dwi_stripe_return_clientId", clientPinKey);
           localStorage.setItem("dwi_pending_booking_keys", JSON.stringify(newBookings.map(b => b.key)));
@@ -823,20 +816,6 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         ? Math.round(bookingPrice * refundPercent * 100) / 100
         : 0;
     }
-    console.log("[handleCancel] refund decision:", {
-      bookingKey,
-      hasStripeSessionId: !!booking?.stripeSessionId,
-      stripeSessionId: booking?.stripeSessionId || null,
-      paidAt: booking?.paidAt || null,
-      scheduledDateTime: booking?.scheduledDateTime || null,
-      fallbackDate: booking?.date,
-      fallbackTime: booking?.slot?.time,
-      hoursUntilWalk,
-      price: booking?.price,
-      refundPercent,
-      refundAmount,
-    });
-
     // Mark booking cancelled immediately (optimistic update)
     const cancelledBooking = {
       ...booking,
@@ -880,16 +859,11 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
     let stripeReceiptUrl = null;
     if (refundAmount > 0 && booking?.stripeSessionId) {
       try {
-        console.log("[handleCancel] calling createRefund", {
-          stripeSessionId: booking.stripeSessionId,
-          amount: refundPercent < 1 ? refundAmount : "FULL",
-        });
         const result = await createRefund({
           stripeSessionId: booking.stripeSessionId,
           amount: refundPercent < 1 ? refundAmount : undefined, // omit for full refund
           reason: "requested_by_customer",
         });
-        console.log("[handleCancel] createRefund result:", result);
         stripeRefundSucceeded = true;
         stripeRefundId = result?.refundId || null;
         stripeReceiptUrl = result?.receiptUrl || null;
