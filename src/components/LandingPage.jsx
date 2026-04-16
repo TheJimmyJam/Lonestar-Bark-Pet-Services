@@ -760,10 +760,16 @@ function LandingPage({ onSignUp, onLogin, walkerProfiles = {} }) {
                     {/* Card header */}
                     <div style={{ padding: "22px 22px 16px", display: "flex", alignItems: "center", gap: "14px" }}>
                       <div style={{
-                        width: "56px", height: "56px", borderRadius: "50%", flexShrink: 0,
+                        width: "64px", height: "64px", borderRadius: "50%", flexShrink: 0,
                         background: walker.color + "18", border: `2px solid ${walker.color}44`,
                         display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px",
-                      }}>{walker.avatar}</div>
+                        overflow: "hidden",
+                      }}>
+                        {walker.profilePhoto
+                          ? <img src={walker.profilePhoto} alt={walker.name}
+                              style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          : walker.avatar}
+                      </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
                           textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 700,

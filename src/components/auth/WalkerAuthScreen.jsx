@@ -28,6 +28,7 @@ function injectCustomWalkers(walkerProfiles) {
       color: prof.color || "#6b7280",
       avatar: prof.avatar || "🐾",
       bio: prof.bio || "",
+      profilePhoto: prof.profilePhoto || null,
     });
     if (prof.email && (prof.pin !== undefined || prof.mustSetPin)) {
       WALKER_CREDENTIALS[prof.email.toLowerCase()] = {

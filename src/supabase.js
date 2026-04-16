@@ -609,7 +609,7 @@ export {
   SUPABASE_URL, SUPABASE_ANON_KEY,
   notifyAdmin, sbFetch,
   uploadW9, getW9SignedUrl,
-  uploadWalkPhoto,
+  uploadWalkPhoto, uploadProfilePhoto,
   logAuditEvent, loadAuditLog,
   loadClients, saveClients,
   loadWalkerProfiles, saveWalkerProfiles, deleteWalkerFromDB,
@@ -923,6 +923,23 @@ async function uploadWalkPhoto(bookingKey, file) {
 
   const { data: urlData } = supabase.storage
     .from("walk-photos")
+    .getPublicUrl(data.path);
+
+  return urlData.publicUrl;
+}
+
+async function uploadProfilePhoto(walkerId, file) {
+  const ext  = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${walkerId}/profile.${ext}`;
+
+  const { data, error } = await supabase.storage
+    .from("walker-profile-photos")
+    .upload(path, file, { cacheControl: "3600", upsert: true });
+
+  if (error) throw error;
+
+  const { data: urlData } = supabase.storage
+    .from("walker-profile-photos")
     .getPublicUrl(data.path);
 
   return urlData.publicUrl;

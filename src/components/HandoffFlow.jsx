@@ -209,7 +209,12 @@ function HandoffFlow({ client, onComplete, onLogout, walkerProfiles = {} }) {
                       <div style={{ width: "48px", height: "48px", borderRadius: "50%",
                         background: walker.color + "18", border: `2px solid ${walker.color}44`,
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: "22px", flexShrink: 0 }}>{walker.avatar}</div>
+                        fontSize: "22px", flexShrink: 0, overflow: "hidden" }}>
+                        {walker.profilePhoto
+                          ? <img src={walker.profilePhoto} alt={walker.name}
+                              style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          : walker.avatar}
+                      </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", textTransform: "uppercase", letterSpacing: "1.5px",
                           fontWeight: 600, color: "#111827", marginBottom: "2px" }}>{firstName(walker.name)}</div>
