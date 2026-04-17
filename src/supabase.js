@@ -13,6 +13,47 @@ const edgeHeaders = {
   "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
 };
 
+const SESSION_STORAGE_KEY = "lsbc-auth-session";
+
+// Pre-init guard: if a previously-stored session is already expired, nuke it
+// before the Supabase client boots so we never send an expired Bearer token.
+// Stale tokens were causing 401s on every REST call, which made admin/walker
+// lookups come back empty ("No admin account found for this email").
+try {
+  if (typeof localStorage !== "undefined") {
+    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const expiresAt = parsed?.expires_at;
+      // No expiry info, or already past expiry → discard.
+      if (!expiresAt || Date.now() / 1000 >= expiresAt) {
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+      }
+    }
+  }
+} catch {}
+
+// Synchronously read a still-valid access token from localStorage. Returns
+// null when the session is missing, malformed, or within 30s of expiry.
+// Used by sbFetch so we never attach an expired/expiring JWT on REST calls —
+// in that case we fall back to the anon key and the request still goes
+// through (RLS just treats it as an anonymous request).
+function readValidAccessTokenFromStorage() {
+  try {
+    if (typeof localStorage === "undefined") return null;
+    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const token = parsed?.access_token;
+    const expiresAt = parsed?.expires_at;
+    if (!token || !expiresAt) return null;
+    if (Date.now() / 1000 >= expiresAt - 30) return null;
+    return token;
+  } catch {
+    return null;
+  }
+}
+
 // Supabase JS client — used only for client-facing Auth (email/password,
 // Google OAuth, password reset). All other data access in this file still
 // uses the raw REST helper `sbFetch` so existing flows are untouched.
@@ -21,7 +62,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storageKey: "lsbc-auth-session",
+    storageKey: SESSION_STORAGE_KEY,
   },
 });
 
@@ -42,11 +83,16 @@ async function notifyAdmin(type, data) {
 async function sbFetch(path, options = {}, { retries = 1, retryDelay = 1200 } = {}) {
   // Use the current Supabase session JWT when available so RLS can identify
   // the caller. Falls back to the anon key for unauthenticated operations.
-  let authToken = SUPABASE_ANON_KEY;
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) authToken = session.access_token;
-  } catch {}
+  //
+  // IMPORTANT: we read the token synchronously from localStorage and verify
+  // its expiry ourselves instead of calling supabase.auth.getSession(). That
+  // call can hang on the SDK's internal auth lock (deadlocking parallel
+  // loaders) AND returns expired tokens without refreshing them, which was
+  // causing 401s after the Supabase outage. If the stored token is missing
+  // or expired, we attach the anon key — the request still succeeds for
+  // anonymous-readable rows, and RLS rejects the rest with a clean error.
+  const storedToken = readValidAccessTokenFromStorage();
+  const authToken = storedToken || SUPABASE_ANON_KEY;
 
   const doFetch = () => fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
@@ -64,6 +110,31 @@ async function sbFetch(path, options = {}, { retries = 1, retryDelay = 1200 } = 
     try {
       const res = await doFetch();
       if (!res.ok) {
+        // If the token we attached was somehow rejected as unauthorized,
+        // retry once with the anon key before giving up. Catches the edge
+        // case where the stored JWT is still within its exp window but was
+        // invalidated server-side (password change, key rotation, etc).
+        if ((res.status === 401 || res.status === 403) && authToken !== SUPABASE_ANON_KEY) {
+          try {
+            if (typeof localStorage !== "undefined") {
+              localStorage.removeItem(SESSION_STORAGE_KEY);
+            }
+          } catch {}
+          const retryRes = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+            ...options,
+            headers: {
+              "apikey": SUPABASE_ANON_KEY,
+              "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+              "Content-Type": "application/json",
+              "Prefer": "return=representation",
+              ...(options.headers || {}),
+            },
+          });
+          if (retryRes.ok) {
+            const retryText = await retryRes.text();
+            return retryText ? JSON.parse(retryText) : null;
+          }
+        }
         const err = await res.text();
         throw new Error(`Supabase error: ${err}`);
       }
