@@ -40,7 +40,7 @@ import { generateRecurringBookings, extendRecurringBookings, spawnNextRecurringO
 import { GLOBAL_STYLES } from "../../styles.js";
 import { WALKER_CREDENTIALS, getAllWalkers, injectCustomWalkers } from "../auth/WalkerAuthScreen.jsx";
 import Header from "../shared/Header.jsx";
-import { SUPABASE_ANON_KEY, SUPABASE_URL, loadClients, loadTrades, loadWalkerProfiles, sendWalkerCancellationNotification, sendClientCancellationNotification } from "../../supabase.js";
+import { SUPABASE_ANON_KEY, SUPABASE_URL, loadClients, loadTrades, loadWalkerProfiles, sendWalkerCancellationNotification, sendClientCancellationNotification, sendWalkerPing } from "../../supabase.js";
 
 // ─── W9ViewButton ─────────────────────────────────────────────────────────────
 // Generates a 1-hour signed URL for a private W9 file and opens it in a new tab.
@@ -178,13 +178,21 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
   const [assignDateFilter, setAssignDateFilter] = useState("");
   const [pings, setPings] = useState({}); // { [walkerId]: { at: Date, adminName: string } }
 
-  // Send a ping to a walker (internal now; wire Twilio here later)
-  const sendPing = (walkerId, walkerName, walkerPhone) => {
-    setPings(prev => ({ ...prev, [walkerId]: { at: new Date(), adminName: admin.name || "Admin" } }));
-    // TODO: replace with Twilio SMS when ready
-    // await fetch("/api/ping-walker", { method: "POST",
-    //   body: JSON.stringify({ walkerId, walkerName, walkerPhone, adminName: admin.name }) });
-    // console.log(`[PING] ${walkerName} pinged by ${admin.name}`); // re-enable for local debug
+  // Ping a walker via email — reminds them to confirm today's unconfirmed walks.
+  const sendPing = async (walker, unconfirmedWalks, totalWalks) => {
+    setPings(prev => ({ ...prev, [walker.id]: { at: new Date(), adminName: admin.name || "Admin", sending: true } }));
+    const result = await sendWalkerPing({
+      walkerName: walker.name,
+      walkerEmail: walker.email,
+      unconfirmedWalks: unconfirmedWalks.map(b => ({
+        clientName: b.clientName || "",
+        pet: b.form?.pet || "",
+        time: b.slot?.time || b.form?.time || "—",
+      })),
+      totalWalks,
+      adminName: admin.name || "Admin",
+    });
+    setPings(prev => ({ ...prev, [walker.id]: { at: new Date(), adminName: admin.name || "Admin", sending: false, failed: !result?.success } }));
   };
 
   // Reset all expanded/selected/drill-down state when switching tabs
@@ -2907,9 +2915,10 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                       transition: "width 0.4s ease" }} />
                   </div>
                   {walkerStats.map(({ w, scheduled, confirmed }, i) => {
-                    const pct     = scheduled > 0 ? Math.round((confirmed / scheduled) * 100) : 0;
-                    const allDone = confirmed === scheduled;
-                    const ping    = pings[w.id];
+                    const pct          = scheduled > 0 ? Math.round((confirmed / scheduled) * 100) : 0;
+                    const allDone      = confirmed === scheduled;
+                    const ping         = pings[w.id];
+                    const unconfirmed  = allTodayBookings.filter(b => b.form?.walker === w.name && !b.walkerConfirmed && !b.cancelled);
                     const pingAgo = ping ? (() => {
                       const mins = Math.floor((new Date() - ping.at) / 60000);
                       if (mins < 1)  return "just now";
@@ -2930,8 +2939,8 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                               fontWeight: 600, color: "#111827" }}>{w.name}</div>
                             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#9ca3af" }}>
                               {confirmed} of {scheduled} confirmed
-                              {w.phone && !allDone && (
-                                <span style={{ marginLeft: "8px", color: "#d1d5db" }}>· {w.phone}</span>
+                              {w.email && !allDone && (
+                                <span style={{ marginLeft: "8px", color: "#d1d5db" }}>· {w.email}</span>
                               )}
                             </div>
                           </div>
@@ -2944,22 +2953,20 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
                             </div>
                             {!allDone && (
                               <button
-                                onClick={() => sendPing(w.id, w.name, w.phone)}
+                                onClick={() => sendPing(w, unconfirmed, scheduled)}
+                                disabled={ping?.sending}
                                 style={{
-                                  padding: "5px 12px", borderRadius: "8px", cursor: "pointer",
-                                  border: ping ? "1.5px solid #e4e7ec" : "1.5px solid #C4541A",
-                                  background: ping ? "#f9fafb" : "#FDF5EC",
-                                  color: ping ? "#9ca3af" : "#C4541A",
+                                  padding: "5px 12px", borderRadius: "8px",
+                                  cursor: ping?.sending ? "default" : "pointer",
+                                  border: ping && !ping.sending ? "1.5px solid #e4e7ec" : "1.5px solid #C4541A",
+                                  background: ping?.sending ? "#f9fafb" : ping ? "#f9fafb" : "#FDF5EC",
+                                  color: ping?.sending ? "#9ca3af" : ping ? (ping.failed ? "#ef4444" : "#9ca3af") : "#C4541A",
                                   fontFamily: "'DM Sans', sans-serif",
                                   fontSize: "13px", fontWeight: 600,
                                   display: "flex", alignItems: "center", gap: "5px",
                                   transition: "all 0.15s",
                                 }}>
-                                {ping ? (
-                                  <>🔔 Pinged {pingAgo}</>
-                                ) : (
-                                  <>🔔 Ping</>
-                                )}
+                                {ping?.sending ? <>⏳ Sending…</> : ping?.failed ? <>⚠️ Failed — retry</> : ping ? <>🔔 Pinged {pingAgo}</> : <>🔔 Ping</>}
                               </button>
                             )}
                           </div>
