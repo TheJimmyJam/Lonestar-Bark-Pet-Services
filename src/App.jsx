@@ -446,14 +446,26 @@ export default function LonestarBark() {
         existing = await loadClientByUserId(user.id, session?.access_token);
       } catch (lookupErr) {
         // Transient network / Supabase error during the client lookup.
-        // The session is still valid in localStorage, so we leave the user
-        // on the login screen — a retry or refresh will re-fire SIGNED_IN or
-        // hit the cached session path and try again once Supabase recovers.
-        // Previously this path silently returned null and kicked the user
-        // to the registration form even though they had a clients row —
-        // which is why returning clients were stuck on the login screen
-        // after a successful sign-in during the April 2026 Supabase outage.
-        console.error("[handleSession] client lookup failed, staying on login:", lookupErr);
+        // This commonly happens on the very first REST call right after a
+        // fresh signInWithPassword: Supabase issued the JWT but PostgREST
+        // hasn't accepted it yet (or the network is still flapping from
+        // the April 2026 outage). Manually refreshing the page succeeds,
+        // so re-enter handleSession once after a short delay from the
+        // cached session — same effect as the user's manual refresh.
+        console.error("[handleSession] client lookup failed, auto-retrying:", lookupErr);
+        if (!verifyStaleness && !cancelled) {
+          setTimeout(async () => {
+            if (cancelled) return;
+            try {
+              const freshSession = await authGetSession();
+              if (freshSession && !cancelled) {
+                await handleSession(freshSession, { verifyStaleness: true });
+              }
+            } catch (retryErr) {
+              console.error("[handleSession] auto-retry also failed:", retryErr);
+            }
+          }, 2000);
+        }
         return;
       }
       if (cancelled) return;
