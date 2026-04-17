@@ -13,6 +13,7 @@ const edgeHeaders = {
   "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
 };
 
+// build-trigger-2
 const SESSION_STORAGE_KEY = "lsbc-auth-session";
 
 // Pre-init guard: if a previously-stored session is already expired, nuke it
