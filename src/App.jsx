@@ -893,6 +893,39 @@ export default function LonestarBark() {
         onBackToLanding={() => { setSelectedRole(null); setShowApp(false); setShowLogin(false); }}
         pendingRegistration={pendingRegistration}
         clearPendingRegistration={() => setPendingRegistration(null)}
+        clients={clients}
+        onClientSignedIn={(session) => {
+          // Direct-route path: signInWithPassword returned a session, so we
+          // route on LOCAL state (already loaded at app mount) instead of
+          // waiting for the authOnChange SIGNED_IN event to fire and re-
+          // fetching the clients row via REST. The REST-based path was
+          // unreliable immediately after sign-in during Supabase outages.
+          if (!session?.user) return;
+          setAuthSession(session);
+          const email = (session.user.email || "").toLowerCase();
+          const userId = session.user.id;
+          // Find by user_id first (most reliable), then fall back to email.
+          const match = Object.values(clients).find(
+            c => (c.user_id && c.user_id === userId) ||
+                 (c.email && c.email.toLowerCase() === email)
+          );
+          if (match) {
+            setSelectedRole("customer");
+            setShowApp(true);
+            setActiveUser(match);
+            setPendingRegistration(null);
+          } else {
+            // No local client row yet — fresh signup path.
+            setSelectedRole("customer");
+            setShowApp(true);
+            setPendingRegistration({
+              user_id: userId,
+              email: session.user.email || "",
+              firstName: session.user.user_metadata?.given_name || session.user.user_metadata?.name?.split(" ")[0] || "",
+              lastName: session.user.user_metadata?.family_name || session.user.user_metadata?.name?.split(" ").slice(1).join(" ") || "",
+            });
+          }
+        }}
       />
     </CustomerErrorBoundary>
   );

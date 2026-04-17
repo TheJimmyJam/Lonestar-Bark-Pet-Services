@@ -16,7 +16,7 @@ import {
 //   "signup"       → email + password + confirm + Google + "Log in"
 //   "register-name"→ after a successful email signup, collect name/pets
 //   "forgot"       → enter email, send reset link, show "check your email"
-function AuthScreen({ onRegister, onBack, onBackToLanding, pendingRegistration, clearPendingRegistration }) {
+function AuthScreen({ onRegister, onBack, onBackToLanding, pendingRegistration, clearPendingRegistration, clients = {}, onClientSignedIn }) {
   // If we arrived here with a Supabase Auth session but no matching client
   // row (fresh Google signup), App.jsx passes `pendingRegistration` with the
   // auth user so we can skip straight to the name/pets form.
@@ -52,9 +52,9 @@ function AuthScreen({ onRegister, onBack, onBackToLanding, pendingRegistration, 
     if (!e || !e.includes("@")) { setFormError("Enter a valid email address."); return; }
     if (!password) { setFormError("Enter your password."); return; }
     setSubmitting(true);
-    const { error } = await authSignInWithEmail({ email: e, password });
-    setSubmitting(false);
+    const { data, error } = await authSignInWithEmail({ email: e, password });
     if (error) {
+      setSubmitting(false);
       const msg = (error.message || "").toLowerCase();
       if (msg.includes("email not confirmed")) {
         setFormError("Please verify your email first — check your inbox for the confirmation link.");
@@ -65,7 +65,17 @@ function AuthScreen({ onRegister, onBack, onBackToLanding, pendingRegistration, 
       }
       return;
     }
-    // App.jsx's onAuthStateChange listener will pick up the session and route.
+    // Direct-route using the session returned from signInWithPassword and
+    // the clients state that was loaded at app mount — skips the flaky
+    // post-sign-in REST round-trip that was leaving users stuck on this
+    // screen until they manually refreshed during Supabase outages.
+    if (onClientSignedIn && data?.session) {
+      onClientSignedIn(data.session);
+      // Don't setSubmitting(false) — parent will unmount this screen.
+      return;
+    }
+    setSubmitting(false);
+    // Fallback: App.jsx's onAuthStateChange listener will pick up the session.
   };
 
   const handleSignup = async () => {
