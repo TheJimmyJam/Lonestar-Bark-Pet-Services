@@ -7,6 +7,7 @@ import {
   loadClientMessages, saveClientMessage,
   loadAllWalkersAvailability,
   saveContactSubmission,
+  validateDiscountCode, redeemDiscountCode,
 } from "../../supabase.js";
 import {
   effectivePrice, getWalkerPayout,
@@ -269,6 +270,10 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
   const [submitError, setSubmitError] = useState("");
   const [payingBookingKey, setPayingBookingKey] = useState(null); // prevents double-click on Pay Now buttons
   const [redeemFreeWalk, setRedeemFreeWalk] = useState(false);
+  const [discountCode, setDiscountCode] = useState("");
+  const [discountResult, setDiscountResult] = useState(null);
+  const [discountChecking, setDiscountChecking] = useState(false);
+  const [discountError, setDiscountError] = useState("");
   const [expandedWalker, setExpandedWalker] = useState(null);
   const [cancelConfirm, setCancelConfirm] = useState(null);
   const [cancelResult, setCancelResult] = useState(null); // { booking, refundAmount, refundPercent, hoursUntilWalk, bookingPrice }
@@ -607,7 +612,13 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         // Redirect to Stripe — emails fire after successful payment return
         const firstBooking = newBookings[0];
         const pricedBooking = bookingsWithStatus.find(b => b.key === firstBooking.key);
-        const amount = pricedBooking?.price || 0;
+        const baseAmount = pricedBooking?.price || 0;
+        const amount = (discountResult?.valid && discountResult.discount)
+          ? discountResult.discount.newAmount
+          : baseAmount;
+        if (discountResult?.valid && discountResult.discount?.id) {
+          redeemDiscountCode(discountResult.discount.id, client.email).catch(() => {});
+        }
         try {
           localStorage.setItem("dwi_stripe_return_clientId", clientPinKey);
           localStorage.setItem("dwi_pending_booking_keys", JSON.stringify(newBookings.map(b => b.key)));
@@ -673,6 +684,7 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
 
   const handleReset = () => {
     setStep("pick"); setSelectedSlot(null); setRedeemFreeWalk(false);
+    setDiscountCode(""); setDiscountResult(null); setDiscountError("");
     const pets = service === "dog" ? savedDogs : savedCats;
     setForm({ name: client.name || "", pet: pets.slice(-1)[0] || "", email: client.email, phone: client.phone || "", address: client.address || "", addrObj: client.addrObj || addrFromString(client.address || ""), walker: client.preferredWalker || client.keyholder || "", notes: client.notes || "" });
     setAdditionalDogs([]);
@@ -4181,6 +4193,45 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                   </div>
                 )}
 
+                {/* ── Discount Code ── */}
+                {requiresPayment && !redeemFreeWalk && (
+                  <div style={{ marginBottom: "14px" }}>
+                    {!discountResult?.valid ? (
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <input
+                          type="text"
+                          placeholder="Discount code"
+                          value={discountCode}
+                          onChange={e => { setDiscountCode(e.target.value.toUpperCase()); setDiscountError(""); }}
+                          style={{ flex: 1, padding: "11px 14px", borderRadius: "10px", border: discountError ? "1.5px solid #dc2626" : "1.5px solid #d1d5db", background: "#fff", fontSize: "15px", fontFamily: "'DM Sans', sans-serif", color: "#111827" }}
+                        />
+                        <button type="button" disabled={discountChecking || !discountCode.trim()} onClick={async () => {
+                          if (!discountCode.trim()) return;
+                          const slot = svc.slots.find(s => s.id === selectedWalk.slotId);
+                          const basePrice = slot ? getSessionPrice(selectedWalk.duration) : 0;
+                          setDiscountChecking(true); setDiscountError("");
+                          const result = await validateDiscountCode(discountCode.trim(), client.email, basePrice);
+                          setDiscountChecking(false);
+                          if (result.valid) { setDiscountResult(result); } else { setDiscountError(result.error); }
+                        }} style={{ padding: "11px 18px", borderRadius: "10px", border: "none", background: "#0B1423", color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, cursor: discountChecking || !discountCode.trim() ? "default" : "pointer", opacity: discountChecking || !discountCode.trim() ? 0.5 : 1, flexShrink: 0 }}>
+                          {discountChecking ? "Checking…" : "Apply"}
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ background: "#f0fdf4", border: "1.5px solid #86efac", borderRadius: "10px", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+                        <div>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 700, color: "#15803d" }}>🏷️ {discountResult.discount.code} applied!</div>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#16a34a", marginTop: "2px" }}>
+                            {discountResult.discount.discountType === "percent" ? `${discountResult.discount.discountValue}% off` : `$${discountResult.discount.discountValue.toFixed(2)} off`}{" · "}New total: <strong>${discountResult.discount.newAmount.toFixed(2)}</strong>
+                          </div>
+                        </div>
+                        <button type="button" onClick={() => { setDiscountResult(null); setDiscountCode(""); setDiscountError(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: "18px", padding: "0 4px", lineHeight: 1 }}>×</button>
+                      </div>
+                    )}
+                    {discountError && <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#dc2626", marginTop: "6px", paddingLeft: "2px" }}>{discountError}</div>}
+                  </div>
+                )}
+
                 <button onClick={handleSubmit} disabled={submitting} style={{ width: "100%",
                   padding: "16px", borderRadius: "12px", border: "none",
                   background: redeemFreeWalk ? "#059669" : svc.color,
@@ -4191,7 +4242,9 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
                     : redeemFreeWalk
                       ? `🎉 Confirm Free Walk${form.walker ? ` with ${firstName(form.walker)}` : ""}`
                       : requiresPayment
-                        ? `🔒 Proceed to Payment`
+                        ? discountResult?.valid
+                          ? `🔒 Proceed to Payment · $${discountResult.discount.newAmount.toFixed(2)}`
+                          : `🔒 Proceed to Payment`
                         : isRecurring
                           ? `Confirm Weekly ${svc.label}${form.walker ? ` with ${firstName(form.walker)}` : ""}`
                           : `Confirm ${svc.label} Appointment${form.walker ? ` with ${firstName(form.walker)}` : ""}`}
