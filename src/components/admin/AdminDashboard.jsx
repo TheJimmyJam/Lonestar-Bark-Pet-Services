@@ -40,7 +40,7 @@ import { generateRecurringBookings, extendRecurringBookings, spawnNextRecurringO
 import { GLOBAL_STYLES } from "../../styles.js";
 import { WALKER_CREDENTIALS, getAllWalkers, injectCustomWalkers } from "../auth/WalkerAuthScreen.jsx";
 import Header from "../shared/Header.jsx";
-import { SUPABASE_ANON_KEY, SUPABASE_URL, loadClients, loadTrades, loadWalkerProfiles, sendWalkerCancellationNotification, sendClientCancellationNotification, sendWalkerPing } from "../../supabase.js";
+import { SUPABASE_ANON_KEY, SUPABASE_URL, loadClients, loadTrades, loadWalkerProfiles, sendWalkerCancellationNotification, sendClientCancellationNotification, sendWalkerPing, loadDiscountCodes, saveDiscountCode, deleteDiscountCode } from "../../supabase.js";
 
 // ─── W9ViewButton ─────────────────────────────────────────────────────────────
 // Generates a 1-hour signed URL for a private W9 file and opens it in a new tab.
@@ -297,6 +297,21 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
   const [payrollStale, setPayrollStale] = useState(false);
   const [payrollSaveError, setPayrollSaveError] = useState("");
   const [confirmPayrollWalker, setConfirmPayrollWalker] = useState(null); // walkerName awaiting confirm
+
+  // ── Discount Codes ──────────────────────────────────────────────────────────
+  const [discountCodes, setDiscountCodes] = useState([]);
+  const [discountCodesLoading, setDiscountCodesLoading] = useState(false);
+  const [discountForm, setDiscountForm] = useState({ code: "", discountType: "fixed", discountValue: "", maxUses: "", expiresAt: "", source: "" });
+  const [discountFormError, setDiscountFormError] = useState("");
+  const [discountSaving, setDiscountSaving] = useState(false);
+  const [discountDeleteConfirm, setDiscountDeleteConfirm] = useState(null);
+
+  useEffect(() => {
+    if (tab === "discounts") {
+      setDiscountCodesLoading(true);
+      loadDiscountCodes().then(codes => { setDiscountCodes(codes); setDiscountCodesLoading(false); });
+    }
+  }, [tab]);
 
   // ── Team Chat ───────────────────────────────────────────────────────────────
   const [chatMessages, setChatMessages] = useState([]);
@@ -577,6 +592,7 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
     { id: "chat",          label: "Team Chat",      icon: "💬" },
     { id: "map",           label: "Map",            icon: "🗺️" },
     { id: "admins",        label: "Admins",         icon: "🛡️" },
+    { id: "discounts",     label: "Discounts",      icon: "🏷️" },
     { id: "myinfo",        label: "My Info",        icon: "👤" },
     { id: "contact",       label: "Contact",        icon: "📨" },
     { id: "audit",         label: "Audit Log",      icon: "🕵️" },
@@ -7097,6 +7113,122 @@ function AdminDashboard({ admin, setAdmin, clients, setClients, walkerProfiles, 
         {/* ── Contact Submissions ── */}
         {tab === "contact" && (
           <AdminContactTab />
+        )}
+
+        {/* ── Discounts ── */}
+        {tab === "discounts" && (
+          <div className="app-container">
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "22px", fontWeight: 700, color: "#111827", marginBottom: "4px" }}>🏷️ Discount Codes</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6b7280", marginBottom: "28px" }}>Create codes for promotions, apartment complexes, and campaigns.</div>
+
+            {/* Create form */}
+            <div style={{ background: "#fff", border: "1.5px solid #e5e7eb", borderRadius: "16px", padding: "20px 20px 24px", marginBottom: "28px" }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "1.2px" }}>New Code</div>
+
+              <div style={{ display: "flex", gap: "10px", marginBottom: "12px", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 140px" }}>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 600, color: "#9ca3af", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.7px" }}>Code</label>
+                  <input placeholder="e.g. OAK10" value={discountForm.code} onChange={e => setDiscountForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} style={{ width: "100%", padding: "10px 12px", borderRadius: "9px", border: "1.5px solid #d1d5db", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#111827" }} />
+                </div>
+                <div style={{ flex: "2 1 200px" }}>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 600, color: "#9ca3af", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.7px" }}>Source / Campaign</label>
+                  <input placeholder="e.g. Oakwood Apartments" value={discountForm.source} onChange={e => setDiscountForm(f => ({ ...f, source: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: "9px", border: "1.5px solid #d1d5db", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#111827" }} />
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "10px", marginBottom: "14px", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 120px" }}>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 600, color: "#9ca3af", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.7px" }}>Type</label>
+                  <select value={discountForm.discountType} onChange={e => setDiscountForm(f => ({ ...f, discountType: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: "9px", border: "1.5px solid #d1d5db", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#111827", background: "#fff" }}>
+                    <option value="fixed">Fixed $</option>
+                    <option value="percent">Percent %</option>
+                  </select>
+                </div>
+                <div style={{ flex: "1 1 100px" }}>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 600, color: "#9ca3af", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.7px" }}>Value</label>
+                  <input type="number" min="0" placeholder={discountForm.discountType === "percent" ? "10" : "5.00"} value={discountForm.discountValue} onChange={e => setDiscountForm(f => ({ ...f, discountValue: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: "9px", border: "1.5px solid #d1d5db", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#111827" }} />
+                </div>
+                <div style={{ flex: "1 1 100px" }}>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 600, color: "#9ca3af", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.7px" }}>Max Uses</label>
+                  <input type="number" min="1" placeholder="Unlimited" value={discountForm.maxUses} onChange={e => setDiscountForm(f => ({ ...f, maxUses: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: "9px", border: "1.5px solid #d1d5db", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#111827" }} />
+                </div>
+                <div style={{ flex: "1 1 140px" }}>
+                  <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 600, color: "#9ca3af", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.7px" }}>Expires</label>
+                  <input type="date" value={discountForm.expiresAt} onChange={e => setDiscountForm(f => ({ ...f, expiresAt: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: "9px", border: "1.5px solid #d1d5db", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#111827" }} />
+                </div>
+              </div>
+
+              {discountFormError && <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#dc2626", marginBottom: "10px" }}>{discountFormError}</div>}
+
+              <button disabled={discountSaving} onClick={async () => {
+                if (!discountForm.code.trim()) { setDiscountFormError("Code is required."); return; }
+                if (!discountForm.discountValue || isNaN(Number(discountForm.discountValue)) || Number(discountForm.discountValue) <= 0) { setDiscountFormError("Enter a valid discount value."); return; }
+                if (discountForm.discountType === "percent" && Number(discountForm.discountValue) > 100) { setDiscountFormError("Percent discount can't exceed 100."); return; }
+                setDiscountFormError(""); setDiscountSaving(true);
+                try {
+                  await saveDiscountCode({ code: discountForm.code, discountType: discountForm.discountType, discountValue: discountForm.discountValue, maxUses: discountForm.maxUses || null, expiresAt: discountForm.expiresAt ? new Date(discountForm.expiresAt + "T23:59:59").toISOString() : null, source: discountForm.source, active: true });
+                  setDiscountForm({ code: "", discountType: "fixed", discountValue: "", maxUses: "", expiresAt: "", source: "" });
+                  setDiscountCodes(await loadDiscountCodes());
+                } catch (e) { setDiscountFormError(e.message || "Could not save."); }
+                setDiscountSaving(false);
+              }} style={{ padding: "11px 24px", borderRadius: "10px", border: "none", background: "#C4541A", color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 700, cursor: discountSaving ? "wait" : "pointer", opacity: discountSaving ? 0.6 : 1 }}>
+                {discountSaving ? "Saving…" : "Create Code"}
+              </button>
+            </div>
+
+            {/* Code list */}
+            {discountCodesLoading ? (
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af", textAlign: "center", padding: "32px 0" }}>Loading…</div>
+            ) : discountCodes.length === 0 ? (
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#9ca3af", textAlign: "center", padding: "32px 0" }}>No discount codes yet.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {discountCodes.map(dc => {
+                  const expired = dc.expiresAt && new Date(dc.expiresAt) < new Date();
+                  const maxed = dc.maxUses && dc.usesCount >= dc.maxUses;
+                  const inactive = !dc.active || expired || maxed;
+                  return (
+                    <div key={dc.id} style={{ background: "#fff", border: `1.5px solid ${inactive ? "#f3f4f6" : "#e5e7eb"}`, borderRadius: "13px", padding: "16px 18px", opacity: inactive ? 0.7 : 1 }}>
+                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
+                            <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: "16px", color: "#111827", letterSpacing: "1px" }}>{dc.code}</span>
+                            {inactive
+                              ? <span style={{ background: "#f3f4f6", color: "#9ca3af", fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "20px", fontFamily: "'DM Sans', sans-serif" }}>{expired ? "EXPIRED" : maxed ? "MAXED" : "INACTIVE"}</span>
+                              : <span style={{ background: "#f0fdf4", color: "#15803d", fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "20px", fontFamily: "'DM Sans', sans-serif" }}>ACTIVE</span>
+                            }
+                            {dc.source && <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#6b7280", background: "#f9fafb", padding: "2px 8px", borderRadius: "20px", border: "1px solid #e5e7eb" }}>{dc.source}</span>}
+                          </div>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#374151" }}>
+                            {dc.discountType === "percent" ? `${dc.discountValue}% off` : `$${Number(dc.discountValue).toFixed(2)} off`}
+                            {" · "}
+                            <span style={{ color: dc.usesCount > 0 ? "#C4541A" : "#6b7280" }}>{dc.usesCount} use{dc.usesCount !== 1 ? "s" : ""}{dc.maxUses ? ` / ${dc.maxUses} max` : ""}</span>
+                            {dc.expiresAt && <span style={{ color: "#9ca3af" }}>{" · "}Expires {new Date(dc.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>}
+                          </div>
+                          {dc.usedBy && dc.usedBy.length > 0 && (
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#9ca3af", marginTop: "4px" }}>Used by: {dc.usedBy.join(", ")}</div>
+                          )}
+                        </div>
+                        <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+                          <button onClick={async () => { await saveDiscountCode({ ...dc, active: !dc.active }); setDiscountCodes(await loadDiscountCodes()); }} style={{ padding: "6px 14px", borderRadius: "8px", border: "1.5px solid #d1d5db", background: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 500, color: "#374151", cursor: "pointer" }}>
+                            {dc.active ? "Deactivate" : "Activate"}
+                          </button>
+                          {discountDeleteConfirm === dc.id ? (
+                            <div style={{ display: "flex", gap: "6px" }}>
+                              <button onClick={async () => { await deleteDiscountCode(dc.id); setDiscountDeleteConfirm(null); setDiscountCodes(await loadDiscountCodes()); }} style={{ padding: "6px 12px", borderRadius: "8px", border: "none", background: "#dc2626", color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Confirm Delete</button>
+                              <button onClick={() => setDiscountDeleteConfirm(null)} style={{ padding: "6px 12px", borderRadius: "8px", border: "1.5px solid #d1d5db", background: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "13px", cursor: "pointer" }}>Cancel</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setDiscountDeleteConfirm(dc.id)} style={{ padding: "6px 10px", borderRadius: "8px", border: "1.5px solid #fecaca", background: "#fff", color: "#dc2626", fontFamily: "'DM Sans', sans-serif", fontSize: "13px", cursor: "pointer" }}>Delete</button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
 
         {/* ── Audit Log ── */}
