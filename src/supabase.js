@@ -15,43 +15,44 @@ const edgeHeaders = {
 
 const SESSION_STORAGE_KEY = "lsbc-auth-session";
 
-// Pre-init guard: if a previously-stored session is already expired, nuke it
-// before the Supabase client boots so we never send an expired Bearer token.
-// Stale tokens were causing 401s on every REST call, which made admin/walker
-// lookups come back empty ("No admin account found for this email").
+// Pre-init guard: if the stored session's access_token is already expired,
+// clear it before the Supabase client boots. This prevents the SDK from
+// acquiring the internal auth lock to refresh a dead token on startup —
+// which would block every subsequent supabase.auth call (including
+// signInWithPassword) until the refresh either completes or times out. On
+// a slow Supabase response (or a rotated/revoked refresh_token from an
+// outage) that's 30+ seconds of "Loading…" screen + broken logins.
+//
+// Only clears when the access_token is actually past expiry — fresh
+// sessions on a quick reload are untouched, so normal users stay signed in.
 try {
-  if (typeof localStorage !== "undefined") {
-    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      const expiresAt = parsed?.expires_at;
-      // No expiry info, or already past expiry → discard.
-      if (!expiresAt || Date.now() / 1000 >= expiresAt) {
-        localStorage.removeItem(SESSION_STORAGE_KEY);
-      }
+  const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+  if (raw) {
+    const parsed = JSON.parse(raw);
+    const expiresAt = parsed?.expires_at;
+    if (!expiresAt || Date.now() / 1000 > expiresAt) {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
     }
   }
 } catch {}
 
-// Synchronously read a still-valid access token from localStorage. Returns
-// null when the session is missing, malformed, or within 30s of expiry.
-// Used by sbFetch so we never attach an expired/expiring JWT on REST calls —
-// in that case we fall back to the anon key and the request still goes
-// through (RLS just treats it as an anonymous request).
+// Read the access_token directly from localStorage — synchronous, never
+// blocks on the SDK's auth lock. Returns null if the session is missing or
+// the access_token is expired. Used by sbFetch so REST calls never hang on
+// the Supabase Auth SDK during init or token-refresh.
 function readValidAccessTokenFromStorage() {
   try {
-    if (typeof localStorage === "undefined") return null;
     const raw = localStorage.getItem(SESSION_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    const token = parsed?.access_token;
     const expiresAt = parsed?.expires_at;
+    const token = parsed?.access_token;
     if (!token || !expiresAt) return null;
+    // Treat tokens within 30s of expiry as expired — avoids sending a token
+    // that the Supabase gateway will reject mid-flight.
     if (Date.now() / 1000 >= expiresAt - 30) return null;
     return token;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 // Supabase JS client — used only for client-facing Auth (email/password,
@@ -84,56 +85,60 @@ async function sbFetch(path, options = {}, { retries = 1, retryDelay = 1200 } = 
   // Use the current Supabase session JWT when available so RLS can identify
   // the caller. Falls back to the anon key for unauthenticated operations.
   //
-  // IMPORTANT: we read the token synchronously from localStorage and verify
-  // its expiry ourselves instead of calling supabase.auth.getSession(). That
-  // call can hang on the SDK's internal auth lock (deadlocking parallel
-  // loaders) AND returns expired tokens without refreshing them, which was
-  // causing 401s after the Supabase outage. If the stored token is missing
-  // or expired, we attach the anon key — the request still succeeds for
-  // anonymous-readable rows, and RLS rejects the rest with a clean error.
+  // We read the token straight from localStorage rather than calling
+  // supabase.auth.getSession() — getSession() can contend with the SDK's
+  // internal auth lock during a background refresh and block sbFetch for
+  // tens of seconds. localStorage read is synchronous and never blocks.
+  // An expired access_token returns null here (never attached to a request),
+  // which prevents the "Supabase rejects expired JWT → loadAdminList fails →
+  // 'No admin account found'" failure mode users were hitting.
+  let authToken = SUPABASE_ANON_KEY;
   const storedToken = readValidAccessTokenFromStorage();
-  const authToken = storedToken || SUPABASE_ANON_KEY;
+  if (storedToken) authToken = storedToken;
 
-  const doFetch = () => fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    ...options,
-    headers: {
-      "apikey": SUPABASE_ANON_KEY,       // always the publishable anon key
-      "Authorization": `Bearer ${authToken}`, // session JWT when logged in
-      "Content-Type": "application/json",
-      "Prefer": "return=representation",
-      ...(options.headers || {}),
-    },
-  });
+  const FETCH_TIMEOUT_MS = 8000;
+  const doFetch = (tokenOverride) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const effectiveToken = tokenOverride || authToken;
+    return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,       // always the publishable anon key
+        "Authorization": `Bearer ${effectiveToken}`, // session JWT when logged in
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+        ...(options.headers || {}),
+      },
+    }).finally(() => clearTimeout(timer));
+  };
 
   let lastErr;
+  let anonFallbackTried = false;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await doFetch();
       if (!res.ok) {
-        // If the token we attached was somehow rejected as unauthorized,
-        // retry once with the anon key before giving up. Catches the edge
-        // case where the stored JWT is still within its exp window but was
-        // invalidated server-side (password change, key rotation, etc).
-        if ((res.status === 401 || res.status === 403) && authToken !== SUPABASE_ANON_KEY) {
+        // If the session JWT is rejected (401/403: "JWT expired", "invalid
+        // JWT", etc.) retry immediately with the anon key before surfacing
+        // the error. This matters on boot when Supabase may have invalidated
+        // a still-locally-valid-looking token (e.g. user deleted, key rotated,
+        // outage recovery), and the request only needs anon read access
+        // (loadAdminList, loadClients, loadWalkerProfiles, etc.). Without this
+        // fallback those reads fail → admin list goes to DEFAULT_ADMIN →
+        // "No admin account found for this email."
+        if ((res.status === 401 || res.status === 403)
+            && authToken !== SUPABASE_ANON_KEY
+            && !anonFallbackTried) {
+          anonFallbackTried = true;
           try {
-            if (typeof localStorage !== "undefined") {
-              localStorage.removeItem(SESSION_STORAGE_KEY);
+            const anonRes = await doFetch(SUPABASE_ANON_KEY);
+            if (anonRes.ok) {
+              const anonText = await anonRes.text();
+              return anonText ? JSON.parse(anonText) : null;
             }
-          } catch {}
-          const retryRes = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-            ...options,
-            headers: {
-              "apikey": SUPABASE_ANON_KEY,
-              "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-              "Content-Type": "application/json",
-              "Prefer": "return=representation",
-              ...(options.headers || {}),
-            },
-          });
-          if (retryRes.ok) {
-            const retryText = await retryRes.text();
-            return retryText ? JSON.parse(retryText) : null;
-          }
+          } catch { /* fall through to original error */ }
         }
         const err = await res.text();
         throw new Error(`Supabase error: ${err}`);
@@ -676,6 +681,133 @@ async function setWalkerAuthPin(email, pin, name) {
   }
 }
 
+// ─── Discount Codes ───────────────────────────────────────────────────────────
+
+async function loadDiscountCodes() {
+  try {
+    const rows = await sbFetch("discount_codes?select=*&order=created_at.desc");
+    return (rows || []).map(r => ({
+      id: r.id,
+      code: r.code,
+      discountType: r.discount_type,   // "fixed" | "percent"
+      discountValue: r.discount_value,
+      maxUses: r.max_uses,             // null = unlimited
+      usesCount: r.uses_count || 0,
+      usedBy: r.used_by || [],         // array of emails
+      expiresAt: r.expires_at,         // ISO date string or null
+      source: r.source || "",
+      active: r.active !== false,
+      createdAt: r.created_at,
+    }));
+  } catch (e) {
+    console.error("loadDiscountCodes failed:", e);
+    return [];
+  }
+}
+
+async function saveDiscountCode(code) {
+  try {
+    const row = {
+      code:           code.code.toUpperCase().trim(),
+      discount_type:  code.discountType,
+      discount_value: Number(code.discountValue),
+      max_uses:       code.maxUses ? Number(code.maxUses) : null,
+      uses_count:     code.usesCount || 0,
+      used_by:        code.usedBy || [],
+      expires_at:     code.expiresAt || null,
+      source:         code.source || "",
+      active:         code.active !== false,
+      created_at:     code.createdAt || new Date().toISOString(),
+    };
+    if (code.id) {
+      await sbFetch(`discount_codes?id=eq.${code.id}`, {
+        method: "PATCH",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify(row),
+      });
+    } else {
+      const result = await sbFetch("discount_codes", {
+        method: "POST",
+        body: JSON.stringify(row),
+      });
+      return Array.isArray(result) ? result[0] : result;
+    }
+  } catch (e) {
+    console.error("saveDiscountCode failed:", e);
+    throw new Error("Could not save discount code.");
+  }
+}
+
+async function deleteDiscountCode(id) {
+  try {
+    await sbFetch(`discount_codes?id=eq.${id}`, {
+      method: "DELETE",
+      headers: { "Prefer": "" },
+    });
+  } catch (e) {
+    console.error("deleteDiscountCode failed:", e);
+  }
+}
+
+// Returns { valid: true, discount: {...} } or { valid: false, error: "..." }
+async function validateDiscountCode(codeStr, clientEmail, originalAmount) {
+  try {
+    const rows = await sbFetch(
+      `discount_codes?code=eq.${encodeURIComponent(codeStr.toUpperCase().trim())}&active=eq.true&select=*`
+    );
+    if (!rows || rows.length === 0) return { valid: false, error: "Code not found or inactive." };
+    const r = rows[0];
+    if (r.expires_at && new Date(r.expires_at) < new Date()) return { valid: false, error: "This code has expired." };
+    if (r.max_uses && (r.uses_count || 0) >= r.max_uses) return { valid: false, error: "This code has reached its maximum uses." };
+    const usedBy = r.used_by || [];
+    if (clientEmail && usedBy.includes(clientEmail.toLowerCase())) return { valid: false, error: "You've already used this code." };
+    const value = Number(r.discount_value);
+    let discountAmount = 0;
+    if (r.discount_type === "percent") {
+      discountAmount = (originalAmount * value) / 100;
+    } else {
+      discountAmount = value;
+    }
+    discountAmount = Math.round(Math.min(originalAmount, discountAmount) * 100) / 100;
+    const newAmount = Math.round(Math.max(0, originalAmount - discountAmount) * 100) / 100;
+    return {
+      valid: true,
+      discount: {
+        id: r.id,
+        code: r.code,
+        discountType: r.discount_type,
+        discountValue: value,
+        discountAmount,
+        newAmount,
+      },
+    };
+  } catch (e) {
+    console.error("validateDiscountCode failed:", e);
+    return { valid: false, error: "Could not validate code. Please try again." };
+  }
+}
+
+// Increments uses_count and appends clientEmail to used_by — call at booking submit
+async function redeemDiscountCode(codeId, clientEmail) {
+  try {
+    const rows = await sbFetch(`discount_codes?id=eq.${codeId}&select=uses_count,used_by`);
+    if (!rows || rows.length === 0) return;
+    const r = rows[0];
+    const newUsesCount = (r.uses_count || 0) + 1;
+    const newUsedBy = [...(r.used_by || [])];
+    if (clientEmail && !newUsedBy.includes(clientEmail.toLowerCase())) {
+      newUsedBy.push(clientEmail.toLowerCase());
+    }
+    await sbFetch(`discount_codes?id=eq.${codeId}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ uses_count: newUsesCount, used_by: newUsedBy }),
+    });
+  } catch (e) {
+    console.error("redeemDiscountCode failed (non-fatal):", e);
+  }
+}
+
 export {
   SUPABASE_URL, SUPABASE_ANON_KEY,
   notifyAdmin, sbFetch,
@@ -695,7 +827,9 @@ export {
   DEFAULT_ADMIN, loadAdminList, saveAdminList, upsertAdminRow, removeAdminFromDB,
   loadContactSubmissions, saveContactSubmission, updateContactSubmission, deleteContactSubmission,
   sendInvoiceEmail, sendWelcomeEmail, sendBookingConfirmation, sendInvoicePaidEmail, sendWalkerBookingNotification, sendPinResetCode,
-  createBookingCheckout, createRefund, sendWalkerCancellationNotification, sendClientCancellationNotification,
+  createBookingCheckout, createRefund, sendWalkerCancellationNotification, sendClientCancellationNotification, sendWalkerPing,
+  // Discount codes
+  loadDiscountCodes, saveDiscountCode, deleteDiscountCode, validateDiscountCode, redeemDiscountCode,
   // Supabase Auth (clients)
   supabase,
   authSignUpWithEmail, authSignInWithEmail, authSignInWithGoogle,
@@ -1139,6 +1273,24 @@ async function sendPinResetCode({ name, email, code }) {
   }
 }
 
+async function sendWalkerPing({ walkerName, walkerEmail, unconfirmedWalks, totalWalks, adminName }) {
+  if (!walkerEmail) return;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/ping-walker`, {
+      method: "POST",
+      headers: edgeHeaders,
+      body: JSON.stringify({ walkerName, walkerEmail, unconfirmedWalks, totalWalks, adminName }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || "Ping failed");
+    console.log(`[sendWalkerPing] ${walkerEmail} → ${res.status}`, body);
+    return { success: true };
+  } catch (e) {
+    console.error("[sendWalkerPing] failed:", e);
+    return { success: false, error: e.message };
+  }
+}
+
 async function sendWalkerBookingNotification({ walkerName, walkerEmail, clientName, pet, service, date, day, time, duration, price }) {
   if (!walkerEmail) return;
   try {
@@ -1218,13 +1370,34 @@ async function authUpdatePassword(newPassword) {
   return { data, error };
 }
 
-async function authSignOut() {
-  try { await supabase.auth.signOut(); } catch (e) { console.error("[authSignOut]", e); }
+// local: true → clears session from localStorage only, no server-side revocation.
+// Use this in background cleanup paths (e.g. verifyStaleness) so the signOut
+// doesn't acquire the Supabase SDK auth lock for a network round-trip — which
+// would block every concurrent supabase.auth.getSession() call (including the
+// 5 sbFetch calls in the initial data load) and hang the "Loading…" screen.
+async function authSignOut({ local = false } = {}) {
+  try {
+    await supabase.auth.signOut(local ? { scope: "local" } : undefined);
+  } catch (e) { console.error("[authSignOut]", e); }
 }
 
 async function authGetSession() {
-  const { data } = await supabase.auth.getSession();
-  return data?.session || null;
+  // Race against a timeout so a stuck token-refresh (expired session in
+  // localStorage trying to call the Supabase auth endpoint) can never hang
+  // the caller indefinitely. On timeout we wipe the stale session key directly
+  // from localStorage — bypassing the SDK lock — so the next call returns null
+  // immediately instead of hanging again.
+  const TIMEOUT_MS = 5000;
+  const raceResult = await Promise.race([
+    supabase.auth.getSession().then(r => ({ timedOut: false, data: r.data })),
+    new Promise(resolve => setTimeout(() => resolve({ timedOut: true }), TIMEOUT_MS)),
+  ]);
+  if (raceResult.timedOut) {
+    // Clear the stale session directly so future getSession() calls are instant.
+    try { localStorage.removeItem("lsbc-auth-session"); } catch {}
+    return null;
+  }
+  return raceResult.data?.session || null;
 }
 
 function authOnChange(callback) {
@@ -1242,40 +1415,26 @@ function authOnChange(callback) {
 // anon key instead of the real JWT, causing RLS to block the read.
 async function loadClientByUserId(userId, accessToken = null) {
   if (!userId) return null;
-  const extraHeaders = accessToken
-    ? { "Authorization": `Bearer ${accessToken}` }
-    : {};
-
-  // Retry up to 3 times with backoff so a transient Supabase hiccup during
-  // login doesn't look like "user has no clients row". Return null ONLY when
-  // the query succeeds and genuinely returns no rows; throw on network /
-  // server error so handleSession can distinguish a brand-new signup (null)
-  // from a temporary failure (throw) and leave the user on the login screen
-  // instead of wrongly kicking them to the registration form.
-  let lastErr;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  try {
+    const extraHeaders = accessToken
+      ? { "Authorization": `Bearer ${accessToken}` }
+      : {};
+    const rows = await sbFetch(
+      `clients?user_id=eq.${encodeURIComponent(userId)}&select=pin,email,data,user_id`,
+      { headers: extraHeaders }
+    );
+    if (!rows || rows.length === 0) return null;
+    const row = rows[0];
     try {
-      const rows = await sbFetch(
-        `clients?user_id=eq.${encodeURIComponent(userId)}&select=pin,email,data,user_id`,
-        { headers: extraHeaders }
-      );
-      if (!rows || rows.length === 0) return null;
-      const row = rows[0];
-      try {
-        const parsed = JSON.parse(row.data);
-        return { ...parsed, pin: row.pin, user_id: row.user_id };
-      } catch {
-        return null;
-      }
-    } catch (e) {
-      lastErr = e;
-      if (attempt < 2) {
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-      }
+      const parsed = JSON.parse(row.data);
+      return { ...parsed, pin: row.pin, user_id: row.user_id };
+    } catch {
+      return null;
     }
+  } catch (e) {
+    console.error("[loadClientByUserId] failed:", e);
+    return null;
   }
-  console.error("[loadClientByUserId] failed after 3 attempts:", lastErr);
-  throw lastErr || new Error("loadClientByUserId: unknown failure");
 }
 
 // Generate a synthetic PIN for Supabase-Auth clients. The clients map is
