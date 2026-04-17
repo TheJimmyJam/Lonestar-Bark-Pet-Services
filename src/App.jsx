@@ -441,7 +441,21 @@ export default function LonestarBark() {
       const currentRole = selectedRoleRef.current;
       if (currentRole && currentRole !== "customer") return;
 
-      const existing = await loadClientByUserId(user.id, session?.access_token);
+      let existing;
+      try {
+        existing = await loadClientByUserId(user.id, session?.access_token);
+      } catch (lookupErr) {
+        // Transient network / Supabase error during the client lookup.
+        // The session is still valid in localStorage, so we leave the user
+        // on the login screen — a retry or refresh will re-fire SIGNED_IN or
+        // hit the cached session path and try again once Supabase recovers.
+        // Previously this path silently returned null and kicked the user
+        // to the registration form even though they had a clients row —
+        // which is why returning clients were stuck on the login screen
+        // after a successful sign-in during the April 2026 Supabase outage.
+        console.error("[handleSession] client lookup failed, staying on login:", lookupErr);
+        return;
+      }
       if (cancelled) return;
       if (existing) {
         // Returning client — route straight into the portal.

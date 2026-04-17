@@ -13,7 +13,6 @@ const edgeHeaders = {
   "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
 };
 
-// build-trigger-2
 const SESSION_STORAGE_KEY = "lsbc-auth-session";
 
 // Pre-init guard: if a previously-stored session is already expired, nuke it
@@ -1243,26 +1242,40 @@ function authOnChange(callback) {
 // anon key instead of the real JWT, causing RLS to block the read.
 async function loadClientByUserId(userId, accessToken = null) {
   if (!userId) return null;
-  try {
-    const extraHeaders = accessToken
-      ? { "Authorization": `Bearer ${accessToken}` }
-      : {};
-    const rows = await sbFetch(
-      `clients?user_id=eq.${encodeURIComponent(userId)}&select=pin,email,data,user_id`,
-      { headers: extraHeaders }
-    );
-    if (!rows || rows.length === 0) return null;
-    const row = rows[0];
+  const extraHeaders = accessToken
+    ? { "Authorization": `Bearer ${accessToken}` }
+    : {};
+
+  // Retry up to 3 times with backoff so a transient Supabase hiccup during
+  // login doesn't look like "user has no clients row". Return null ONLY when
+  // the query succeeds and genuinely returns no rows; throw on network /
+  // server error so handleSession can distinguish a brand-new signup (null)
+  // from a temporary failure (throw) and leave the user on the login screen
+  // instead of wrongly kicking them to the registration form.
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const parsed = JSON.parse(row.data);
-      return { ...parsed, pin: row.pin, user_id: row.user_id };
-    } catch {
-      return null;
+      const rows = await sbFetch(
+        `clients?user_id=eq.${encodeURIComponent(userId)}&select=pin,email,data,user_id`,
+        { headers: extraHeaders }
+      );
+      if (!rows || rows.length === 0) return null;
+      const row = rows[0];
+      try {
+        const parsed = JSON.parse(row.data);
+        return { ...parsed, pin: row.pin, user_id: row.user_id };
+      } catch {
+        return null;
+      }
+    } catch (e) {
+      lastErr = e;
+      if (attempt < 2) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+      }
     }
-  } catch (e) {
-    console.error("[loadClientByUserId] failed:", e);
-    return null;
   }
+  console.error("[loadClientByUserId] failed after 3 attempts:", lastErr);
+  throw lastErr || new Error("loadClientByUserId: unknown failure");
 }
 
 // Generate a synthetic PIN for Supabase-Auth clients. The clients map is
