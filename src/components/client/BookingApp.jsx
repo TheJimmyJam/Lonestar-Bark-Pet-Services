@@ -616,7 +616,22 @@ function BookingApp({ client, onLogout, clients, setClients, walkerProfiles = {}
         const amount = (discountResult?.valid && discountResult.discount)
           ? discountResult.discount.newAmount
           : baseAmount;
-        if (discountResult?.valid && discountResult.discount?.id) {
+        // If a discount was applied, stamp the discounted price onto the booking record
+        // so My Walks and the revenue tab reflect what was actually charged
+        if (discountResult?.valid && discountResult.discount && amount !== baseAmount) {
+          redeemDiscountCode(discountResult.discount.id, client.email).catch(() => {});
+          const discountedBookings = bookingsWithStatus.map(b =>
+            b.key === firstBooking.key
+              ? { ...b, price: amount, originalPrice: baseAmount,
+                  discountCode: discountResult.discount.code,
+                  discountAmount: discountResult.discount.discountAmount }
+              : b
+          );
+          const discountedWithStatus = { ...updatedWithStatus, bookings: discountedBookings };
+          const discountedClients = { ...updatedClients, [clientPinKey]: discountedWithStatus };
+          setClients(discountedClients);
+          await saveClients({ [clientPinKey]: discountedClients[clientPinKey] });
+        } else if (discountResult?.valid && discountResult.discount?.id) {
           redeemDiscountCode(discountResult.discount.id, client.email).catch(() => {});
         }
         try {
