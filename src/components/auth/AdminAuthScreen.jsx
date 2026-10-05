@@ -3,6 +3,8 @@ import { supabase, saveAdminList, upsertAdminRow, removeAdminFromDB } from "../.
 import LogoBadge from "../shared/LogoBadge.jsx";
 import { GLOBAL_STYLES } from "../../styles.js";
 
+const expandJimmy = v => (v.trim().toLowerCase() === "jimmy" ? "jimmy@cannoncodeconnect.com" : v);
+
 // ─── Admin Auth Screen ────────────────────────────────────────────────────────
 function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdminList }) {
   const STORAGE_KEY = "dw_admin_email";
@@ -27,7 +29,9 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
   }, []);
 
   const handleEmailSubmit = () => {
-    const e = email.trim().toLowerCase();
+    const expanded = expandJimmy(email);
+    if (expanded !== email) setEmail(expanded);
+    const e = expanded.trim().toLowerCase();
     if (!e || !e.includes("@")) { setEmailError("Enter a valid email."); return; }
     const found = adminList.find(a => a.email.toLowerCase() === e);
     if (!found) { setEmailError("No admin account found for this email."); return; }
@@ -143,7 +147,8 @@ function AdminAuthScreen({ onLogin, onBack, onBackToLanding, adminList, setAdmin
               Enter your admin email to continue.
             </div>
             <input
-              type="email" placeholder="you@example.com" value={email}
+              type="text" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false}
+              placeholder="you@example.com" value={email}
               onChange={e => { setEmail(e.target.value); setEmailError(""); }}
               onKeyDown={e => e.key === "Enter" && handleEmailSubmit()}
               style={{
